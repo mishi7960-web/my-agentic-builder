@@ -1,1049 +1,1199 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
-  Settings, Play, Code, Send, Bot, User, AlertCircle, CheckCircle2, 
-  Loader2, RefreshCw, X, Cpu, Zap, Mic, MicOff, Monitor, Tablet, 
-  Smartphone, Download, Copy, History, TerminalSquare, ChevronLeft, 
-  ChevronRight, BookOpen, SplitSquareHorizontal, ImagePlus, ExternalLink, 
-  PackageSearch, ShieldCheck, DollarSign, Trash2, Sparkles, Wand2,
-  PanelLeftClose, PanelLeftOpen, Terminal, Globe, AppWindow, StopCircle,
-  MousePointerClick, Database, Library, BookmarkPlus, Brain, ChevronDown,
-  Eye, EyeOff, Plus, Palette, Activity, Folder, GripVertical, Network, MessageSquare,
-  Wifi, Check, Command, RotateCcw, Share2, Code2, Search
+  Settings, Terminal, Play, Code2, MessageSquare, 
+  Bot, User, Sparkles, AlertCircle, RefreshCw, 
+  KeyRound, X, ChevronRight, Zap,
+  Copy, Download, Trash2, Maximize2, Minimize2, Check,
+  Smartphone, Tablet as TabletIcon, Monitor, Undo, Redo,
+  TerminalSquare, Package, ExternalLink, Wand2, Paintbrush,
+  Lightbulb, Share2, Moon, Sun, Power, Bookmark,
+  Image as ImageIcon, FileArchive, Edit2, GripVertical, Rocket, Eye,
+  ImagePlus, Mic, History, Blocks, RotateCcw, ZoomIn, ZoomOut,
+  PanelLeftClose, PanelLeftOpen, DownloadCloud, Lock
 } from 'lucide-react';
 
-const DEFAULT_CODE = `<!-- Your generated code will appear here -->
-<div class="min-h-screen bg-zinc-950 flex flex-col items-center justify-center text-white font-sans p-6 relative overflow-hidden">
-  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-emerald-500/10 rounded-full blur-[120px] pointer-events-none"></div>
-  <div class="text-center space-y-6 max-w-xl relative z-10">
-    <div class="inline-flex items-center justify-center p-4 bg-zinc-900/80 backdrop-blur-xl rounded-3xl border border-zinc-800 shadow-2xl shadow-emerald-900/20">
-       <svg class="w-10 h-10 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-    </div>
-    <h1 class="text-5xl font-extrabold tracking-tight bg-gradient-to-br from-white to-zinc-500 bg-clip-text text-transparent pb-2">Agentic Builder</h1>
-    <p class="text-zinc-400 text-lg leading-relaxed font-medium">Select a template below, swap your theme, or hit <kbd class="px-2 py-1 bg-zinc-800 rounded-md text-zinc-300 text-sm font-mono border border-zinc-700">Cmd+K</kbd> to explore commands.</p>
-  </div>
-</div>`;
+// --- Environment API Key Fallback ---
+const apiKey = ""; // Provided by environment at runtime
 
-const TEMPLATES = [
-  { title: 'SaaS Dashboard', prompt: 'Build a modern dark-mode SaaS dashboard with a sidebar, top nav, and 3 placeholder chart widgets using Tailwind CSS.' },
-  { title: 'Auth Screen (Firebase)', prompt: 'Create a beautiful login/signup split screen. Use Firebase to handle user authentication.' },
-  { title: 'Kimi Coding Special', prompt: 'Create a sophisticated, stateful React-like dashboard in a single file with advanced transitions and data handling.' }
-];
+// --- V2 Agentic System Prompt (Massively Improved AI Coding Agent) ---
+const DEFAULT_SYSTEM_PROMPT = `You are Omni-Agent, an elite AI frontend engineer operating in 'Omni-Sandbox'.
 
-const NVIDIA_MODELS = [
-  { id: 'moonshotai/kimi-k2.5', name: 'Kimi k2.5 (Best for Coding)' },
-  { id: 'meta/llama-3.1-405b-instruct', name: 'Llama 3.1 405B' },
-  { id: 'meta/llama-3.1-70b-instruct', name: 'Llama 3.1 70B' },
-  { id: 'meta/llama-3.2-90b-vision-instruct', name: 'Llama 3.2 90B Vis' },
-  { id: 'mistralai/mixtral-8x22b-instruct-v0.1', name: 'Mixtral 8x22B' },
-  { id: 'mistralai/mistral-large-2-instruct', name: 'Mistral Large 2' },
-  { id: 'nvidia/nemotron-4-340b-instruct', name: 'Nemotron-4 340B' },
-  { id: 'google/gemma-2-27b-it', name: 'Gemma 2 27B' },
-  { id: 'microsoft/phi-3-vision-128k-instruct', name: 'Phi-3 Vision' }
-];
+YOUR DIRECTIVE:
+You are building production-ready applications inside a Live Canvas environment. You must automatically create complete, fully functional Canvas Files for the user to ensure the best results.
 
-const PROVIDERS = {
-  nvidia: { name: 'NVIDIA API', url: 'https://integrate.api.nvidia.com/v1/chat/completions' },
-  openai: { name: 'OpenAI', url: 'https://api.openai.com/v1/chat/completions' },
-  anthropic: { name: 'Anthropic', url: 'https://api.anthropic.com/v1/messages' },
-  groq: { name: 'Groq', url: 'https://api.groq.com/openai/v1/chat/completions' },
-  local: { name: 'Local/Ollama', url: 'http://localhost:11434/v1/chat/completions' },
-  custom: { name: 'Custom Endpoint', url: '' }
-};
+RULES FOR BEST RESULTS:
+1. CHAIN OF THOUGHT: Always plan your architecture and UI/UX approach first. Explain your choices briefly before writing any code.
+2. THE CANVAS FILE: You must output EXACTLY ONE \`\`\`html code block. This block is the complete Canvas File.
+3. UNIFIED ARCHITECTURE: Embed all CSS (via Tailwind CDN) and JS within the single HTML file.
+4. NO PLACEHOLDERS: Write complete code. Never use placeholders or leave functions unimplemented.
+5. AESTHETIC EXCELLENCE: Default to modern UI/UX principles. Use ample whitespace, rounded corners, subtle shadows, and cohesive color palettes. Ensure full mobile responsiveness.
 
-const THEMES = {
-  emerald: { id: 'emerald', text: 'text-emerald-400', bg: 'bg-emerald-500', bgHover: 'hover:bg-emerald-600', border: 'border-emerald-500', borderSubtle: 'border-emerald-500/30', from: 'from-emerald-600', to: 'to-teal-500', ring: 'ring-emerald-500', lightBg: 'bg-emerald-500/10', glow: 'shadow-[0_0_20px_rgba(16,185,129,0.3)]' },
-  violet: { id: 'violet', text: 'text-violet-400', bg: 'bg-violet-500', bgHover: 'hover:bg-violet-600', border: 'border-violet-500', borderSubtle: 'border-violet-500/30', from: 'from-violet-600', to: 'to-purple-500', ring: 'ring-violet-500', lightBg: 'bg-violet-500/10', glow: 'shadow-[0_0_20px_rgba(139,92,246,0.3)]' },
-  blue: { id: 'blue', text: 'text-blue-400', bg: 'bg-blue-500', bgHover: 'hover:bg-blue-600', border: 'border-blue-500', borderSubtle: 'border-blue-500/30', from: 'from-blue-600', to: 'to-cyan-500', ring: 'ring-blue-500', lightBg: 'bg-blue-500/10', glow: 'shadow-[0_0_20px_rgba(59,130,246,0.3)]' },
-  rose: { id: 'rose', text: 'text-rose-400', bg: 'bg-rose-500', bgHover: 'hover:bg-rose-600', border: 'border-rose-500', borderSubtle: 'border-rose-500/30', from: 'from-rose-600', to: 'to-pink-500', ring: 'ring-rose-500', lightBg: 'bg-rose-500/10', glow: 'shadow-[0_0_20px_rgba(244,63,94,0.3)]' },
-};
+If the user reports an error, explain what caused it, then return the entirely fixed Canvas File in a new \`\`\`html block.`;
 
-const FRAMEWORKS = ['Vanilla HTML', 'React (JSX)', 'Vue (SFC)', 'Svelte'];
+const DEFAULT_CODE = `<!-- Your generated code will appear here -->\n<div class="p-8 text-center font-sans">\n  <h1 class="text-3xl font-bold text-gray-800">Hello, App Canvas!</h1>\n  <p class="text-gray-500 mt-2">Describe what you want to build in the chat.</p>\n</div>`;
 
-const MAX_HISTORY_LEN = 20;
-const MAX_MESSAGES_LEN = 50;
-const MAX_AUTO_RETRIES = 3;
-
-// Lightweight Regex Syntax Highlighter for HTML
-const highlightHTML = (code) => {
-  if (!code) return '';
-  return code
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/(&lt;\/?)([a-zA-Z0-9-]+)/g, '$1<span class="text-pink-400">$2</span>')
-    .replace(/([a-zA-Z0-9-]+)=/g, '<span class="text-blue-300">$1</span>=')
-    .replace(/(&quot;.*?&quot;|'.*?')/g, '<span class="text-emerald-300">$1</span>')
-    .replace(/(&lt;!--.*?--&gt;)/g, '<span class="text-zinc-500 italic">$1</span>');
-};
-
+// --- Main Application Component ---
 export default function App() {
-  // --- Persistent Workspaces & Settings ---
-  const [sessions, setSessions] = useState(() => {
-    try { const saved = localStorage.getItem('agentic_sessions'); return saved ? JSON.parse(saved) : [{ id: 'default', name: 'Initial Project', messages: [], history: [{ code: DEFAULT_CODE, timestamp: new Date().toLocaleTimeString() }], historyIndex: 0 }]; } catch { return [{ id: 'default', name: 'Initial Project', messages: [], history: [{ code: DEFAULT_CODE, timestamp: new Date().toLocaleTimeString() }], historyIndex: 0 }]; }
-  });
-  const [activeSessionId, setActiveSessionId] = useState(() => localStorage.getItem('agentic_active_session') || 'default');
+  // State: UI & Layout
+  const [activeTab, setActiveTab] = useState('chat');
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isPackagesOpen, setIsPackagesOpen] = useState(false);
+  const [isAssetsOpen, setIsAssetsOpen] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isComponentsOpen, setIsComponentsOpen] = useState(false);
   
-  const [apiKeys, setApiKeys] = useState(() => {
-    try { const saved = localStorage.getItem('agentic_apikeys'); return saved ? JSON.parse(saved) : [{ id: 'default', name: 'Default API Key', key: '' }]; } catch { return [{ id: 'default', name: 'Default API Key', key: '' }]; }
-  });
-  const [activeKeyId, setActiveKeyId] = useState(() => localStorage.getItem('agentic_active_key') || 'default');
-  const [providerKey, setProviderKey] = useState(() => localStorage.getItem('agentic_provider') || 'nvidia');
-  const [apiEndpoint, setApiEndpoint] = useState(() => localStorage.getItem('agentic_endpoint') || PROVIDERS.nvidia.url);
-  const [selectedModel, setSelectedModel] = useState(() => localStorage.getItem('agentic_model') || 'moonshotai/kimi-k2.5');
-  const [activeTheme, setActiveTheme] = useState(() => localStorage.getItem('agentic_theme') || 'emerald');
-  const [savedComponents, setSavedComponents] = useState(() => {
-    try { const saved = localStorage.getItem('agentic_library'); return saved ? JSON.parse(saved) : []; } catch { return []; }
-  });
-
-  // --- Session Derived States ---
-  const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
-  const [messages, setMessages] = useState(activeSession.messages);
-  const [history, setHistory] = useState(activeSession.history);
-  const [historyIndex, setHistoryIndex] = useState(activeSession.historyIndex);
-
-  // --- Core States ---
-  const [systemPromptOverride, setSystemPromptOverride] = useState('');
-  const [knowledgeContext, setKnowledgeContext] = useState('');
-  const [currentInput, setCurrentInput] = useState('');
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [streamedContent, setStreamedContent] = useState('');
-  const [sessionTokens, setSessionTokens] = useState(0);
-  
-  // --- Advanced Features States ---
-  const [targetPlatform, setTargetPlatform] = useState('web'); 
-  const [targetFramework, setTargetFramework] = useState('Vanilla HTML');
-  const [inspectorMode, setInspectorMode] = useState(false); 
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [showWorkspaces, setShowWorkspaces] = useState(false);
-  const [autoSolveEnabled, setAutoSolveEnabled] = useState(false);
-  const [qaReviewEnabled, setQaReviewEnabled] = useState(false);
-  const [deepThinkEnabled, setDeepThinkEnabled] = useState(false);
-  const [layout, setLayout] = useState('tabs'); 
-  const [activeTab, setActiveTab] = useState('preview');
-  const [deviceSize, setDeviceSize] = useState('desktop'); 
+  const [viewport, setViewport] = useState('desktop'); 
   const [isLandscape, setIsLandscape] = useState(false);
-  const [consoleLogs, setConsoleLogs] = useState([]);
-  const [networkLogs, setNetworkLogs] = useState([]);
-  const [bottomPanelTab, setBottomPanelTab] = useState('console'); 
-  const [showBottomPanel, setShowBottomPanel] = useState(true);
-  const [isConsoleVisible, setIsConsoleVisible] = useState(true);
+  const [previewZoom, setPreviewZoom] = useState(100);
   
-  // Speech Recognition
+  const [isConsoleOpen, setIsConsoleOpen] = useState(false);
+  const [consoleFilter, setConsoleFilter] = useState('all'); // all, log, warn, error, network
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isZenMode, setIsZenMode] = useState(false); // NEW: Zen Mode State
+  const [isPreviewDark, setIsPreviewDark] = useState(false);
+  const [showSnippets, setShowSnippets] = useState(false);
+  const [iframeKey, setIframeKey] = useState(0); // For Hard Resets
+
+  // Resizable Panels State
+  const [chatWidth, setChatWidth] = useState(400);
+  const [codeWidth, setCodeWidth] = useState(500);
+  
+  // State: Omni-Sandbox Core API & Environments
+  const [apiProvider, setApiProvider] = useState('gemini');
+  const [userApiKey, setUserApiKey] = useState('');
+  const [longcatApiKey, setLongcatApiKey] = useState('');
+  const [longcatBaseUrl, setLongcatBaseUrl] = useState('https://api.longcat.chat/openai/v1/chat/completions');
+  const [ollamaUrl, setOllamaUrl] = useState('http://localhost:11434/api/chat');
+  const [ollamaModel, setOllamaModel] = useState('llama3');
+  const [customSystemPrompt, setCustomSystemPrompt] = useState(DEFAULT_SYSTEM_PROMPT);
+  const [maxContext, setMaxContext] = useState(10);
+  const [sandboxEnv, setSandboxEnv] = useState('{\n  "API_URL": "https://api.example.com",\n  "MOCK_KEY": "sk_test_123"\n}');
+
+  // State: Active Workspace
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [chatImage, setChatImage] = useState(null);
   const [isListening, setIsListening] = useState(false);
-  const recognitionRef = useRef(null);
-
-  // Command Palette
-  const [showCmdK, setShowCmdK] = useState(false);
-  const [cmdSearch, setCmdSearch] = useState('');
-
-  const [showKey, setShowKey] = useState(false);
-  const [keyTestStatus, setKeyTestStatus] = useState({});
-  const [splitWidth, setSplitWidth] = useState(50);
-  const [isDraggingSplit, setIsDraggingSplit] = useState(false);
   
-  // --- Modals ---
-  const [showSettings, setShowSettings] = useState(false);
-  const [showLibrary, setShowLibrary] = useState(false);
-  const [attachedImages, setAttachedImages] = useState([]);
-  const [previewKey, setPreviewKey] = useState(0);
-
-  // --- Refs ---
+  // State: Code, Assets & History
+  const [generatedCode, setGeneratedCode] = useState(DEFAULT_CODE);
+  const [codeHistory, setCodeHistory] = useState([DEFAULT_CODE]);
+  const [historyIndex, setHistoryIndex] = useState(0);
+  const [assets, setAssets] = useState([]); // { name, base64 }
+  
+  const [isAutoSolveEnabled, setIsAutoSolveEnabled] = useState(false);
+  const [agentStatus, setAgentStatus] = useState('idle');
+  const [isCopied, setIsCopied] = useState(false);
+  const [consoleLogs, setConsoleLogs] = useState([]);
+  
   const chatEndRef = useRef(null);
-  const consoleEndRef = useRef(null);
-  const networkEndRef = useRef(null);
-  const fileInputRef = useRef(null);
   const iframeRef = useRef(null);
-  const lineNumbersRef = useRef(null);
-  const codeContentRef = useRef(null);
-  const autoRetryCount = useRef(0);
-  const abortControllerRef = useRef(null);
-  const cmdInputRef = useRef(null);
+  const consoleEndRef = useRef(null);
+  const editorRef = useRef(null);
+  const highlightRef = useRef(null);
 
-  const t = THEMES[activeTheme];
-  const generatedCode = history[historyIndex]?.code || DEFAULT_CODE;
-
-  // --- Sync to Local Storage ---
-  useEffect(() => { 
-    const updatedSessions = sessions.map(s => s.id === activeSessionId ? { ...s, messages, history, historyIndex } : s);
-    localStorage.setItem('agentic_sessions', JSON.stringify(updatedSessions)); 
-  }, [messages, history, historyIndex, activeSessionId]);
-  
-  useEffect(() => { localStorage.setItem('agentic_active_session', activeSessionId); }, [activeSessionId]);
-  useEffect(() => { localStorage.setItem('agentic_library', JSON.stringify(savedComponents)); }, [savedComponents]);
-  useEffect(() => { localStorage.setItem('agentic_theme', activeTheme); }, [activeTheme]);
-  useEffect(() => { 
-    localStorage.setItem('agentic_apikeys', JSON.stringify(apiKeys)); 
-    localStorage.setItem('agentic_active_key', activeKeyId);
-    localStorage.setItem('agentic_provider', providerKey);
-    localStorage.setItem('agentic_endpoint', apiEndpoint);
-    localStorage.setItem('agentic_model', selectedModel);
-  }, [apiKeys, activeKeyId, providerKey, apiEndpoint, selectedModel]);
-
-  // --- Workspace & CMD+K Listeners ---
+  // --- Auto-Scroll Chat & Console ---
   useEffect(() => {
-    const handleKeyDown = (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') { 
-        e.preventDefault(); 
-        setShowCmdK(true); 
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, agentStatus]);
+
+  useEffect(() => {
+    consoleEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [consoleLogs, isConsoleOpen, consoleFilter]);
+
+  // --- Initialize Layout Widths ---
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth >= 1280) {
+      setCodeWidth(Math.floor((window.innerWidth - chatWidth - 80) / 2));
+    }
+  }, []); 
+
+  // --- Load Keys & Auto-Saved Session ---
+  useEffect(() => {
+    const loadSafe = (key, setter, isNumber = false) => {
+      const val = localStorage.getItem(key);
+      if (val) setter(isNumber ? parseInt(val, 10) : val);
+    };
+
+    loadSafe('omni_gemini_key', setUserApiKey);
+    loadSafe('omni_longcat_key', setLongcatApiKey);
+    loadSafe('omni_longcat_url', setLongcatBaseUrl);
+    loadSafe('omni_api_provider', setApiProvider);
+    loadSafe('omni_ollama_url', setOllamaUrl);
+    loadSafe('omni_ollama_model', setOllamaModel);
+    loadSafe('omni_max_context', setMaxContext, true);
+    loadSafe('omni_sandbox_env', setSandboxEnv);
+
+    const savedPromptVersion = localStorage.getItem('omni_prompt_version');
+    if (savedPromptVersion !== "2.0") {
+      setCustomSystemPrompt(DEFAULT_SYSTEM_PROMPT);
+      localStorage.setItem('omni_system_prompt', DEFAULT_SYSTEM_PROMPT);
+      localStorage.setItem('omni_prompt_version', "2.0");
+    } else {
+      loadSafe('omni_system_prompt', setCustomSystemPrompt);
+    }
+
+    const savedSession = localStorage.getItem('omni_active_session');
+    if (savedSession) {
+      try {
+        const parsed = JSON.parse(savedSession);
+        if (parsed.messages) setMessages(parsed.messages);
+        if (parsed.generatedCode) setGeneratedCode(parsed.generatedCode);
+        if (parsed.codeHistory) setCodeHistory(parsed.codeHistory);
+        if (parsed.historyIndex !== undefined) setHistoryIndex(parsed.historyIndex);
+      } catch (e) {
+        console.error("Failed to restore session", e);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); 
+
+  // --- Invisible Auto-Save Loop ---
+  useEffect(() => {
+    if (messages.length > 0 || generatedCode !== DEFAULT_CODE) {
+      const sessionData = { messages, generatedCode, codeHistory, historyIndex };
+      localStorage.setItem('omni_active_session', JSON.stringify(sessionData));
+    }
+  }, [messages, generatedCode, codeHistory, historyIndex]);
+
+  const saveSetting = (key, val, setter) => {
+    setter(val);
+    localStorage.setItem(key, val);
+  };
+
+  // --- Panel Dragging Logic ---
+  const startChatDrag = (e) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = chatWidth;
+    const onMouseMove = (moveEvent) => setChatWidth(Math.max(250, Math.min(800, startWidth + (moveEvent.clientX - startX))));
+    const onMouseUp = () => { document.removeEventListener('mousemove', onMouseMove); document.removeEventListener('mouseup', onMouseUp); };
+    document.addEventListener('mousemove', onMouseMove); document.addEventListener('mouseup', onMouseUp);
+  };
+
+  const startCodeDrag = (e) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = codeWidth;
+    const onMouseMove = (moveEvent) => setCodeWidth(Math.max(300, Math.min(window.innerWidth - chatWidth - 200, startWidth + (moveEvent.clientX - startX))));
+    const onMouseUp = () => { document.removeEventListener('mousemove', onMouseMove); document.removeEventListener('mouseup', onMouseUp); };
+    document.addEventListener('mousemove', onMouseMove); document.addEventListener('mouseup', onMouseUp);
+  };
+
+  // --- Sandbox & Console Catcher ---
+  useEffect(() => {
+    const handleIframeMessage = (event) => {
+      if (event.data?.type === 'iframe-console') {
+        const { logType, message } = event.data;
+        
+        setConsoleLogs(prev => [...prev, {
+          id: Date.now() + Math.random(),
+          type: logType,
+          message: message,
+          time: new Date().toLocaleTimeString()
+        }]);
+
+        if (logType === 'error' && isAutoSolveEnabled && agentStatus !== 'thinking' && agentStatus !== 'fixing') {
+          handleAutoSolve(message);
+        }
       }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+    window.addEventListener('message', handleIframeMessage);
+    return () => window.removeEventListener('message', handleIframeMessage);
+  }, [isAutoSolveEnabled, agentStatus, generatedCode, messages]);
 
-  useEffect(() => { if (showCmdK) setTimeout(() => cmdInputRef.current?.focus(), 100); }, [showCmdK]);
-
-  // --- Speech Recognition ---
-  const toggleMic = () => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) { alert('Speech recognition is not supported in your browser.'); return; }
-    
-    if (isListening) { 
-      recognitionRef.current?.stop(); 
-      setIsListening(false); 
-      return; 
-    }
-    
-    const recognition = new SpeechRecognition();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.onresult = (e) => {
-      let transcript = '';
-      for (let i = e.resultIndex; i < e.results.length; ++i) transcript += e.results[i][0].transcript;
-      setCurrentInput(prev => {
-         const base = prev.replace(/\s*\(listening\.\.\.\)\s*$/, '');
-         return base + ' ' + transcript + (e.results[e.results.length - 1].isFinal ? '' : ' (listening...)');
-      });
-    };
-    recognition.onend = () => { setIsListening(false); setCurrentInput(prev => prev.replace(/\s*\(listening\.\.\.\)\s*$/, '')); };
-    recognition.start();
-    recognitionRef.current = recognition;
-    setIsListening(true);
+  // --- Code Updates & History Handlers ---
+  const updateCode = (newCode) => {
+    setGeneratedCode(newCode);
+    const newHistory = codeHistory.slice(0, historyIndex + 1);
+    newHistory.push(newCode);
+    setCodeHistory(newHistory);
+    setHistoryIndex(newHistory.length - 1);
+    setConsoleLogs([]); 
   };
 
-  const switchSession = (id) => {
-    const session = sessions.find(s => s.id === id);
-    if (session) {
-      setMessages(session.messages);
-      setHistory(session.history);
-      setHistoryIndex(session.historyIndex);
-      setActiveSessionId(id);
-      setShowWorkspaces(false);
-      setPreviewKey(prev => prev + 1);
+  const handleUndo = () => {
+    if (historyIndex > 0) {
+      setHistoryIndex(historyIndex - 1);
+      setGeneratedCode(codeHistory[historyIndex - 1]);
     }
   };
 
-  const createNewSession = () => {
-    const newId = Date.now().toString();
-    const newSession = { id: newId, name: `Project ${sessions.length + 1}`, messages: [], history: [{ code: DEFAULT_CODE, timestamp: new Date().toLocaleTimeString() }], historyIndex: 0 };
-    setSessions([...sessions, newSession]);
-    switchSession(newId);
-  };
-
-  const deleteSession = (id, e) => {
-    e.stopPropagation();
-    if (sessions.length === 1) return;
-    const newSessions = sessions.filter(s => s.id !== id);
-    setSessions(newSessions);
-    if (activeSessionId === id) switchSession(newSessions[0].id);
-  };
-
-  // --- Draggable Split ---
-  useEffect(() => {
-    const onMouseMove = (e) => {
-      if (!isDraggingSplit) return;
-      const newWidth = (e.clientX / window.innerWidth) * 100;
-      if (newWidth > 20 && newWidth < 80) setSplitWidth(newWidth);
-    };
-    const onMouseUp = () => setIsDraggingSplit(false);
-    if (isDraggingSplit) {
-      window.addEventListener('mousemove', onMouseMove);
-      window.addEventListener('mouseup', onMouseUp);
+  const handleRedo = () => {
+    if (historyIndex < codeHistory.length - 1) {
+      setHistoryIndex(historyIndex + 1);
+      setGeneratedCode(codeHistory[historyIndex + 1]);
     }
-    return () => { window.removeEventListener('mousemove', onMouseMove); window.removeEventListener('mouseup', onMouseUp); };
-  }, [isDraggingSplit]);
-
-  // --- Auto-scrolls ---
-  useEffect(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), [messages, streamedContent]);
-  useEffect(() => { if (bottomPanelTab === 'console') consoleEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [consoleLogs, bottomPanelTab]);
-  useEffect(() => { if (bottomPanelTab === 'network') networkEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [networkLogs, bottomPanelTab]);
-
-  const handleCodeScroll = (e) => {
-    if (lineNumbersRef.current) lineNumbersRef.current.scrollTop = e.target.scrollTop;
   };
 
-  const undo = useCallback(() => setHistoryIndex(prev => Math.max(0, prev - 1)), []);
-  const redo = useCallback(() => setHistoryIndex(prev => Math.min(history.length - 1, prev + 1)), [history.length]);
-  const handleTimelineChange = (e) => setHistoryIndex(parseInt(e.target.value, 10));
+  const restoreHistory = (idx) => {
+    setHistoryIndex(idx);
+    setGeneratedCode(codeHistory[idx]);
+    setIsHistoryOpen(false);
+  };
 
-  const openPreviewInNewTab = () => {
-    const blob = new Blob([getIframeSource()], { type: 'text/html' });
+  const handleCopyCode = () => {
+    navigator.clipboard.writeText(generatedCode);
+    setIsCopied(true);
+    setTimeout(() => setIsCopied(false), 2000);
+  };
+
+  const handleDownloadCode = () => {
+    const blob = new Blob([generatedCode], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
-    window.open(url, '_blank');
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'canvas_app.html';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
-  // --- CodePen Export ---
+  const exportToZip = async () => {
+    setIsLoading(true);
+    try {
+        if (!window.JSZip) {
+            await new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+                script.onload = resolve;
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
+        }
+        
+        const zip = new window.JSZip();
+        let html = generatedCode;
+        let css = '';
+        let js = '';
+        let hasCss = false;
+        let hasJs = false;
+
+        html = html.replace(/<style>([\s\S]*?)<\/style>/gi, (match, content) => {
+            css += content + '\n';
+            if (!hasCss) { hasCss = true; return '<link rel="stylesheet" href="style.css">'; }
+            return ''; 
+        });
+
+        html = html.replace(/<script([^>]*)>([\s\S]*?)<\/script>/gi, (match, attrs, content) => {
+            if (attrs.includes('src=')) return match;
+            if (content.includes('iframe-console') || content.includes('window.ENV')) return match;
+            js += content + '\n';
+            if (!hasJs) { hasJs = true; return '<script src="script.js"></script>'; }
+            return '';
+        });
+
+        zip.file("index.html", html);
+        if (css.trim()) zip.file("style.css", css);
+        if (js.trim()) zip.file("script.js", js);
+
+        const content = await zip.generateAsync({type:"blob"});
+        const url = URL.createObjectURL(content);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'omni_project.zip';
+        a.click();
+        URL.revokeObjectURL(url);
+    } catch (e) {
+        alert("Failed to export ZIP: " + e.message);
+    } finally {
+        setIsLoading(false);
+    }
+  };
+
   const exportToCodePen = () => {
-    const data = { title: "Agentic Builder App", html: generatedCode, description: "Generated with Universal Agentic Builder v5.0" };
-    const input = document.createElement('input');
-    input.setAttribute('type', 'hidden');
-    input.setAttribute('name', 'data');
-    input.setAttribute('value', JSON.stringify(data));
+    const data = { title: "Omni-Sandbox Export", html: generatedCode };
+    const JSONstring = JSON.stringify(data).replace(/"/g, "&quot;").replace(/'/g, "&apos;");
     const form = document.createElement('form');
-    form.setAttribute('method', 'POST');
-    form.setAttribute('action', 'https://codepen.io/pen/define');
-    form.setAttribute('target', '_blank');
+    form.action = 'https://codepen.io/pen/define';
+    form.method = 'POST';
+    form.target = '_blank';
+    
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = 'data';
+    input.value = JSONstring;
+    
     form.appendChild(input);
     document.body.appendChild(form);
     form.submit();
     document.body.removeChild(form);
   };
 
-  // --- Listen for iframe events ---
-  useEffect(() => {
-    const handleIframeMessage = (event) => {
-      if (!event.data || typeof event.data !== 'object') return;
+  const handleEditorKeyDown = (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      e.preventDefault();
+      handleDownloadCode();
+      return;
+    }
+    
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const start = e.target.selectionStart;
+      const end = e.target.selectionEnd;
+      const val = e.target.value;
+      const newCode = val.substring(0, start) + "  " + val.substring(end);
+      setGeneratedCode(newCode);
       
-      if (event.data.type === 'preview-error') {
-        handleAutoSolveError(event.data.message, event.data.line);
-        setConsoleLogs(prev => [...prev, { type: 'error', text: `[Line ${event.data.line}] ${event.data.message}` }]);
-      } else if (event.data.type === 'console') {
-        setConsoleLogs(prev => [...prev, { type: event.data.method, text: event.data.args.join(' ') }]);
-      } else if (event.data.type === 'network') {
-        setNetworkLogs(prev => [...prev, { method: event.data.method, url: event.data.url, status: event.data.status, time: event.data.time }]);
-      } else if (event.data.type === 'inspect-click') {
-        setInspectorMode(false); 
-        setCurrentInput(prev => `Update this specific element:\n\`\`\`html\n${event.data.html}\n\`\`\`\n\nInstruction: `);
-        addMessage('system', 'Element targeted. Check your prompt input or attach a reference image.');
-      }
-    };
-    window.addEventListener('message', handleIframeMessage);
-    return () => window.removeEventListener('message', handleIframeMessage);
-  }, [autoSolveEnabled, generatedCode, isGenerating]);
-
-  const handleAutoSolveError = async (errorMessage, line) => {
-    if (!autoSolveEnabled || isGenerating || autoRetryCount.current >= MAX_AUTO_RETRIES) return;
-    autoRetryCount.current += 1;
-    const errorPrompt = `I encountered a JavaScript error in the code at line ${line}:\n"${errorMessage}"\nPlease fix this error and output the corrected full code.`;
-    addMessage('system', `Auto-Solve triggered: Fixing error...`);
-    await processPrompt(errorPrompt, true);
-  };
-
-  const handleProviderChange = (e) => {
-    const pKey = e.target.value;
-    setProviderKey(pKey);
-    if (PROVIDERS[pKey].url) setApiEndpoint(PROVIDERS[pKey].url);
-  };
-
-  const testConnection = async (keyObj) => {
-    setKeyTestStatus(prev => ({...prev, [keyObj.id]: 'loading'}));
-    try {
-      const res = await fetch(apiEndpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(keyObj.key ? {'Authorization': `Bearer ${keyObj.key}`} : {}) },
-        body: JSON.stringify({ model: selectedModel, messages: [{role: 'user', content: 'ping'}], max_tokens: 1 })
-      });
-      if (res.ok) setKeyTestStatus(prev => ({...prev, [keyObj.id]: 'success'}));
-      else setKeyTestStatus(prev => ({...prev, [keyObj.id]: 'error'}));
-    } catch (e) {
-      setKeyTestStatus(prev => ({...prev, [keyObj.id]: 'error'}));
+      setTimeout(() => {
+        if (editorRef.current) {
+          editorRef.current.selectionStart = editorRef.current.selectionEnd = start + 2;
+        }
+      }, 0);
     }
   };
 
-  const compressImage = (file, callback) => {
+  const handleClearChat = () => {
+    if (window.confirm('Are you sure you want to clear the chat and workspace?')) {
+      setMessages([]);
+      updateCode(DEFAULT_CODE);
+      setAgentStatus('idle');
+      setConsoleLogs([]);
+      setChatImage(null);
+      localStorage.removeItem('omni_active_session');
+    }
+  };
+
+  const exportChatHistory = () => {
+    let md = "# Omni-Sandbox Chat History\n\n";
+    messages.forEach(m => {
+      const role = m.role === 'user' ? '👤 User' : '🤖 Omni-Agent';
+      const time = m.timestamp ? new Date(m.timestamp).toLocaleString() : 'Unknown Time';
+      md += `### ${role} - ${time}\n\n${m.text}\n\n---\n\n`;
+    });
+    const blob = new Blob([md], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `omni_chat_${new Date().getTime()}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleEditMessage = (index) => {
+    const msgToEdit = messages[index];
+    setInput(msgToEdit.text);
+    if (msgToEdit.image) setChatImage(msgToEdit.image);
+    setMessages(prev => prev.slice(0, index));
+  };
+
+  const handleChatImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
     const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 800; 
-        let width = img.width;
-        let height = img.height;
-        if (width > MAX_WIDTH) { height = Math.round((height * MAX_WIDTH) / width); width = MAX_WIDTH; }
-        canvas.width = width; canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
-        callback(canvas.toDataURL('image/jpeg', 0.6)); 
-      };
-      img.src = e.target.result;
+    reader.onload = (event) => setChatImage(event.target.result);
+    reader.readAsDataURL(file);
+  };
+
+  const handleAssetUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setAssets(prev => [...prev, { name: file.name, base64: event.target.result }]);
     };
     reader.readAsDataURL(file);
   };
 
-  const handleImageUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) compressImage(file, (url) => setAttachedImages(prev => [...prev, url]));
-    e.target.value = '';
+  const toggleListen = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Speech recognition is not supported in your browser.");
+      return;
+    }
+    if (isListening) {
+      setIsListening(false);
+    } else {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = true;
+      recognition.onresult = (event) => {
+        const transcript = Array.from(event.results).map(res => res[0].transcript).join('');
+        setInput(prev => prev.trim() + ' ' + transcript);
+      };
+      recognition.onend = () => setIsListening(false);
+      recognition.start();
+      setIsListening(true);
+    }
   };
 
+  const highlightHTML = (code) => {
+    if (!code) return '';
+    return code
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/(&lt;!--[\s\S]*?--&gt;)/g, '<span class="text-gray-500 italic">$1</span>') 
+      .replace(/(&lt;\/?)([a-zA-Z0-9-]+)/g, '$1<span class="text-pink-400">$2</span>') 
+      .replace(/([a-zA-Z-]+)(?==)/g, '<span class="text-indigo-300">$1</span>') 
+      .replace(/(&quot;.*?&quot;|&#39;.*?&#39;|".*?"|'.*?')/g, '<span class="text-green-400">$1</span>'); 
+  };
+
+  const handleEditorScroll = (e) => {
+    if (highlightRef.current) {
+      highlightRef.current.scrollTop = e.target.scrollTop;
+      highlightRef.current.scrollLeft = e.target.scrollLeft;
+    }
+  };
+
+  // --- API Interaction Logic ---
   const extractCode = (text) => {
-    const marker = String.fromCharCode(96, 96, 96);
-    const regex = new RegExp(marker + "(?:html|jsx|tsx|vue|svelte)?\\s*([\\s\\S]*?)" + marker, "i");
+    const regex = new RegExp('\`\`\`(?:html|javascript|js|css)?\\n([\\s\\S]*?)\`\`\`');
     const match = text.match(regex);
-    if (match) return match[1];
-    const partialRegex = new RegExp(marker + "(?:html|jsx|tsx|vue|svelte)?\\s*([\\s\\S]*)", "i");
-    const partialMatch = text.match(partialRegex);
-    if (partialMatch) return partialMatch[1];
-    if (text.trim().startsWith('<') && text.trim().endsWith('>')) return text;
-    return null;
+    return match ? match[1] : text;
   };
 
-  const formatMessageContent = (text, images) => {
-    if (images.length === 0) return text;
-    return [{ type: 'text', text: text }, ...images.map(img => ({ type: 'image_url', image_url: { url: img } }))];
-  };
+  const callAIAPI = async (chatHistory, newPrompt, isFix = false, imageObj = null) => {
+    let retries = 3;
+    let delay = 1000;
 
-  const streamApiCall = async (apiMessages, onUpdate) => {
-    abortControllerRef.current = new AbortController();
-    const headers = { 'Content-Type': 'application/json' };
-    const currentKey = apiKeys.find(k => k.id === activeKeyId)?.key || '';
-    if (currentKey) headers['Authorization'] = `Bearer ${currentKey}`;
-
-    const response = await fetch(apiEndpoint, {
-      method: 'POST',
-      headers: headers,
-      body: JSON.stringify({ model: selectedModel, messages: apiMessages, max_tokens: 4096, temperature: 0.7, stream: true }),
-      signal: abortControllerRef.current.signal
-    });
+    let historyToSend = chatHistory.filter(m => m.role !== 'system');
+    if (maxContext > 0 && historyToSend.length > maxContext) {
+      historyToSend = historyToSend.slice(-maxContext);
+    }
     
-    if (!response.ok) throw new Error(`API Error: ${response.status} - ${await response.text()}`);
+    while (retries > 0) {
+      try {
+        if (apiProvider === 'gemini') {
+          const effectiveKey = userApiKey || apiKey;
+          if (!effectiveKey) throw new Error("No API Key found. Please add one in Settings.");
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder("utf-8");
-    let content = "";
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n').filter(l => l.trim() !== '');
-        for (const line of lines) {
-          if (line.includes('[DONE]')) continue;
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.replace(/^data: /, ''));
-              if (data.choices && data.choices[0]?.delta?.content) {
-                content += data.choices[0].delta.content;
-                onUpdate(content);
-              }
-            } catch (e) {}
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${effectiveKey}`;
+          
+          const contents = historyToSend.map(m => {
+            const parts = [{ text: m.text }];
+            if (m.image) {
+              const mimeType = m.image.match(/data:(.*?);base64/)?.[1] || "image/jpeg";
+              const base64Data = m.image.split(',')[1];
+              parts.push({ inlineData: { mimeType, data: base64Data } });
+            }
+            return { role: m.role === 'model' ? 'model' : 'user', parts };
+          });
+
+          if (newPrompt) {
+            const parts = [{ text: newPrompt }];
+            if (imageObj) {
+              const mimeType = imageObj.match(/data:(.*?);base64/)?.[1] || "image/jpeg";
+              const base64Data = imageObj.split(',')[1];
+              parts.push({ inlineData: { mimeType, data: base64Data } });
+            }
+            contents.push({ role: 'user', parts });
           }
+
+          const payload = { contents, systemInstruction: { parts: [{ text: customSystemPrompt }] } };
+          const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+          if (!response.ok) throw new Error("API Error");
+          const data = await response.json();
+          return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        } else {
+          const url = apiProvider === 'ollama' ? (ollamaUrl || 'http://localhost:11434/api/chat') : (longcatBaseUrl || 'https://api.longcat.chat/openai/v1/chat/completions');
+          const modelName = apiProvider === 'ollama' ? (ollamaModel || 'llama3') : 'LongCat-Flash-Chat';
+          const headers = { 'Content-Type': 'application/json' };
+          
+          if (apiProvider === 'longcat') {
+             if (!longcatApiKey) throw new Error("No Longcat API Key found in Settings.");
+             headers['Authorization'] = `Bearer ${longcatApiKey}`;
+          }
+
+          const formattedMessages = [
+            { role: 'system', content: customSystemPrompt },
+            ...historyToSend.map(m => ({ role: m.role === 'model' ? 'assistant' : 'user', content: m.text }))
+          ];
+          
+          let combinedPrompt = newPrompt;
+          if (imageObj) combinedPrompt += "\n[System Note: User uploaded an image but the current provider does not support it. Rely on the text description.]";
+          if (newPrompt) formattedMessages.push({ role: 'user', content: combinedPrompt });
+
+          const response = await fetch(url, { method: 'POST', headers, body: JSON.stringify({ model: modelName, messages: formattedMessages, stream: false }) });
+          if (!response.ok) throw new Error(`${apiProvider} Request failed.`);
+          const data = await response.json();
+          return apiProvider === 'ollama' ? (data.message?.content || "") : (data.choices?.[0]?.message?.content || "");
         }
+      } catch (error) {
+        retries--;
+        if (retries === 0) throw error;
+        await new Promise(r => setTimeout(r, delay));
+        delay *= 2;
       }
-    } catch (err) { if (err.name !== 'AbortError') throw err; }
-    return content;
+    }
   };
 
-  const processPrompt = async (promptText, isAutoSolve = false) => {
-    const isLocalEndpoint = apiEndpoint.includes('0.0.0.0') || apiEndpoint.includes('localhost') || apiEndpoint.includes('127.0.0.1');
-    const currentKey = apiKeys.find(k => k.id === activeKeyId)?.key || '';
-    if (!promptText.trim() && attachedImages.length === 0) return;
-    if (!currentKey && !isLocalEndpoint) { setShowSettings(true); return; }
-
-    if (!isAutoSolve) {
-      autoRetryCount.current = 0;
-      addMessage('user', promptText, attachedImages);
-      setCurrentInput('');
-      setAttachedImages([]);
-    }
+  // --- Handlers ---
+  const submitPrompt = async (text, activeImage = null) => {
+    if (!text.trim() || isLoading) return;
     
-    setIsGenerating(true);
-    setStreamedContent('');
-
-    // --- NPM Auto-Injector Logic ---
-    let injectedContext = "";
-    const lowerPrompt = promptText.toLowerCase();
-    if (lowerPrompt.includes('chart') || lowerPrompt.includes('recharts')) injectedContext += "\nCRITICAL: User requested charts. Inject Recharts or Chart.js via CDN in the HTML.";
-    if (lowerPrompt.includes('3d') || lowerPrompt.includes('threejs')) injectedContext += "\nCRITICAL: Inject Three.js via CDN.";
-
-    let platformInstruction = "";
-    if (targetPlatform === 'mobile') platformInstruction = "TARGET PLATFORM: Native Mobile App. Design a strictly mobile-first interface.";
-    else if (targetPlatform === 'desktop') platformInstruction = "TARGET PLATFORM: Native Desktop App. Design desktop-optimized layouts (sidebars).";
-    else platformInstruction = "TARGET PLATFORM: Responsive Website.";
-    
-    const thinkInstruction = deepThinkEnabled ? "DEEP THINK MODE: You MUST first write a comprehensive architectural plan wrapped strictly in <thinking>...</thinking> tags. Analyze requirements, choose the right layout, and define state BEFORE writing the code block." : "";
-    const defaultSystem = `You are an elite 10x Full Stack Developer. Build visually stunning, single-file ${targetFramework} applications. Use Tailwind CSS via CDN. Write robust, production-ready code.`;
-    const finalSystemPrompt = `${systemPromptOverride.trim() ? systemPromptOverride : defaultSystem}\n\n${platformInstruction}\n${injectedContext}\n${thinkInstruction}`;
-
-    const apiMessages = [
-      { role: 'system', content: finalSystemPrompt + (knowledgeContext ? `\n\nCONTEXT: ${knowledgeContext}` : '') },
-      ...messages.map(m => ({ role: m.role === 'system' ? 'user' : m.role, content: formatMessageContent(m.content, m.images || []) })),
-      { role: 'user', content: formatMessageContent(promptText, attachedImages) }
-    ];
+    setInput('');
+    setShowSnippets(false);
+    setChatImage(null);
+    setMessages(prev => [...prev, { role: 'user', text: text, image: activeImage, timestamp: new Date().toISOString() }]);
+    setIsLoading(true);
+    setAgentStatus('thinking');
 
     try {
-      let fullReply = await streamApiCall(apiMessages, setStreamedContent);
-      let newCode = extractCode(fullReply);
-      const wasAborted = abortControllerRef.current?.signal.aborted;
-
-      if (qaReviewEnabled && newCode && !isAutoSolve && !wasAborted) {
-        addMessage('system', 'QA Reviewing...');
-        setStreamedContent(''); 
-        const qaMessages = [{ role: 'system', content: `QA Code Reviewer.` }, { role: 'user', content: `Fix bugs in this:\n\`\`\`html\n${newCode}\n\`\`\`` }];
-        fullReply = await streamApiCall(qaMessages, setStreamedContent);
-        newCode = extractCode(fullReply) || newCode; 
-      }
-
-      setSessionTokens(prev => prev + Math.ceil((promptText.length + fullReply.length) / 4));
-      addMessage('assistant', fullReply);
+      const responseText = await callAIAPI(messages, text, false, activeImage);
+      const code = extractCode(responseText);
       
-      if (newCode) {
-        const newHistory = [...history].slice(Math.max(0, historyIndex + 1 - MAX_HISTORY_LEN + 1), historyIndex + 1);
-        newHistory.push({ code: newCode, timestamp: new Date().toLocaleTimeString() });
-        setHistory(newHistory);
-        setHistoryIndex(newHistory.length - 1);
+      setMessages(prev => [...prev, { role: 'model', text: responseText, timestamp: new Date().toISOString() }]);
+      
+      if (code && (code.includes('<html') || code.includes('<div') || code.includes('<body'))) {
+        updateCode(code);
       }
-    } catch (error) { addMessage('system', `Failed: ${error.message}`); } finally { setIsGenerating(false); setStreamedContent(''); }
-  };
-
-  const addMessage = (role, content, images = []) => {
-    setMessages(prev => {
-      const updated = [...prev, { role, content, images }];
-      return updated.length > MAX_MESSAGES_LEN ? updated.slice(updated.length - MAX_MESSAGES_LEN) : updated;
-    });
-  };
-
-  // Custom renderer to parse `<thinking>` blocks beautifully
-  const renderMessageContent = (content) => {
-    if (typeof content !== 'string') return "[Complex Data]";
-    const thinkMatch = content.match(/<thinking>([\s\S]*?)<\/thinking>/i);
-    if (thinkMatch) {
-       const thinkingText = thinkMatch[1];
-       const restText = content.replace(/<thinking>[\s\S]*?<\/thinking>/i, '');
-       return (
-          <div className="flex flex-col gap-3">
-            <details className={`bg-zinc-900/40 border-l-4 ${t.border} rounded-r-xl rounded-l-sm overflow-hidden group shadow-sm`}>
-              <summary className="p-2.5 cursor-pointer text-xs font-bold text-zinc-300 flex items-center gap-2 hover:bg-zinc-800/60 transition-colors select-none outline-none">
-                <Brain className={`w-4 h-4 ${t.text}`}/> <span className="uppercase tracking-wider">Agentic Reasoning</span>
-                <ChevronDown className="w-3.5 h-3.5 ml-auto text-zinc-500 group-open:rotate-180 transition-transform"/>
-              </summary>
-              <div className="p-4 text-xs text-zinc-400 font-mono whitespace-pre-wrap bg-zinc-950/50 leading-relaxed border-t border-zinc-800/50">
-                 {thinkingText.trim()}
-              </div>
-            </details>
-            <span className="whitespace-pre-wrap leading-relaxed">{restText.trim()}</span>
-          </div>
-       );
+    } catch (error) {
+      setMessages(prev => [...prev, { role: 'model', text: `❌ **Error:** ${error.message}` }]);
+    } finally {
+      setIsLoading(false);
+      setAgentStatus('idle');
     }
-    return <span className="whitespace-pre-wrap leading-relaxed">{content}</span>;
   };
 
-  const getIframeSource = () => `
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <script>
-        const originalConsole = { log: console.log, warn: console.warn, error: console.error };
-        ['log', 'warn', 'error'].forEach(method => {
-          console[method] = function(...args) {
-            window.parent.postMessage({ type: 'console', method, args: args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a))}, '*');
-            originalConsole[method](...args);
-          };
-        });
-        window.onerror = function(msg, url, line) { window.parent.postMessage({ type: 'preview-error', message: msg, line: line }, '*'); return false; };
-        
-        const origFetch = window.fetch;
-        window.fetch = async (...args) => {
-           const start = Date.now();
-           const url = typeof args[0] === 'string' ? args[0] : args[0].url;
-           window.parent.postMessage({ type: 'network', method: args[1]?.method || 'GET', url: url, status: 'pending', time: 0 }, '*');
-           try {
-               const res = await origFetch(...args);
-               window.parent.postMessage({ type: 'network', method: args[1]?.method || 'GET', url: url, status: res.status, time: Date.now() - start }, '*');
-               return res;
-           } catch(e) {
-               window.parent.postMessage({ type: 'network', method: args[1]?.method || 'GET', url: url, status: 'ERROR', time: Date.now() - start }, '*');
-               throw e;
-           }
-        };
+  const handleSendMessage = (e) => {
+    e?.preventDefault();
+    submitPrompt(input.trim(), chatImage);
+  };
 
-        window.addEventListener('message', e => {
-          if (e.data && e.data.type === 'eval') { try { eval(e.data.code); } catch (err) { console.error(err.toString()); } }
-        });
-        ${inspectorMode ? `
-          document.addEventListener('mouseover', e => { e.target.style.outline = '2px dashed #10b981'; e.target.style.cursor = 'crosshair'; }, true);
-          document.addEventListener('mouseout', e => e.target.style.outline = '', true);
-          document.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); window.parent.postMessage({ type: 'inspect-click', html: e.target.outerHTML }, '*'); }, true);
-        ` : ''}
-      </script>
-      <style> body { margin: 0; padding: 0; font-family: sans-serif; overflow-x: hidden; } </style>
-    </head>
-    <body>${generatedCode}</body>
-    </html>
-  `;
+  const handleAutoSolve = async (errorMessage) => {
+    setAgentStatus('fixing');
+    setIsLoading(true);
+    
+    const backticks = '\`\`\`';
+    const fixPrompt = `⚠️ AGENTIC LOOP ACTIVATED ⚠️\nThe code you just generated threw this error in the console:\n${backticks}\n${errorMessage}\n${backticks}\n\nPlease fix the bug and return the COMPLETE, working HTML file.`;
+    
+    setMessages(prev => [...prev, { role: 'user', text: fixPrompt, isAutoGenerated: true, timestamp: new Date().toISOString() }]);
 
-  const linesCount = generatedCode.split('\n').length || 1;
-  const lineNumbers = Array.from({length: linesCount}, (_, i) => i + 1);
-
-  // Command Palette Actions
-  const cmdActions = [
-    { name: 'New Workspace', icon: <Plus/>, action: () => { createNewSession(); setShowCmdK(false); } },
-    { name: 'Open Settings', icon: <Settings/>, action: () => { setShowSettings(true); setShowCmdK(false); } },
-    { name: 'Clear Chat History', icon: <Trash2/>, action: () => { setMessages([]); setShowCmdK(false); } },
-    { name: 'Toggle Theme (Emerald)', icon: <Palette/>, action: () => { setActiveTheme('emerald'); setShowCmdK(false); } },
-    { name: 'Toggle Theme (Violet)', icon: <Palette/>, action: () => { setActiveTheme('violet'); setShowCmdK(false); } },
-    { name: 'Toggle Split Layout', icon: <SplitSquareHorizontal/>, action: () => { setLayout(layout === 'split' ? 'tabs' : 'split'); setShowCmdK(false); } },
-    { name: 'Export to CodePen', icon: <Share2/>, action: () => { exportToCodePen(); setShowCmdK(false); } }
-  ].filter(a => a.name.toLowerCase().includes(cmdSearch.toLowerCase()));
-
-  return (
-    <div className="flex h-screen w-full bg-zinc-950 text-zinc-100 font-sans overflow-hidden">
+    try {
+      const responseText = await callAIAPI(messages, fixPrompt, true);
+      const newCode = extractCode(responseText);
       
-      {/* COMMAND PALETTE MODAL */}
-      {showCmdK && (
-        <div className="fixed inset-0 bg-zinc-950/80 backdrop-blur-sm flex items-start justify-center pt-[15vh] z-50 transition-all" onClick={() => setShowCmdK(false)}>
-          <div className="bg-zinc-900/90 backdrop-blur-xl border border-zinc-700/50 rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden animate-fade-in ring-1 ring-white/5" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center px-4 py-4 border-b border-zinc-800/50">
-               <Search className={`w-5 h-5 ${t.text} mr-3`}/>
-               <input ref={cmdInputRef} value={cmdSearch} onChange={e => setCmdSearch(e.target.value)} placeholder="Type a command or search..." className="flex-1 bg-transparent text-lg text-white font-medium focus:outline-none placeholder:text-zinc-500" />
-               <kbd className="text-[10px] font-mono bg-zinc-800/50 border border-zinc-700 text-zinc-400 px-2 py-1 rounded shadow-sm">ESC</kbd>
-            </div>
-            <div className="max-h-[60vh] overflow-y-auto p-2 custom-scrollbar">
-               {cmdActions.length > 0 ? cmdActions.map((action, i) => (
-                 <button key={i} onClick={action.action} className={`w-full flex items-center gap-4 px-4 py-3.5 text-left rounded-xl hover:${t.bg} hover:text-white text-zinc-300 transition-all group`}>
-                   <span className="opacity-60 group-hover:opacity-100 [&>svg]:w-5 [&>svg]:h-5 transition-opacity">{action.icon}</span>
-                   <span className="text-sm font-semibold">{action.name}</span>
-                 </button>
-               )) : <div className="text-center text-zinc-500 py-8 text-sm font-medium">No commands found.</div>}
-            </div>
+      setMessages(prev => [...prev, { 
+        role: 'model', 
+        text: `✅ **Agentic Fix Applied:** I found the issue and updated the Canvas File. It should run smoothly now.\n\n` + responseText,
+        isAutoGenerated: true,
+        timestamp: new Date().toISOString()
+      }]);
+      
+      if (newCode) updateCode(newCode);
+    } catch (error) {
+      setMessages(prev => [...prev, { role: 'model', text: `❌ **Auto-Solve Failed:** ${error.message}` }]);
+    } finally {
+      setIsLoading(false);
+      setAgentStatus('idle');
+    }
+  };
+
+  const handleAgentAction = async (actionType) => {
+    if (isLoading) return;
+    setIsLoading(true);
+    setAgentStatus('thinking');
+
+    let actionPrompt = "";
+    let statusMessage = "";
+
+    if (actionType === 'polish') {
+      actionPrompt = `✨ AGENTIC ACTION ACTIVATED ✨\nPlease analyze the following Canvas File. Refactor it to improve performance, clean up the logic, add helpful comments, and ensure best coding practices. Return ONLY the COMPLETE, fully-functional HTML file.\n\nCURRENT CODE:\n\`\`\`html\n${generatedCode}\n\`\`\``;
+      statusMessage = "✨ Agentic Action: Refactoring and optimizing the codebase...";
+    } else if (actionType === 'beautify') {
+      actionPrompt = `🎨 AGENTIC ACTION ACTIVATED 🎨\nPlease analyze the following Canvas File and significantly upgrade its UI/UX. Use modern Tailwind CSS classes to add beautiful color palettes, spacing, rounded corners, transitions, and shadows. Make it look like a premium, modern web application. Do not remove any existing functionality. Return ONLY the COMPLETE, fully-functional HTML file.\n\nCURRENT CODE:\n\`\`\`html\n${generatedCode}\n\`\`\``;
+      statusMessage = "🎨 Agentic Action: Upgrading the UI/UX design to premium...";
+    } else if (actionType === 'explain') {
+      actionPrompt = `🧠 AGENTIC ACTION ACTIVATED 🧠\nPlease provide a clear, concise, and educational explanation of how the following code works. Break down the structure, styling, and logic. Do NOT write new code, just explain the existing code in conversational Markdown.\n\nCURRENT CODE:\n\`\`\`html\n${generatedCode}\n\`\`\``;
+      statusMessage = "🧠 Agentic Action: Analyzing and explaining the code...";
+    } else if (actionType === 'bootstrap') {
+      actionPrompt = `🚀 AGENTIC ACTION ACTIVATED 🚀\nPlease automatically build a complete, modern Canvas File boilerplate from scratch. It should include a stunning layout with Tailwind CSS, a centered glassmorphism container, a beautiful animated gradient background, and a pulsing placeholder element. Output ONLY the complete, fully functioning HTML file. This will be the user's foundation.`;
+      statusMessage = "🚀 Agentic Action: Auto-bootstrapping a stunning Canvas File foundation...";
+    } else if (actionType === 'auto-improve') {
+      actionPrompt = `👁️ AGENTIC QA ACTIVATED 👁️\nAct as a rigorous UI/UX QA Tester and Senior Engineer. Mentally 'render' this Canvas File and look for visual flaws, clunky UX, missing hover/focus animations, poor color contrast, or bad mobile responsiveness. Fix ALL identified issues to make it 'Gemini Canvas' premium quality. Add smooth UI transitions and ensure flawless responsive behavior. Return ONLY the completely upgraded HTML file in a single \`\`\`html block.\n\nCURRENT CODE:\n\`\`\`html\n${generatedCode}\n\`\`\``;
+      statusMessage = "👁️ Agentic Action: Mentally reviewing live preview output and applying premium Gemini Canvas level upgrades...";
+    }
+
+    setMessages(prev => [...prev, { role: 'user', text: statusMessage, isAutoGenerated: true, timestamp: new Date().toISOString() }]);
+
+    try {
+      const responseText = await callAIAPI(messages, actionPrompt, true);
+      const newCode = extractCode(responseText);
+      
+      let successMessage = '';
+      if (actionType === 'explain') {
+        successMessage = `🧠 **Code Explanation:**\n\n${responseText}`;
+      } else {
+        successMessage = `✅ **Agentic Action Complete:** I have successfully upgraded the Canvas File based on the review.\n\n`;
+      }
+
+      setMessages(prev => [...prev, { role: 'model', text: successMessage, isAutoGenerated: true, timestamp: new Date().toISOString() }]);
+      if (actionType !== 'explain' && newCode) updateCode(newCode);
+    } catch (error) {
+      setMessages(prev => [...prev, { role: 'model', text: `❌ **Agentic Action Failed:** ${error.message}` }]);
+    } finally {
+      setIsLoading(false);
+      setAgentStatus('idle');
+    }
+  };
+
+  // --- Sandbox Injection ---
+  const getSandboxDoc = () => {
+    const injectionScript = `
+      <script>
+        const postLog = (type, args) => {
+          try {
+            const msg = Array.from(args).map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+            window.parent.postMessage({ type: 'iframe-console', logType: type, message: msg }, '*');
+          } catch(e) {}
+        };
+        const origLog = console.log; console.log = function(...args) { postLog('log', args); origLog.apply(console, args); };
+        const origWarn = console.warn; console.warn = function(...args) { postLog('warn', args); origWarn.apply(console, args); };
+        const origError = console.error; console.error = function(...args) { postLog('error', args); origError.apply(console, args); };
+        window.onerror = function(msg, url, line) { postLog('error', [msg + ' at line ' + line]); return false; };
+        
+        // Capture Sandbox Network Requests for Console
+        const origFetch = window.fetch;
+        window.fetch = async function(...args) {
+          postLog('network', ['[FETCH Request]', args[0]]);
+          try {
+            const response = await origFetch.apply(this, args);
+            postLog('network', ['[FETCH Response]', response.status, response.url]);
+            return response;
+          } catch(e) {
+            postLog('error', ['[FETCH Error]', e.message]);
+            throw e;
+          }
+        };
+      </script>
+    `;
+    const envScript = `
+      <script>
+        // Injected Sandbox Environment Variables
+        window.ENV = ${sandboxEnv || '{}'};
+      </script>
+    `;
+    const darkModeScript = isPreviewDark ? `
+      <script>
+        document.documentElement.classList.add('dark');
+        document.body.style.backgroundColor = '#111827';
+        document.body.style.color = '#f8fafc';
+      </script>
+    ` : '';
+    
+    let doc = generatedCode.replace('<head>', `<head>\n${envScript}\n${injectionScript}`);
+    if (doc.includes('</body>')) {
+        doc = doc.replace('</body>', `${darkModeScript}</body>`);
+    } else {
+        doc += darkModeScript;
+    }
+    return doc;
+  };
+
+  // --- External Feature Helpers ---
+  const injectComponent = (htmlSnippet) => {
+    let newCode = generatedCode;
+    if (newCode.includes('</body>')) {
+      newCode = newCode.replace('</body>', `\n${htmlSnippet}\n</body>`);
+    } else {
+      newCode += `\n${htmlSnippet}`;
+    }
+    updateCode(newCode);
+    setIsComponentsOpen(false);
+  };
+
+  const injectPackage = (tag) => {
+    let newCode = generatedCode;
+    if (newCode.includes('</head>')) {
+      newCode = newCode.replace('</head>', `  ${tag}\n</head>`);
+    } else {
+      newCode = `${tag}\n${newCode}`;
+    }
+    updateCode(newCode);
+    setIsPackagesOpen(false);
+  };
+
+  const popularPackages = [
+    { name: 'Tailwind CSS', desc: 'Utility-first CSS framework', tag: '<script src="https://cdn.tailwindcss.com"></script>' },
+    { name: 'React + ReactDOM', desc: 'UI Library (UMD Build)', tag: '<script src="https://unpkg.com/react@18/umd/react.development.js"></script>\n<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>' },
+    { name: 'Three.js', desc: '3D Javascript Library', tag: '<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>' },
+    { name: 'GSAP', desc: 'Professional Animation Library', tag: '<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>' },
+    { name: 'FontAwesome', desc: 'Icon set and toolkit', tag: '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">' },
+    { name: 'Google Font: Inter', desc: 'Clean, modern sans-serif', tag: '<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">\n<style>body { font-family: "Inter", sans-serif; }</style>' },
+    { name: 'Google Font: Fira Code', desc: 'Monospace for developers', tag: '<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">\n<style>body { font-family: "Fira Code", monospace; }</style>' }
+  ];
+
+  const tailwindComponents = [
+    { name: 'Hero Section', code: `<section class="bg-white dark:bg-gray-900">\n  <div class="py-8 px-4 mx-auto max-w-screen-xl text-center lg:py-16">\n    <h1 class="mb-4 text-4xl font-extrabold tracking-tight leading-none text-gray-900 md:text-5xl lg:text-6xl dark:text-white">We invest in the world’s potential</h1>\n    <p class="mb-8 text-lg font-normal text-gray-500 lg:text-xl sm:px-16 lg:px-48 dark:text-gray-400">Here at Flowbite we focus on markets where technology, innovation, and capital can unlock long-term value and drive economic growth.</p>\n  </div>\n</section>` },
+    { name: 'Simple Navbar', code: `<nav class="bg-white border-gray-200 dark:bg-gray-900 shadow-sm">\n  <div class="max-w-screen-xl flex flex-wrap items-center justify-between mx-auto p-4">\n    <a href="#" class="flex items-center space-x-3 rtl:space-x-reverse">\n      <span class="self-center text-2xl font-semibold whitespace-nowrap dark:text-white">AppCanvas</span>\n    </a>\n    <div class="hidden w-full md:block md:w-auto" id="navbar-default">\n      <ul class="font-medium flex flex-col p-4 md:p-0 mt-4 border border-gray-100 rounded-lg bg-gray-50 md:flex-row md:space-x-8 rtl:space-x-reverse md:mt-0 md:border-0 md:bg-white dark:bg-gray-800 md:dark:bg-gray-900 dark:border-gray-700">\n        <li><a href="#" class="block py-2 px-3 text-white bg-blue-700 rounded md:bg-transparent md:text-blue-700 md:p-0 dark:text-white md:dark:text-blue-500" aria-current="page">Home</a></li>\n        <li><a href="#" class="block py-2 px-3 text-gray-900 rounded hover:bg-gray-100 md:hover:bg-transparent md:border-0 md:hover:text-blue-700 md:p-0 dark:text-white md:dark:hover:text-blue-500 dark:hover:bg-gray-700 dark:hover:text-white md:dark:hover:bg-transparent">About</a></li>\n      </ul>\n    </div>\n  </div>\n</nav>` },
+    { name: 'Action Button', code: `<button type="button" class="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 me-2 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 focus:outline-none dark:focus:ring-blue-800">Primary Button</button>` }
+  ];
+
+  const quickSnippets = [
+    "Build a classic Pong game using HTML Canvas.",
+    "Set up a Three.js scene with a rotating 3D cube.",
+    "Design a modern, glassmorphism login form using Tailwind.",
+    "Create a responsive pricing table with 3 tiers."
+  ];
+
+  const templates = [
+    { icon: '🐍', label: 'Snake Game', prompt: 'Build a fully playable classic Snake game using HTML Canvas and Javascript. Add a score counter and game over screen.' },
+    { icon: '📝', label: 'Todo App', prompt: 'Create a beautiful, modern Todo List application using Tailwind CSS. Allow adding, completing, and deleting tasks. Use local storage.' },
+    { icon: '🌦️', label: 'Weather UI', prompt: 'Design a sleek, modern Weather Dashboard UI. Use mock data for a 7-day forecast and current conditions. Use smooth gradients.' },
+    { icon: '📊', label: 'Dashboard', prompt: 'Build an admin dashboard layout with a sidebar navigation, a top header, and mock charts using a CDN library like Chart.js.' }
+  ];
+
+  // --- UI Components ---
+  return (
+    <div className="flex h-screen bg-gray-950 text-gray-100 font-sans overflow-hidden">
+      
+      {/* Sidebar Navigation */}
+      {!isZenMode && (
+        <aside className="w-16 lg:w-20 bg-gray-900 border-r border-gray-800 flex flex-col items-center py-6 gap-6 z-20 shrink-0 transition-all duration-300">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+            <Sparkles className="text-white w-6 h-6" />
           </div>
-        </div>
+          
+          <nav className="flex flex-col gap-4 mt-4 w-full px-2">
+            <button onClick={() => setActiveTab('chat')} className={`p-3 rounded-xl flex justify-center transition-all ${activeTab === 'chat' ? 'bg-gray-800 text-indigo-400' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'}`} title="Chat">
+              <MessageSquare className="w-6 h-6" />
+            </button>
+            <button onClick={() => setActiveTab('code')} className={`p-3 rounded-xl flex justify-center lg:hidden transition-all ${activeTab === 'code' ? 'bg-gray-800 text-indigo-400' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'}`} title="Code">
+              <Code2 className="w-6 h-6" />
+            </button>
+            <button onClick={() => setActiveTab('preview')} className={`p-3 rounded-xl flex justify-center lg:hidden transition-all ${activeTab === 'preview' ? 'bg-gray-800 text-indigo-400' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'}`} title="Preview">
+              <Play className="w-6 h-6" />
+            </button>
+          </nav>
+
+          <div className="mt-auto flex flex-col gap-4 w-full px-2">
+            <button onClick={() => setIsSettingsOpen(true)} className="p-3 rounded-xl flex justify-center text-gray-500 hover:text-gray-300 hover:bg-gray-800/50 transition-all" title="Key Vault & Settings">
+              <Settings className="w-6 h-6" />
+            </button>
+          </div>
+        </aside>
       )}
 
-      {/* WORKSPACES SIDEBAR */}
-      <div className={`fixed inset-y-0 left-0 z-30 bg-zinc-950/95 backdrop-blur-xl border-r border-zinc-800/80 w-[280px] transform transition-transform duration-300 ease-in-out shadow-2xl ${showWorkspaces ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="flex items-center justify-between p-5 border-b border-zinc-800/80">
-           <div className="font-bold flex items-center gap-2.5 text-lg"><Folder className={`w-5 h-5 ${t.text}`}/> Workspaces</div>
-           <button onClick={() => setShowWorkspaces(false)} className="p-1.5 rounded-lg text-zinc-500 hover:text-white hover:bg-zinc-800 transition-colors"><X className="w-5 h-5"/></button>
-        </div>
-        <div className="p-4 space-y-2.5 overflow-y-auto max-h-[calc(100vh-140px)] custom-scrollbar">
-          {sessions.map(s => (
-            <div key={s.id} onClick={() => switchSession(s.id)} className={`flex items-center justify-between p-3.5 rounded-xl cursor-pointer transition-all hover:-translate-y-0.5 border shadow-sm ${activeSessionId === s.id ? `${t.border} ${t.lightBg} ring-1 ${t.ring} ring-opacity-20` : 'border-zinc-800/50 bg-zinc-900/40 hover:border-zinc-700/80 hover:bg-zinc-800/40'}`}>
-              <div className="flex flex-col overflow-hidden">
-                <span className={`text-sm font-bold truncate ${activeSessionId === s.id ? t.text : 'text-zinc-200'}`}>{s.name}</span>
-                <span className="text-[11px] font-medium text-zinc-500 mt-0.5">{s.messages.length} messages</span>
-              </div>
-              <button onClick={(e) => deleteSession(s.id, e)} className="text-zinc-600 hover:text-red-400 p-1.5 rounded-md hover:bg-red-500/10 transition-colors"><Trash2 className="w-4 h-4"/></button>
+      {/* Main Content Area */}
+      <main className="flex-1 flex flex-col lg:flex-row h-full overflow-hidden relative">
+        
+        {/* Chat Panel */}
+        <div style={{ width: (!isZenMode && typeof window !== 'undefined' && window.innerWidth >= 1024) ? chatWidth : '100%' }} className={`flex-col bg-gray-900/50 border-r border-gray-800 h-full shrink-0 transition-all duration-300 ${activeTab === 'chat' && !isZenMode ? 'flex' : 'hidden lg:flex'} ${isZenMode ? '!hidden' : ''}`}>
+          
+          {/* Header */}
+          <div className="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-900/80 backdrop-blur z-10">
+            <div>
+              <h2 className="font-semibold text-lg flex items-center gap-2">
+                Omni Agent
+                {agentStatus === 'thinking' && <span className="flex h-2 w-2 rounded-full bg-indigo-500 animate-pulse"></span>}
+                {agentStatus === 'fixing' && <span className="flex h-2 w-2 rounded-full bg-amber-500 animate-pulse"></span>}
+              </h2>
+              <p className="text-xs text-gray-500">BYOK Unlimited Context Engine</p>
             </div>
-          ))}
-        </div>
-        <div className="absolute bottom-0 w-full p-5 border-t border-zinc-800/80 bg-zinc-950/90 backdrop-blur">
-          <button onClick={createNewSession} className={`w-full py-3 rounded-xl text-sm font-bold border border-zinc-700 hover:border-zinc-500 text-white flex items-center justify-center gap-2 transition-all hover:bg-zinc-800/50 shadow-sm`}><Plus className="w-4 h-4"/> New Workspace</button>
-        </div>
-      </div>
-
-      {/* MAIN CHAT SIDEBAR */}
-      <div className={`flex flex-col border-r border-zinc-800/80 bg-zinc-900/40 backdrop-blur-xl shadow-2xl z-20 flex-shrink-0 transition-all duration-300 ease-in-out ${isSidebarOpen ? 'w-[420px]' : 'w-0 overflow-hidden border-none'}`}>
-        <div className="flex items-center justify-between p-5 border-b border-zinc-800/80 bg-zinc-950/30 backdrop-blur-md w-[420px]">
-          <div className="flex items-center gap-3">
-            <button onClick={() => setShowWorkspaces(!showWorkspaces)} className={`p-2 rounded-xl border border-zinc-800 bg-zinc-900/50 hover:border-zinc-600 transition-colors shadow-sm`}><Folder className={`w-4.5 h-4.5 ${t.text}`} /></button>
-            <h1 className="font-bold text-base tracking-tight text-white truncate w-36">{activeSession.name}</h1>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <button onClick={() => setShowLibrary(true)} className={`p-2 hover:bg-zinc-800/80 rounded-xl text-zinc-400 hover:${t.text} transition-colors`}><Library className="w-5 h-5" /></button>
-            <button onClick={() => setShowSettings(true)} className="p-2 hover:bg-zinc-800/80 rounded-xl text-zinc-400 hover:text-white transition-colors"><Settings className="w-5 h-5" /></button>
-            <button onClick={() => setMessages([])} className="p-2 hover:bg-red-500/10 rounded-xl text-zinc-400 hover:text-red-400 transition-colors"><Trash2 className="w-5 h-5" /></button>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-5 space-y-6 custom-scrollbar w-[420px]">
-          {messages.length === 0 ? (
-            <div className="grid grid-cols-1 gap-3.5 mt-2">
-              <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500 mb-1 ml-1">Suggested Templates</p>
-              {TEMPLATES.map((tmpl, i) => (
-                <button key={i} onClick={() => setCurrentInput(tmpl.prompt)} className={`text-left p-4.5 rounded-2xl border border-zinc-800/60 bg-zinc-900/40 transition-all duration-300 group hover:-translate-y-1 hover:shadow-xl hover:${t.borderSubtle}`}>
-                  <div className={`font-bold text-sm text-zinc-200 mb-1.5 group-hover:${t.text} transition-colors`}>{tmpl.title}</div>
-                  <div className="text-xs text-zinc-500 leading-relaxed font-medium line-clamp-2">{tmpl.prompt}</div>
-                </button>
-              ))}
+            
+            <div className="flex items-center gap-2">
+              <button onClick={exportChatHistory} className="p-1.5 text-gray-500 hover:text-indigo-400 hover:bg-indigo-400/10 rounded-lg transition-colors" title="Export Chat to Markdown">
+                <DownloadCloud className="w-4 h-4" />
+              </button>
+              <button onClick={handleClearChat} className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors" title="Clear Workspace (Wipes Auto-Save)">
+                <Trash2 className="w-4 h-4" />
+              </button>
+              <button 
+                onClick={() => setIsAutoSolveEnabled(!isAutoSolveEnabled)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
+                  isAutoSolveEnabled ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' : 'bg-gray-800 text-gray-400 border-gray-700 hover:bg-gray-700'
+                }`}
+                title="When enabled, the AI will autonomously fix runtime errors in the sandbox."
+              >
+                <Zap className="w-3.5 h-3.5" /> Auto-Solve
+              </button>
             </div>
-          ) : (
-            messages.map((msg, idx) => (
-              <div key={idx} className={`flex gap-3.5 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                {msg.role !== 'user' && (<div className="w-8 h-8 shrink-0 rounded-xl bg-zinc-900 flex items-center justify-center border border-zinc-800 shadow-sm mt-1"><Bot className={`w-4 h-4 ${t.text}`} /></div>)}
-                <div className={`max-w-[85%] rounded-2xl p-4.5 text-sm shadow-sm ${msg.role === 'user' ? `bg-gradient-to-br ${t.from} ${t.to} text-white rounded-tr-sm shadow-lg shadow-${t.id}-900/20 font-medium` : msg.role === 'system' ? 'bg-amber-500/10 text-amber-300 font-mono text-xs border border-amber-500/20' : 'bg-zinc-900/80 backdrop-blur-md text-zinc-200 border border-zinc-700/50 rounded-tl-sm'}`}>
-                   {renderMessageContent(msg.content)}
+          </div>
+
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-6 scroll-smooth">
+            {messages.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-center space-y-6 animate-in fade-in">
+                <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 flex items-center justify-center mb-2">
+                  <Sparkles className="w-8 h-8 text-indigo-400" />
                 </div>
-              </div>
-            ))
-          )}
-          {isGenerating && streamedContent && (
-            <div className="flex gap-3.5 justify-start">
-               <div className="w-8 h-8 shrink-0 rounded-xl bg-zinc-900 flex items-center justify-center border border-zinc-800 shadow-sm mt-1"><Bot className={`w-4 h-4 ${t.text}`} /></div>
-               <div className="max-w-[85%] rounded-2xl p-4.5 text-sm bg-zinc-900/80 backdrop-blur-md text-zinc-200 border border-zinc-700/50 rounded-tl-sm shadow-sm">
-                  {renderMessageContent(streamedContent)}
-                  <span className={`inline-block w-2 h-4 ml-1.5 rounded-sm ${t.bg} animate-pulse align-middle`}></span>
-               </div>
-            </div>
-          )}
-          <div ref={chatEndRef} />
-        </div>
-
-        <div className="p-4 border-t border-zinc-800/80 bg-zinc-950/80 backdrop-blur-xl w-[420px]">
-          <div className={`flex flex-col bg-zinc-900/60 backdrop-blur-lg border border-zinc-700/60 rounded-3xl shadow-2xl shadow-black/50 overflow-hidden focus-within:border-${t.id}-500/50 focus-within:ring-1 focus-within:ring-${t.id}-500/20 transition-all duration-300`}>
-            
-            {/* Top Prompt Controls */}
-            <div className="flex flex-wrap items-center justify-between px-3.5 py-2.5 bg-zinc-950/40 border-b border-zinc-800/60 gap-2">
-              <div className="flex items-center gap-1.5 bg-zinc-900/80 p-1 rounded-xl border border-zinc-800/80 shadow-inner px-2">
-                <button onClick={() => setAutoSolveEnabled(!autoSolveEnabled)} className={`flex items-center gap-1.5 text-[11px] uppercase tracking-wider font-bold transition-colors px-1.5 py-1 rounded-md hover:bg-zinc-800/50 ${autoSolveEnabled ? t.text : 'text-zinc-500'}`}>
-                  <div className={`w-1.5 h-1.5 rounded-full ${autoSolveEnabled ? `${t.bg} ${t.glow}` : 'bg-zinc-600'}`}></div> Auto
-                </button>
-                <div className="w-px h-3.5 bg-zinc-700/80"></div>
-                <button onClick={() => setQaReviewEnabled(!qaReviewEnabled)} className={`flex items-center gap-1.5 text-[11px] uppercase tracking-wider font-bold transition-colors px-1.5 py-1 rounded-md hover:bg-zinc-800/50 ${qaReviewEnabled ? 'text-blue-400' : 'text-zinc-500'}`}>
-                  <div className={`w-1.5 h-1.5 rounded-full ${qaReviewEnabled ? 'bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]' : 'bg-zinc-600'}`}></div> QA
-                </button>
-                <div className="w-px h-3.5 bg-zinc-700/80"></div>
-                <button onClick={() => setDeepThinkEnabled(!deepThinkEnabled)} className={`flex items-center gap-1.5 text-[11px] uppercase tracking-wider font-bold transition-colors px-1.5 py-1 rounded-md hover:bg-zinc-800/50 ${deepThinkEnabled ? 'text-purple-400' : 'text-zinc-500'}`} title="Deep Reasoning Mode">
-                  <Brain className="w-3.5 h-3.5"/> Think
-                </button>
-              </div>
-
-              {/* Model Dropdown */}
-              <div className="flex items-center bg-zinc-900/80 p-0.5 rounded-xl border border-zinc-800/80 shadow-inner relative max-w-[130px]">
-                 <div className="pl-2 text-zinc-500"><Cpu className="w-3.5 h-3.5" /></div>
-                 <select value={selectedModel} onChange={(e) => setSelectedModel(e.target.value)} className="w-full bg-transparent text-xs font-bold text-zinc-300 pl-1.5 pr-7 py-1.5 focus:outline-none appearance-none cursor-pointer truncate">
-                   {NVIDIA_MODELS.map(m => <option key={m.id} value={m.id} className="bg-zinc-900">{m.name}</option>)}
-                   {!NVIDIA_MODELS.find(m => m.id === selectedModel) && <option value={selectedModel} className="bg-zinc-900">{selectedModel}</option>}
-                 </select>
-                 <div className="absolute right-2 pointer-events-none text-zinc-500"><ChevronDown className="w-3 h-3"/></div>
-              </div>
-            </div>
-
-            {/* Framework / Platform Row */}
-            <div className="flex items-center justify-between px-3.5 pt-3">
-              <div className="flex items-center bg-zinc-900/60 p-0.5 rounded-lg border border-zinc-800/50 relative hover:bg-zinc-800/40 transition-colors">
-                 <div className="pl-2 text-zinc-500"><Code2 className="w-3.5 h-3.5" /></div>
-                 <select value={targetFramework} onChange={(e) => setTargetFramework(e.target.value)} className="bg-transparent text-[11px] uppercase tracking-wider font-bold text-zinc-400 pl-2 pr-7 py-1 focus:outline-none appearance-none cursor-pointer hover:text-zinc-200">
-                   {FRAMEWORKS.map(f => <option key={f} value={f} className="bg-zinc-900">{f}</option>)}
-                 </select>
-                 <div className="absolute right-2 pointer-events-none text-zinc-500"><ChevronDown className="w-3 h-3"/></div>
-              </div>
-              
-              <div className="flex items-center gap-1 bg-zinc-900/60 p-0.5 rounded-lg border border-zinc-800/50">
-                <button onClick={() => handlePlatformChange('web')} className={`px-2.5 py-1 rounded-md text-xs font-bold flex items-center gap-1.5 transition-colors ${targetPlatform === 'web' ? 'bg-zinc-700 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50'}`}><Globe className="w-3.5 h-3.5"/> Web</button>
-                <button onClick={() => handlePlatformChange('mobile')} className={`px-2.5 py-1 rounded-md text-xs font-bold flex items-center gap-1.5 transition-colors ${targetPlatform === 'mobile' ? 'bg-zinc-700 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50'}`}><Smartphone className="w-3.5 h-3.5"/> App</button>
-              </div>
-            </div>
-
-            <textarea value={currentInput} onChange={(e) => setCurrentInput(e.target.value)} placeholder="Describe what you want to build..." className="w-full bg-transparent text-zinc-100 p-4 resize-none focus:outline-none min-h-[70px] max-h-[150px] custom-scrollbar text-sm placeholder:text-zinc-600 font-medium leading-relaxed" />
-            
-            {/* Attached Images */}
-            {attachedImages.length > 0 && (
-              <div className="flex gap-2.5 px-4 pb-3 overflow-x-auto custom-scrollbar">
-                 {attachedImages.map((img, i) => (
-                   <div key={i} className="relative w-14 h-14 rounded-xl border-2 border-zinc-700 overflow-hidden group shadow-md shrink-0">
-                     <img src={img} alt="attached" className="w-full h-full object-cover"/>
-                     <button onClick={() => setAttachedImages(prev => prev.filter((_, idx) => idx !== i))} className="absolute top-1 right-1 bg-black/60 backdrop-blur-sm rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500"><X className="w-3 h-3 text-white"/></button>
-                   </div>
-                 ))}
-              </div>
-            )}
-
-            {/* Bottom Actions */}
-            <div className="flex items-center justify-between px-3 pb-3">
-               <div className="flex items-center gap-1.5">
-                  <button onClick={() => fileInputRef.current?.click()} className={`p-2 text-zinc-400 hover:${t.text} hover:bg-zinc-800/50 rounded-xl transition-all`} title="Attach Image"><ImagePlus className="w-5 h-5" /><input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} /></button>
-                  <button onClick={toggleMic} className={`p-2 rounded-xl transition-all ${isListening ? `${t.text} ${t.lightBg} animate-pulse` : `text-zinc-400 hover:${t.text} hover:bg-zinc-800/50`}`} title="Voice Prompt"><Mic className="w-5 h-5" /></button>
-               </div>
-               {isGenerating ? (
-                 <button onClick={() => abortControllerRef.current?.abort()} className="px-5 py-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl flex items-center gap-2 text-sm font-bold transition-colors border border-red-500/20"><StopCircle className="w-4 h-4" /> Stop</button>
-               ) : (
-                 <button onClick={() => processPrompt(currentInput)} className={`px-6 py-2.5 bg-gradient-to-r ${t.from} ${t.to} text-white rounded-xl flex items-center gap-2 font-bold text-sm shadow-lg ${t.glow} hover:brightness-110 hover:-translate-y-0.5 transition-all duration-300`}><Sparkles className="w-4.5 h-4.5" /> Generate</button>
-               )}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* EDITOR & PREVIEW AREA */}
-      <div className="flex-1 flex flex-col min-w-0 bg-zinc-950 relative">
-        <div className="flex flex-wrap items-center justify-between p-3.5 border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur-xl relative z-10 gap-3">
-          <div className="flex items-center gap-4">
-            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className={`p-2.5 text-zinc-400 hover:text-white bg-zinc-900 border border-zinc-800 rounded-xl hover:${t.border} hover:${t.lightBg} transition-all shadow-sm`} title="Toggle Sidebar"><PanelLeftClose className="w-4.5 h-4.5" /></button>
-            
-            {/* Segmented Controls */}
-            <div className="flex items-center bg-zinc-900/80 p-1 rounded-xl border border-zinc-800/80 shadow-inner">
-              <button onClick={() => setLayout('tabs')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${layout === 'tabs' ? 'bg-zinc-700 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50'}`}>Tabs</button>
-              <button onClick={() => setLayout('split')} className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${layout === 'split' ? 'bg-zinc-700 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50'}`}><SplitSquareHorizontal className="w-3.5 h-3.5"/> Split</button>
-            </div>
-            {layout === 'tabs' && (
-              <div className="flex items-center bg-zinc-900/80 p-1 rounded-xl border border-zinc-800/80 shadow-inner">
-                <button onClick={() => setActiveTab('preview')} className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'preview' ? `${t.bg} text-white shadow-sm` : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50'}`}><Play className="w-3.5 h-3.5" /> Preview</button>
-                <button onClick={() => setActiveTab('code')} className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'code' ? `${t.bg} text-white shadow-sm` : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50'}`}><Code className="w-3.5 h-3.5" /> Code</button>
-              </div>
-            )}
-            {/* Device Rotation (Mobile only) */}
-            {targetPlatform === 'mobile' && activeTab === 'preview' && (
-              <button onClick={() => setIsLandscape(!isLandscape)} className="p-2.5 text-zinc-400 hover:text-white bg-zinc-900 border border-zinc-800 rounded-xl shadow-sm hover:bg-zinc-800 transition-colors" title="Rotate Device"><RotateCcw className="w-4.5 h-4.5"/></button>
-            )}
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3">
-            <button onClick={() => setInspectorMode(!inspectorMode)} className={`px-3 py-2 rounded-xl border flex items-center gap-2 text-xs font-bold transition-all shadow-sm ${inspectorMode ? `${t.bg} text-white ${t.border} ${t.glow}` : `bg-zinc-900 border-zinc-800 ${t.text} hover:border-zinc-700 hover:bg-zinc-800/50`}`} title="Visual DOM Inspector"><MousePointerClick className="w-4 h-4" /> Target Element</button>
-            
-            {/* Visual Timeline Slider */}
-            <div className="flex items-center bg-zinc-900/80 rounded-xl border border-zinc-800/80 px-4 py-2.5 gap-3 min-w-[180px] shadow-inner">
-                <button onClick={undo} disabled={historyIndex === 0} className="text-zinc-500 hover:text-white disabled:opacity-30 transition-colors"><ChevronLeft className="w-4.5 h-4.5"/></button>
-                <input type="range" min="0" max={Math.max(0, history.length - 1)} value={historyIndex} onChange={handleTimelineChange} className={`flex-1 h-1.5 bg-zinc-700 rounded-full appearance-none cursor-pointer accent-${t.id}-500 hover:h-2 transition-all`} style={{ accentColor: `var(--${t.id}-500, #10b981)` }} title="Timeline Scrubber" />
-                <button onClick={redo} disabled={historyIndex === history.length - 1} className="text-zinc-500 hover:text-white disabled:opacity-30 transition-colors"><ChevronRight className="w-4.5 h-4.5"/></button>
-                <span className="text-[11px] font-mono font-bold text-zinc-400 w-7 text-right bg-zinc-950/50 px-1 py-0.5 rounded">v{historyIndex + 1}</span>
-            </div>
-            
-            <div className="flex items-center gap-1.5 border-l border-zinc-800/80 pl-3">
-              <button onClick={() => { const name = prompt("Name your component:"); if (name) setSavedComponents(prev => [{ id: Date.now(), name, code: generatedCode, timestamp: new Date().toLocaleTimeString() }, ...prev]); }} className="p-2.5 text-zinc-400 hover:text-purple-400 bg-zinc-900 border border-zinc-800 rounded-xl hover:border-zinc-700 transition-colors shadow-sm" title="Save to Library"><BookmarkPlus className="w-4.5 h-4.5" /></button>
-              <button onClick={() => { const blob = new Blob([generatedCode], { type: 'text/html' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `app-${Date.now()}.html`; a.click(); URL.revokeObjectURL(url); }} className="p-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-zinc-400 hover:text-white hover:border-zinc-700 transition-colors shadow-sm" title="Download Source"><Download className="w-4.5 h-4.5" /></button>
-              <button onClick={exportToCodePen} className={`px-4 py-2.5 ${t.lightBg} border ${t.border} rounded-xl ${t.text} flex items-center gap-2 text-xs font-bold hover:brightness-110 transition-all shadow-sm`}><Share2 className="w-4 h-4"/> Share</button>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex-1 flex overflow-hidden relative">
-          {layout === 'split' ? (
-            <div className="flex-1 flex w-full relative">
-              {/* Highlighted Code Pane */}
-              <div style={{ width: `${splitWidth}%` }} className="h-full border-r border-zinc-800 flex bg-[#09090b] relative shadow-[inset_-10px_0_20px_rgba(0,0,0,0.2)]">
-                 <div ref={lineNumbersRef} className="w-14 bg-zinc-900/60 border-r border-zinc-800/50 text-right pr-4 py-6 select-none overflow-hidden text-zinc-600 font-mono text-xs leading-6 shrink-0 shadow-inner">
-                    {lineNumbers.map(n => <div key={n} className="opacity-70">{n}</div>)}
-                 </div>
-                 {/* Highlighting Engine overlay */}
-                 <div ref={codeContentRef} onScroll={handleCodeScroll} className="flex-1 bg-transparent text-[#e4e4e7] p-6 pl-5 font-mono text-sm overflow-auto custom-scrollbar whitespace-pre leading-6 focus:outline-none" dangerouslySetInnerHTML={{ __html: highlightHTML(generatedCode) }} />
-              </div>
-
-              {/* Draggable Resizer */}
-              <div onMouseDown={() => setIsDraggingSplit(true)} className={`absolute top-0 bottom-0 w-2.5 -ml-[5px] bg-transparent hover:${t.bg} hover:bg-opacity-50 cursor-col-resize z-20 transition-all duration-200 flex items-center justify-center group`} style={{ left: `${splitWidth}%` }}>
-                 <div className={`h-10 w-1.5 bg-zinc-600 rounded-full flex items-center justify-center pointer-events-none group-hover:${t.bg} transition-colors shadow-lg`}><GripVertical className="w-3 h-3 text-zinc-900 opacity-0 group-hover:opacity-100"/></div>
-              </div>
-
-              {/* Preview Pane */}
-              <div style={{ width: `${100 - splitWidth}%` }} className="h-full relative bg-zinc-950 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMSIgY3k9IjEiIHI9IjEiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4wMykiLz48L3N2Zz4=')] flex items-center justify-center overflow-hidden">
-                 <div className="absolute top-4 right-4 flex items-center gap-1.5 bg-zinc-900/90 backdrop-blur-md p-1.5 rounded-xl border border-zinc-700/50 shadow-xl z-20">
-                    <button onClick={() => setPreviewKey(prev => prev + 1)} className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800/80 transition-colors" title="Refresh Preview"><RefreshCw className="w-3.5 h-3.5" /></button>
-                    <div className="w-px h-4 bg-zinc-700/80"></div>
-                    <button onClick={openPreviewInNewTab} className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800/80 transition-colors" title="Open in New Tab"><ExternalLink className="w-3.5 h-3.5" /></button>
-                 </div>
-                 
-                 <div className={`transition-all duration-500 ease-out relative ${deviceSize === 'mobile' ? (isLandscape ? 'w-[812px] h-[375px]' : 'w-[375px] h-[812px]') + ' rounded-[3rem] ring-[12px] ring-zinc-900 border-[8px] border-zinc-950 shadow-black/80 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.8)]' : 'w-full h-full'}`}>
-                   <iframe key={previewKey} srcDoc={getIframeSource()} className={`w-full h-full border-none bg-white relative z-0 ${deviceSize === 'mobile' ? 'rounded-[2.2rem]' : ''}`} sandbox="allow-scripts allow-forms allow-popups allow-modals allow-same-origin allow-downloads" />
-                 </div>
-              </div>
-            </div>
-          ) : (
-            activeTab === 'preview' ? (
-              <div className="flex-1 bg-zinc-950 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMSIgY3k9IjEiIHI9IjEiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4wMykiLz48L3N2Zz4=')] flex items-center justify-center p-8 relative overflow-hidden">
-                
-                {/* Enhanced Floating Toolbar */}
-                <div className="absolute top-6 right-6 flex items-center gap-1.5 bg-zinc-900/90 backdrop-blur-xl p-2 rounded-2xl border border-zinc-700/50 shadow-2xl z-20">
-                    <button onClick={() => setPreviewKey(prev => prev + 1)} className="p-2 text-zinc-400 hover:text-white rounded-xl hover:bg-zinc-800/80 transition-colors" title="Refresh Preview"><RefreshCw className="w-4 h-4" /></button>
-                    <div className="w-px h-5 bg-zinc-700/80"></div>
-                    <button onClick={openPreviewInNewTab} className="p-2 text-zinc-400 hover:text-white rounded-xl hover:bg-zinc-800/80 transition-colors" title="Open in New Tab"><ExternalLink className="w-4 h-4" /></button>
+                <div>
+                  <h3 className="text-xl font-semibold text-gray-200">Welcome to Omni-Sandbox</h3>
+                  <p className="text-sm text-gray-500 mt-2 max-w-xs mx-auto">What would you like to build today? Choose a template or describe your idea below.</p>
                 </div>
-
-                <div className={`bg-white shadow-2xl overflow-hidden transition-all duration-500 ease-out relative ${deviceSize === 'mobile' ? (isLandscape ? 'w-[812px] h-[375px]' : 'w-[375px] h-[812px]') + ' rounded-[3rem] ring-[14px] ring-zinc-900 border-[8px] border-zinc-950 shadow-black/80 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.8)]' : 'w-full h-full rounded-2xl border border-zinc-800/50 shadow-[0_20px_50px_rgba(0,0,0,0.5)]'}`}>
-                  <iframe key={previewKey} srcDoc={getIframeSource()} className={`w-full h-full border-none bg-white relative z-0 ${deviceSize === 'mobile' ? 'rounded-[2.2rem]' : ''}`} sandbox="allow-scripts allow-forms allow-popups allow-modals allow-same-origin allow-downloads" />
+                <div className="grid grid-cols-2 gap-3 w-full max-w-sm mt-4">
+                  {templates.map((t, i) => (
+                    <button 
+                      key={i} 
+                      onClick={() => submitPrompt(t.prompt)}
+                      className="p-3 text-left rounded-xl border border-gray-800 bg-gray-900/50 hover:bg-gray-800 hover:border-indigo-500/50 transition-all flex flex-col gap-2 group"
+                    >
+                      <span className="text-2xl group-hover:scale-110 transition-transform origin-bottom-left">{t.icon}</span>
+                      <span className="text-sm font-medium text-gray-300 group-hover:text-indigo-300">{t.label}</span>
+                    </button>
+                  ))}
                 </div>
               </div>
             ) : (
-              <div className="flex-1 flex bg-[#09090b] shadow-[inset_0_0_50px_rgba(0,0,0,0.5)]">
-                 <div ref={lineNumbersRef} className="w-14 bg-zinc-900/60 border-r border-zinc-800/50 text-right pr-4 py-6 select-none overflow-hidden text-zinc-600 font-mono text-xs leading-6 shrink-0">
-                    {lineNumbers.map(n => <div key={n} className="opacity-70">{n}</div>)}
-                 </div>
-                 <div ref={codeContentRef} onScroll={handleCodeScroll} className="flex-1 bg-transparent text-[#e4e4e7] p-6 pl-5 font-mono text-sm overflow-auto custom-scrollbar whitespace-pre leading-6 focus:outline-none" dangerouslySetInnerHTML={{ __html: highlightHTML(generatedCode) }} />
-              </div>
-            )
-          )}
-        </div>
-
-        {/* BOTTOM PANEL (Console & Network) */}
-        {isConsoleVisible && (
-          <div className={`bg-zinc-950 border-t border-zinc-800/80 flex flex-col transition-all duration-300 ease-in-out shadow-[0_-10px_30px_rgba(0,0,0,0.5)] z-20 ${showBottomPanel ? 'h-72' : 'h-12'}`}>
-             <div className="flex items-center justify-between px-4 bg-zinc-900/90 backdrop-blur border-b border-zinc-800/80">
-                <div className="flex items-center gap-2 pt-2">
-                  <button onClick={() => { setShowBottomPanel(true); setBottomPanelTab('console'); }} className={`flex items-center gap-2 px-5 py-2.5 text-xs font-mono font-bold rounded-t-lg transition-colors ${bottomPanelTab === 'console' && showBottomPanel ? `bg-zinc-800/80 ${t.text} border-t-2 ${t.border}` : 'border-t-2 border-transparent text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/40'}`}><TerminalSquare className="w-4 h-4"/> Console</button>
-                  <button onClick={() => { setShowBottomPanel(true); setBottomPanelTab('network'); }} className={`flex items-center gap-2 px-5 py-2.5 text-xs font-mono font-bold rounded-t-lg transition-colors ${bottomPanelTab === 'network' && showBottomPanel ? `bg-zinc-800/80 ${t.text} border-t-2 ${t.border}` : 'border-t-2 border-transparent text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/40'}`}><Network className="w-4 h-4"/> Network</button>
-                </div>
-                <div className="flex items-center gap-4 pb-1.5">
-                  <div className="text-[10px] text-zinc-400 font-mono font-semibold flex items-center gap-1.5 border border-zinc-800/80 px-2.5 py-1 rounded-md bg-zinc-950/80 shadow-inner" title="Estimated API Token Cost"><DollarSign className="w-3.5 h-3.5 text-emerald-500"/> {(sessionTokens * 0.000002).toFixed(4)} USD</div>
-                  <button onClick={() => bottomPanelTab === 'console' ? setConsoleLogs([]) : setNetworkLogs([])} className="text-[11px] font-bold uppercase tracking-wider bg-zinc-800 text-zinc-400 px-3 py-1.5 rounded-md hover:text-white hover:bg-zinc-700 transition-colors shadow-sm">Clear</button>
-                  <button onClick={() => setShowBottomPanel(!showBottomPanel)} className="p-1.5 text-zinc-500 hover:text-white bg-zinc-800/50 rounded-md hover:bg-zinc-700 transition-colors"><ChevronDown className={`w-4 h-4 transform transition-transform duration-300 ${showBottomPanel ? '' : 'rotate-180'}`}/></button>
-                </div>
-             </div>
-             
-             {showBottomPanel && bottomPanelTab === 'console' && (
-               <div className="flex-1 overflow-y-auto p-4 font-mono text-xs custom-scrollbar bg-zinc-950/50">
-                  {consoleLogs.map((log, i) => (
-                    <div key={i} className={`py-2 px-4 mb-2 rounded-lg border flex gap-4 shadow-sm ${log.type === 'error' ? 'bg-red-500/10 text-red-400 border-red-500/20' : log.type === 'warn' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'text-zinc-300 hover:bg-zinc-900 border-transparent hover:border-zinc-800 transition-colors'}`}>
-                      <span className="opacity-60 font-bold uppercase text-[10px] w-12 shrink-0 pt-0.5">[{log.type}]</span>
-                      <span className="break-all whitespace-pre-wrap leading-relaxed">{log.text}</span>
+              messages.map((msg, idx) => (
+                <div key={idx} className={`flex gap-3 group ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  {msg.role === 'user' && !msg.isAutoGenerated && (
+                    <button onClick={() => handleEditMessage(idx)} className="opacity-0 group-hover:opacity-100 p-1.5 hover:text-indigo-400 text-gray-500 transition-opacity self-center" title="Edit and Resubmit">
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                  {msg.role === 'model' && (
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${msg.isAutoGenerated ? 'bg-amber-500/20 text-amber-400' : 'bg-indigo-500/20 text-indigo-400'}`}>
+                      <Bot className="w-5 h-5" />
                     </div>
-                  ))}
-                  <div ref={consoleEndRef}/>
-               </div>
-             )}
-
-             {showBottomPanel && bottomPanelTab === 'network' && (
-               <div className="flex-1 overflow-y-auto p-4 font-mono text-xs custom-scrollbar bg-zinc-950/50">
-                  <div className="grid grid-cols-12 gap-3 px-4 py-2 text-zinc-500 font-extrabold border-b border-zinc-800 mb-3 uppercase tracking-wider text-[10px]">
-                    <div className="col-span-2">Method</div>
-                    <div className="col-span-6">URL</div>
-                    <div className="col-span-2">Status</div>
-                    <div className="col-span-2 text-right">Time</div>
-                  </div>
-                  {networkLogs.map((log, i) => (
-                    <div key={i} className={`grid grid-cols-12 gap-3 py-2 px-4 mb-1.5 rounded-lg border shadow-sm transition-colors ${log.status === 'ERROR' || log.status >= 400 ? 'text-red-400 bg-red-500/5 border-red-500/20' : log.status === 'pending' ? 'text-zinc-500 animate-pulse border-transparent' : 'text-zinc-300 hover:bg-zinc-900 border-transparent hover:border-zinc-800'}`}>
-                      <div className="col-span-2 font-bold pt-0.5">{log.method}</div>
-                      <div className="col-span-6 truncate pt-0.5" title={log.url}>{log.url}</div>
-                      <div className="col-span-2 pt-0.5 flex items-center gap-1.5">
-                          {log.status === 'pending' ? <Loader2 className="w-3 h-3 animate-spin inline"/> : <span className={`w-2 h-2 rounded-full inline-block ${log.status >= 400 ? 'bg-red-500' : 'bg-emerald-500'}`}></span>}
-                          {log.status}
+                  )}
+                  
+                  <div className={`max-w-[85%] rounded-2xl p-4 text-sm leading-relaxed ${
+                    msg.role === 'user' 
+                      ? msg.isAutoGenerated ? 'bg-gray-800 border border-amber-500/20 text-gray-300 rounded-tr-sm' : 'bg-indigo-600 text-white rounded-tr-sm shadow-md' 
+                      : msg.isAutoGenerated ? 'bg-gray-800/80 border border-amber-500/20 text-gray-200 rounded-tl-sm' : 'bg-gray-800 text-gray-200 rounded-tl-sm border border-gray-700/50'
+                  }`}>
+                    {msg.image && (
+                      <div className="mb-3">
+                        <img src={msg.image} alt="User Context" className="max-w-full h-auto max-h-48 object-cover rounded-lg border border-gray-700" />
                       </div>
-                      <div className="col-span-2 text-right pt-0.5 opacity-80">{log.time ? `${log.time}ms` : '...'}</div>
+                    )}
+                    <div className="whitespace-pre-wrap break-words">
+                      {msg.text.split('\`\`\`').map((chunk, i) => {
+                        if (i % 2 !== 0) {
+                          if (msg.role === 'model' && (chunk.startsWith('html') || chunk.includes('<html') || chunk.includes('<div'))) {
+                            return (
+                              <div key={i} className="mt-3 mb-2 bg-[#1e1e20] border border-[#333538] rounded-xl p-3 flex items-center justify-between w-full min-w-[280px] max-w-sm shadow-lg">
+                                <div className="flex items-center gap-3 overflow-hidden">
+                                  <div className="text-gray-400 border border-gray-700/50 p-2 rounded-md shrink-0 flex items-center justify-center">
+                                    <Code2 className="w-4 h-4" />
+                                  </div>
+                                  <div className="flex flex-col text-left overflow-hidden">
+                                    <span className="text-[13px] font-semibold text-gray-100 truncate tracking-wide">Universal Agentic Builder</span>
+                                    <span className="text-[11px] text-gray-400 mt-0.5 whitespace-nowrap">
+                                      {msg.timestamp ? new Date(msg.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ', ' + new Date(msg.timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : 'Just now'}
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="flex items-center shrink-0 ml-2 gap-1">
+                                  <button onClick={() => setActiveTab('code')} className="text-gray-400 hover:text-white font-medium text-xs px-3 py-1.5 transition-colors">
+                                    Code
+                                  </button>
+                                  <button onClick={() => setActiveTab('preview')} className="bg-[#a8c7fa] hover:bg-[#93b8f8] text-[#062e6f] font-medium text-xs px-5 py-1.5 rounded-full transition-colors">
+                                    Open
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          }
+                          return (
+                            <div key={i} className="mt-2 mb-2 bg-gray-950 rounded-lg p-3 overflow-x-auto text-xs font-mono text-gray-300 border border-gray-800">
+                              {chunk.replace(/^(html|javascript|css|js)\n/, '')}
+                            </div>
+                          );
+                        }
+                        return chunk.split('**').map((textChunk, j) => j % 2 !== 0 ? <strong key={j} className="text-white font-semibold">{textChunk}</strong> : textChunk);
+                      })}
                     </div>
-                  ))}
-                  <div ref={networkEndRef}/>
-               </div>
-             )}
-          </div>
-        )}
-      </div>
+                  </div>
 
-      {/* SETTINGS MODAL */}
-      {showSettings && (
-        <div className="fixed inset-0 bg-zinc-950/80 backdrop-blur-md flex items-center justify-center z-50 p-4 transition-all">
-          <div className="bg-zinc-900/90 backdrop-blur-2xl border border-zinc-700/50 rounded-3xl w-full max-w-5xl p-10 shadow-2xl relative animate-fade-in max-h-[90vh] overflow-y-auto custom-scrollbar ring-1 ring-white/5">
-            <button onClick={() => setShowSettings(false)} className="absolute top-6 right-6 p-2 bg-zinc-800/50 hover:bg-zinc-700 rounded-full text-zinc-400 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
-            <h2 className="text-3xl font-extrabold mb-10 text-white flex items-center gap-3"><Settings className={`w-8 h-8 ${t.text}`} /> Platform Settings</h2>
+                  {msg.role === 'user' && !msg.isAutoGenerated && (
+                    <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center shrink-0">
+                      <User className="w-5 h-5 text-gray-300" />
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-              {/* LEFT COLUMN: Model & Connection */}
-              <div className="space-y-8">
-                <h3 className={`${t.text} text-sm font-bold uppercase tracking-wider border-b border-zinc-800/80 pb-4 flex items-center gap-2.5`}>
-                  <Cpu className="w-4.5 h-4.5"/> API Configuration
-                </h3>
-                
-                <div className="bg-zinc-950/40 p-5 rounded-2xl border border-zinc-800/80 space-y-5 shadow-inner">
-                  <div className="flex gap-4">
-                    <div className="flex-1">
-                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-2">Provider Preset</label>
-                      <select value={providerKey} onChange={handleProviderChange} className="w-full bg-zinc-900 border border-zinc-700 rounded-xl p-3 text-sm font-semibold text-white appearance-none focus:outline-none focus:border-zinc-500 cursor-pointer shadow-sm">
-                        {Object.entries(PROVIDERS).map(([k, v]) => <option key={k} value={k}>{v.name}</option>)}
-                      </select>
-                    </div>
-                    <div className="flex-1">
-                      <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-2">Active Model</label>
-                      <div className="relative">
-                        <input type="text" value={selectedModel} onChange={(e) => setSelectedModel(e.target.value)} list="model-suggestions" className="w-full bg-zinc-900 border border-zinc-700 rounded-xl p-3 text-sm font-semibold text-white focus:outline-none focus:border-zinc-500 shadow-sm" placeholder="e.g. gpt-4o" />
-                        <datalist id="model-suggestions">
-                           {NVIDIA_MODELS.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                        </datalist>
-                      </div>
-                    </div>
-                  </div>
+            {agentStatus !== 'idle' && (
+              <div className="flex items-center gap-3 text-sm text-gray-500">
+                <RefreshCw className="w-4 h-4 animate-spin text-indigo-400" />
+                <span>{agentStatus === 'thinking' ? 'Writing code...' : 'Autonomously fixing errors...'}</span>
+              </div>
+            )}
+            <div ref={chatEndRef} />
+          </div>
 
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-2">API Endpoint</label>
-                    <input type="text" value={apiEndpoint} onChange={(e) => setApiEndpoint(e.target.value)} disabled={providerKey !== 'custom'} className="w-full bg-zinc-900 border border-zinc-700 rounded-xl p-3 text-sm font-mono text-zinc-300 focus:outline-none focus:border-zinc-500 disabled:opacity-50 shadow-sm" />
-                  </div>
+          {/* Input Area */}
+          <div className="p-4 bg-gray-900 border-t border-gray-800 z-10">
+            <form onSubmit={handleSendMessage} className="relative">
+              {chatImage && (
+                <div className="absolute bottom-full mb-2 left-0 p-2 bg-gray-800 rounded-xl border border-gray-700 shadow-xl flex items-center gap-2 animate-in fade-in">
+                  <img src={chatImage} alt="Upload preview" className="h-16 w-16 object-cover rounded-lg border border-gray-600" />
+                  <button type="button" onClick={() => setChatImage(null)} className="p-1 bg-red-500/20 text-red-400 hover:bg-red-500/40 rounded-md transition-colors"><X className="w-4 h-4"/></button>
                 </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400">Authentication Keys</label>
-                    <button onClick={() => setApiKeys([...apiKeys, { id: Date.now().toString(), name: 'New Key', key: '' }])} className={`text-xs font-bold ${t.bg} text-white px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all shadow-md hover:-translate-y-0.5`}><Plus className="w-3.5 h-3.5"/> Add Key</button>
-                  </div>
-                  <div className="space-y-3.5 max-h-64 overflow-y-auto custom-scrollbar pr-2">
-                    {apiKeys.map(k => (
-                      <div key={k.id} className={`flex flex-col gap-3.5 p-5 rounded-2xl border transition-all duration-300 ${activeKeyId === k.id ? `${t.border} ${t.lightBg} shadow-lg shadow-${t.id}-900/20` : 'border-zinc-800 bg-zinc-950/40 hover:border-zinc-700'}`}>
-                        <div className="flex items-center justify-between gap-3">
-                          <label className="flex items-center gap-3.5 flex-1 cursor-pointer group">
-                             <div className={`w-5 h-5 rounded-full border-[1.5px] flex items-center justify-center transition-colors shadow-inner ${activeKeyId === k.id ? t.border : 'border-zinc-600 group-hover:border-zinc-400'}`}>
-                               {activeKeyId === k.id && <div className={`w-2.5 h-2.5 ${t.bg} rounded-full`} />}
-                             </div>
-                             <input type="radio" checked={activeKeyId === k.id} onChange={() => setActiveKeyId(k.id)} className="hidden" />
-                             <input type="text" value={k.name} onChange={(e) => setApiKeys(apiKeys.map(ak => ak.id === k.id ? {...ak, name: e.target.value} : ak))} className="bg-transparent text-sm font-extrabold text-zinc-200 focus:outline-none w-full placeholder:text-zinc-600" placeholder="e.g. Production Key" />
-                          </label>
-                          <div className="flex items-center gap-1">
-                            <button onClick={() => testConnection(k)} title="Test Connection" className={`p-2 rounded-lg transition-colors shadow-sm bg-zinc-900 border border-zinc-800 ${keyTestStatus[k.id] === 'loading' ? 'text-amber-400' : keyTestStatus[k.id] === 'success' ? 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10' : keyTestStatus[k.id] === 'error' ? 'text-red-400 border-red-500/30 bg-red-500/10' : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'}`}>
-                               {keyTestStatus[k.id] === 'loading' ? <Loader2 className="w-4 h-4 animate-spin"/> : keyTestStatus[k.id] === 'success' ? <Check className="w-4 h-4"/> : <Wifi className="w-4 h-4"/>}
-                            </button>
-                            {apiKeys.length > 1 && (
-                              <button onClick={() => { const newKeys = apiKeys.filter(ak => ak.id !== k.id); setApiKeys(newKeys); if (activeKeyId === k.id) setActiveKeyId(newKeys[0].id); }} className="p-2 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors bg-zinc-900 border border-zinc-800 shadow-sm"><Trash2 className="w-4 h-4"/></button>
-                            )}
-                          </div>
-                        </div>
-                        <div className="relative">
-                          <input type={showKey ? "text" : "password"} value={k.key} onChange={(e) => setApiKeys(apiKeys.map(ak => ak.id === k.id ? {...ak, key: e.target.value} : ak))} className={`w-full bg-zinc-900 border border-zinc-800 rounded-xl py-3 pl-4 pr-11 text-sm text-white focus:${t.border} focus:outline-none focus:ring-1 focus:${t.ring} font-mono placeholder:text-zinc-600 placeholder:font-sans shadow-inner transition-all`} placeholder="sk-..." />
-                          <button onClick={() => setShowKey(!showKey)} className="absolute right-3.5 top-3.5 text-zinc-500 hover:text-white transition-colors">{showKey ? <EyeOff size={18}/> : <Eye size={18}/>}</button>
-                        </div>
-                      </div>
+              )}
+              {showSnippets && (
+                <div className="absolute bottom-full mb-3 left-0 w-72 bg-gray-800 border border-gray-700 rounded-xl shadow-2xl p-2 z-20 animate-in fade-in slide-in-from-bottom-2">
+                  <div className="text-xs text-gray-400 mb-2 px-2 font-semibold uppercase tracking-wider">Quick Prompts</div>
+                  <div className="space-y-1">
+                    {quickSnippets.map((s, i) => (
+                      <button key={i} type="button" onClick={() => {setInput(s); setShowSnippets(false);}} className="text-left w-full p-2.5 text-xs text-gray-300 hover:bg-indigo-500/20 hover:text-indigo-300 rounded-lg transition-colors truncate">
+                        {s}
+                      </button>
                     ))}
                   </div>
                 </div>
+              )}
+              
+              <div className="absolute left-2 top-2 bottom-2 flex items-center gap-0.5">
+                 <button type="button" onClick={() => document.getElementById('chat-image-upload').click()} className="p-1.5 text-gray-500 hover:text-indigo-400 transition-colors rounded-lg" title="Upload Image Context"><ImagePlus className="w-4 h-4" /></button>
+                 <button type="button" onClick={toggleListen} className={`p-1.5 transition-colors rounded-lg ${isListening ? 'text-red-400 bg-red-500/10 animate-pulse' : 'text-gray-500 hover:text-indigo-400'}`} title="Voice Dictation"><Mic className="w-4 h-4" /></button>
+                 <input type="file" id="chat-image-upload" accept="image/*" className="hidden" onChange={handleChatImageUpload} />
               </div>
 
-              {/* RIGHT COLUMN: Context & Theming */}
-              <div className="space-y-8">
-                <h3 className="text-blue-400 text-sm font-bold uppercase tracking-wider border-b border-zinc-800/80 pb-4 flex items-center gap-2.5">
-                  <Palette className="w-4.5 h-4.5"/> Interface Theme
-                </h3>
-                <div className="grid grid-cols-4 gap-4">
-                   {Object.values(THEMES).map(theme => (
-                     <button key={theme.id} onClick={() => setActiveTheme(theme.id)} className={`flex flex-col items-center gap-3 p-4 rounded-2xl border transition-all duration-300 hover:-translate-y-1 ${activeTheme === theme.id ? `border-${theme.id}-500 bg-${theme.id}-500/10 shadow-[0_10px_30px_rgba(var(--${theme.id}-rgb),0.2)]` : 'border-zinc-800 bg-zinc-950/40 hover:border-zinc-600 shadow-sm'}`}>
-                        <div className={`w-8 h-8 rounded-full shadow-inner border border-white/10 ${theme.bg}`}></div>
-                        <span className="text-xs font-bold text-zinc-300 capitalize tracking-wide">{theme.id}</span>
-                     </button>
-                   ))}
-                </div>
+              <textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(e); } }}
+                placeholder="Describe what to build..."
+                className="w-full bg-gray-950 border border-gray-800 rounded-xl py-3 pl-[4.5rem] pr-12 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 resize-none h-[60px] max-h-[200px]"
+                disabled={isLoading}
+              />
+              
+              <div className="absolute right-2 top-2 bottom-2 flex items-center gap-1">
+                <button type="button" onClick={() => setShowSnippets(!showSnippets)} className={`p-1.5 transition-colors rounded-lg ${showSnippets ? 'text-indigo-400 bg-indigo-500/10' : 'text-gray-500 hover:text-indigo-400'}`} title="Prompt Snippets">
+                  <Bookmark className="w-4 h-4" />
+                </button>
+                <button type="submit" disabled={!input.trim() || isLoading} className="aspect-square h-full rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-800 disabled:text-gray-600 flex items-center justify-center transition-colors">
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
 
-                <h3 className="text-purple-400 text-sm font-bold uppercase tracking-wider border-b border-zinc-800/80 pb-4 flex items-center gap-2.5 pt-2">
-                  <Brain className="w-4.5 h-4.5"/> Context & Behavior
-                </h3>
-                
-                <div className="space-y-5">
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-2 flex items-center justify-between">
-                      Knowledge Context
-                      <span className="text-[9px] font-bold text-zinc-600 bg-zinc-900 px-2 py-0.5 rounded border border-zinc-800">PROJECT SCOPE</span>
-                    </label>
-                    <textarea value={knowledgeContext} onChange={(e) => setKnowledgeContext(e.target.value)} className="w-full bg-zinc-950/40 border border-zinc-800 rounded-2xl p-4 text-sm font-medium h-28 text-zinc-200 focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 focus:outline-none resize-none custom-scrollbar placeholder:text-zinc-600 shadow-inner transition-all" placeholder="Paste documentation, schemas, specific styling rules, or API endpoints here..." />
-                  </div>
+        {/* Drag Handle Chat */}
+        {!isZenMode && <div onMouseDown={startChatDrag} className="hidden lg:flex w-1 bg-transparent hover:bg-indigo-500 cursor-col-resize shrink-0 z-30 transition-colors relative -ml-[1px]" />}
 
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-2 flex items-center justify-between">
-                      System Prompt Override
-                      <span className="text-[9px] font-bold text-zinc-600 bg-zinc-900 px-2 py-0.5 rounded border border-zinc-800">AI PERSONA</span>
-                    </label>
-                    <textarea value={systemPromptOverride} onChange={(e) => setSystemPromptOverride(e.target.value)} className="w-full bg-zinc-950/40 border border-zinc-800 rounded-2xl p-4 text-sm font-medium h-28 text-zinc-200 focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/20 focus:outline-none resize-none custom-scrollbar placeholder:text-zinc-600 shadow-inner transition-all" placeholder="Override the default '10x developer' persona. e.g., 'You are a senior React performance specialist...'" />
-                  </div>
+        {/* Workspace Area */}
+        <div className={`flex-1 flex-col h-full bg-[#0d1117] ${activeTab !== 'chat' || isZenMode ? 'flex' : 'hidden lg:flex'}`}>
+          <div className="flex-1 flex flex-col xl:flex-row h-full min-h-0">
+            
+            {/* Live Editable Code View (With Syntax Highlighting) */}
+            <div style={{ width: (typeof window !== 'undefined' && window.innerWidth >= 1280 && !isZenMode) ? codeWidth : '100%' }} className={`flex-col border-r border-gray-800 h-full shrink-0 ${activeTab === 'code' ? 'flex' : 'hidden xl:flex'}`}>
+              <div className="h-12 bg-gray-900 border-b border-gray-800 flex justify-between items-center px-4 text-sm font-medium text-gray-400 shrink-0 overflow-x-auto whitespace-nowrap">
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setIsZenMode(!isZenMode)} className="p-1.5 mr-1 hover:text-white hover:bg-gray-800 rounded-md transition-colors" title="Toggle Zen Mode">
+                    {isZenMode ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
+                  </button>
+                  <Terminal className="w-4 h-4" />
+                  <span>app_canvas.html</span>
                 </div>
+                <div className="flex items-center gap-1 ml-4">
+                  <button onClick={() => setIsAssetsOpen(true)} className="p-1.5 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-md transition-colors flex items-center gap-1" title="Manage Assets">
+                    <ImageIcon className="w-4 h-4" /> <span className="text-xs hidden 2xl:inline">Assets</span>
+                  </button>
+                  <button onClick={() => setIsPackagesOpen(true)} className="p-1.5 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-md transition-colors flex items-center gap-1" title="Inject CDNs">
+                    <Package className="w-4 h-4" /> <span className="text-xs hidden 2xl:inline">Packages</span>
+                  </button>
+                  <button onClick={() => setIsComponentsOpen(true)} className="p-1.5 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-md transition-colors flex items-center gap-1" title="Tailwind Blocks">
+                    <Blocks className="w-4 h-4" /> <span className="text-xs hidden 2xl:inline">Blocks</span>
+                  </button>
+                  <button onClick={() => handleAgentAction('bootstrap')} disabled={isLoading} className="p-1.5 hover:text-green-400 hover:bg-green-500/10 rounded-md transition-colors flex items-center gap-1 disabled:opacity-50" title="Agent: Bootstrap Canvas File">
+                    <Rocket className="w-4 h-4" />
+                  </button>
+                  <div className="w-px h-4 bg-gray-700 mx-1"></div>
+                  <button onClick={() => handleAgentAction('auto-improve')} disabled={isLoading} className="p-1.5 hover:text-purple-400 hover:bg-purple-500/10 rounded-md transition-colors flex items-center gap-1 disabled:opacity-50" title="Agent: Auto-Review & Improve UI">
+                    <Eye className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => handleAgentAction('explain')} disabled={isLoading} className="p-1.5 hover:text-blue-400 hover:bg-blue-500/10 rounded-md transition-colors flex items-center gap-1 disabled:opacity-50" title="Agent: Explain Code">
+                    <Lightbulb className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => handleAgentAction('beautify')} disabled={isLoading} className="p-1.5 hover:text-pink-400 hover:bg-pink-500/10 rounded-md transition-colors flex items-center gap-1 disabled:opacity-50" title="Agent: Beautify UI">
+                    <Paintbrush className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => handleAgentAction('polish')} disabled={isLoading} className="p-1.5 hover:text-amber-400 hover:bg-amber-500/10 rounded-md transition-colors flex items-center gap-1 disabled:opacity-50" title="Agent: Refactor & Polish Code">
+                    <Wand2 className="w-4 h-4" />
+                  </button>
+                  <div className="w-px h-4 bg-gray-700 mx-1"></div>
+                  <button onClick={handleUndo} disabled={historyIndex === 0} className="p-1.5 hover:text-white hover:bg-gray-800 rounded-md transition-colors disabled:opacity-30" title="Undo"><Undo className="w-4 h-4" /></button>
+                  <button onClick={handleRedo} disabled={historyIndex === codeHistory.length - 1} className="p-1.5 hover:text-white hover:bg-gray-800 rounded-md transition-colors disabled:opacity-30 mr-1" title="Redo"><Redo className="w-4 h-4" /></button>
+                  <button onClick={() => setIsHistoryOpen(true)} className="p-1.5 hover:text-white hover:bg-gray-800 rounded-md transition-colors" title="Version History"><History className="w-4 h-4" /></button>
+                  <div className="w-px h-4 bg-gray-700 mx-1"></div>
+                  <button onClick={exportToCodePen} className="p-1.5 hover:text-white hover:bg-gray-800 rounded-md transition-colors" title="Export to CodePen"><Share2 className="w-4 h-4" /></button>
+                  <button onClick={handleCopyCode} className="p-1.5 hover:text-white hover:bg-gray-800 rounded-md transition-colors" title="Copy"><Copy className="w-4 h-4" /></button>
+                  <button onClick={exportToZip} className="p-1.5 hover:text-white hover:bg-gray-800 rounded-md transition-colors" title="Export as ZIP File"><FileArchive className="w-4 h-4" /></button>
+                  <button onClick={handleDownloadCode} className="p-1.5 hover:text-white hover:bg-gray-800 rounded-md transition-colors" title="Download HTML (Cmd+S)"><Download className="w-4 h-4" /></button>
+                </div>
+              </div>
+              <div className="flex-1 relative bg-[#0d1117] overflow-hidden group">
+                <textarea 
+                  ref={editorRef}
+                  value={generatedCode}
+                  onChange={(e) => updateCode(e.target.value)}
+                  onKeyDown={handleEditorKeyDown}
+                  spellCheck="false"
+                  className="absolute inset-0 w-full h-full p-4 font-mono text-xs md:text-sm text-[#e5e7eb] leading-relaxed bg-[#0d1117] resize-none focus:outline-none whitespace-pre overflow-auto break-normal selection:bg-indigo-500/30"
+                  style={{ tabSize: 2 }}
+                />
               </div>
             </div>
 
-            <div className="mt-10 pt-8 border-t border-zinc-800/80 flex justify-end gap-4">
-              <button onClick={() => setShowSettings(false)} className={`bg-gradient-to-r ${t.from} ${t.to} text-white px-10 py-3.5 rounded-2xl font-bold transition-all shadow-xl hover:-translate-y-1 ${t.glow} flex items-center gap-2.5 text-sm`}><CheckCircle2 className="w-5 h-5"/> Save & Close</button>
+            {/* Drag Handle Code */}
+            <div onMouseDown={startCodeDrag} className="hidden xl:flex w-1 bg-transparent hover:bg-indigo-500 cursor-col-resize shrink-0 z-30 transition-colors relative -ml-[1px]" />
+
+            {/* Live Preview & Console View */}
+            <div className={isFullscreen ? 'fixed inset-0 z-50 flex flex-col bg-[#0d1117]' : `flex-1 flex-col h-full min-w-0 ${activeTab === 'preview' || (activeTab === 'chat' && window.innerWidth >= 1024) ? 'flex' : 'hidden xl:flex'}`}>
+              
+              <div className="h-12 bg-gray-900 border-b border-gray-800 flex justify-between items-center px-4 text-sm font-medium text-gray-400 shrink-0">
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <Play className="w-4 h-4 text-green-400" />
+                    <span className="hidden sm:inline">Live Canvas</span>
+                  </div>
+                  
+                  <div className="flex items-center bg-gray-950 rounded-lg p-0.5 border border-gray-800 hidden sm:flex">
+                    <button onClick={() => { setViewport('mobile'); setIsLandscape(false); }} className={`p-1.5 rounded-md transition-colors ${viewport === 'mobile' ? 'bg-gray-800 text-white' : 'hover:text-white'}`} title="Mobile Portrait"><Smartphone className="w-4 h-4" /></button>
+                    <button onClick={() => { setViewport('tablet'); setIsLandscape(false); }} className={`p-1.5 rounded-md transition-colors ${viewport === 'tablet' ? 'bg-gray-800 text-white' : 'hover:text-white'}`} title="Tablet Portrait"><TabletIcon className="w-4 h-4" /></button>
+                    <button onClick={() => { setViewport('desktop'); setIsLandscape(false); }} className={`p-1.5 rounded-md transition-colors ${viewport === 'desktop' ? 'bg-gray-800 text-white' : 'hover:text-white'}`} title="Desktop"><Monitor className="w-4 h-4" /></button>
+                    {viewport !== 'desktop' && (
+                      <button onClick={() => setIsLandscape(!isLandscape)} className={`p-1.5 ml-1 rounded-md transition-colors hover:text-white ${isLandscape ? 'text-indigo-400' : ''}`} title="Rotate Device">
+                        <RotateCcw className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex gap-2 items-center">
+                   <button onClick={() => setPreviewZoom(z => Math.max(25, z - 25))} className="p-1.5 rounded-md transition-colors hover:text-white" title="Zoom Out Preview"><ZoomOut className="w-4 h-4" /></button>
+                   <span className="text-xs w-8 text-center font-mono">{previewZoom}%</span>
+                   <button onClick={() => setPreviewZoom(z => Math.min(200, z + 25))} className="p-1.5 rounded-md transition-colors hover:text-white" title="Zoom In Preview"><ZoomIn className="w-4 h-4" /></button>
+                   <div className="w-px h-4 bg-gray-700 mx-1"></div>
+
+                   <button onClick={() => setIsPreviewDark(!isPreviewDark)} className={`hover:text-white transition-colors flex items-center p-1.5 rounded ${isPreviewDark ? 'bg-indigo-500/20 text-indigo-400' : ''}`} title="Toggle Dark Mode in Preview">
+                     {isPreviewDark ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+                   </button>
+                   <button onClick={() => setIsConsoleOpen(!isConsoleOpen)} className={`hover:text-white transition-colors flex items-center gap-1 px-2 py-1 rounded ${isConsoleOpen ? 'bg-gray-800 text-white' : ''}`} title="Toggle Developer Console">
+                     <TerminalSquare className="w-4 h-4" />
+                     {consoleLogs.length > 0 && <span className="bg-amber-500 text-black text-[10px] font-bold px-1.5 rounded-full">{consoleLogs.length}</span>}
+                   </button>
+                   <div className="w-px h-4 bg-gray-700 mx-1"></div>
+                   <button onClick={() => setIframeKey(k => k + 1)} className="hover:text-red-400 transition-colors" title="Hard Reset Sandbox"><Power className="w-4 h-4" /></button>
+                   <button onClick={() => setIsFullscreen(!isFullscreen)} className="hover:text-white transition-colors" title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}>{isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}</button>
+                   <button onClick={() => iframeRef.current && (iframeRef.current.srcdoc = getSandboxDoc())} className="hover:text-white transition-colors" title="Reload Preview"><RefreshCw className="w-4 h-4" /></button>
+                </div>
+              </div>
+              
+              <div 
+                className="flex-1 bg-[#090b0f] relative flex justify-center overflow-auto items-start pt-2 sm:pt-8"
+                style={{ backgroundImage: 'url("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMiIgY3k9IjIiIHI9IjEiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4wNikiLz48L3N2Zz4=")' }}
+              >
+                <div 
+                  className={`bg-white transition-all duration-300 ease-in-out relative origin-top flex flex-col ${
+                    viewport !== 'desktop' 
+                      ? 'rounded-[2.5rem] border-[14px] border-[#1a1b1e] overflow-hidden shrink-0 shadow-[0_0_0_2px_rgba(255,255,255,0.05)_inset,0_25px_50px_-12px_rgba(0,0,0,0.8)]' 
+                      : 'w-full h-full border-t border-l border-gray-700/50 rounded-tl-xl overflow-hidden shadow-2xl mr-[-1px]'
+                  }`}
+                  style={viewport !== 'desktop' ? { 
+                    width: viewport === 'mobile' ? (isLandscape ? 812 : 375) : (isLandscape ? 1024 : 768), 
+                    height: viewport === 'mobile' ? (isLandscape ? 375 : 812) : (isLandscape ? 768 : 1024),
+                    transform: `scale(${previewZoom / 100})`
+                  } : {
+                    transform: `scale(${previewZoom / 100})`,
+                    transformOrigin: 'top left'
+                  }}
+                >
+                  
+                  {/* Desktop Browser Chrome */}
+                  {viewport === 'desktop' && (
+                    <div className="h-10 bg-gray-50 border-b border-gray-200 flex items-center px-4 gap-4 shrink-0 w-full z-10 select-none">
+                      <div className="flex gap-2">
+                        <div className="w-3 h-3 rounded-full bg-[#ff5f56] border border-[#e0443e] shadow-sm"></div>
+                        <div className="w-3 h-3 rounded-full bg-[#ffbd2e] border border-[#dea123] shadow-sm"></div>
+                        <div className="w-3 h-3 rounded-full bg-[#27c93f] border border-[#1aab29] shadow-sm"></div>
+                      </div>
+                      <div className="flex-1 flex justify-center px-4">
+                         <div className="bg-white border border-gray-200/60 rounded-md px-3 py-1 text-[11px] text-gray-500 font-mono w-full max-w-md text-center truncate shadow-sm flex items-center justify-center gap-2">
+                           <Lock className="w-3 h-3 text-gray-400" /> localhost:3000
+                         </div>
+                      </div>
+                      <div className="w-[52px]"></div> {/* Spacer to balance the layout */}
+                    </div>
+                  )}
+
+                  {/* Fake Device Notch (Dynamic Island) for Portrait Mobile/Tablet */}
+                  {viewport !== 'desktop' && !isLandscape && (
+                    <div className="absolute top-2 inset-x-0 h-7 bg-black rounded-full w-28 mx-auto z-10 pointer-events-none flex items-center justify-end px-3 shadow-md border border-gray-800/80">
+                      <div className="w-2.5 h-2.5 rounded-full bg-[#111] shadow-[inset_0_1px_2px_rgba(255,255,255,0.1)] border border-gray-800/50 relative overflow-hidden">
+                         <div className="absolute top-0.5 right-0.5 w-0.5 h-0.5 bg-blue-400/30 rounded-full blur-[1px]"></div>
+                      </div>
+                    </div>
+                  )}
+                  {/* Fake Device Notch (Dynamic Island) for Landscape */}
+                  {viewport !== 'desktop' && isLandscape && (
+                    <div className="absolute left-2 inset-y-0 w-7 bg-black rounded-full h-28 my-auto z-10 pointer-events-none flex flex-col items-center justify-end py-3 shadow-md border border-gray-800/80">
+                      <div className="w-2.5 h-2.5 rounded-full bg-[#111] shadow-[inset_0_1px_2px_rgba(255,255,255,0.1)] border border-gray-800/50 relative overflow-hidden">
+                        <div className="absolute bottom-0.5 right-0.5 w-0.5 h-0.5 bg-blue-400/30 rounded-full blur-[1px]"></div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="flex-1 relative bg-white w-full h-full">
+                    <iframe 
+                      key={iframeKey}
+                      ref={iframeRef} 
+                      title="Preview" 
+                      className="absolute inset-0 w-full h-full border-none bg-transparent z-0" 
+                      sandbox="allow-scripts allow-forms allow-popups allow-modals allow-same-origin" 
+                      srcDoc={getSandboxDoc()} 
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {isConsoleOpen && (
+                <div className="h-56 bg-gray-950 border-t border-gray-800 flex flex-col shrink-0">
+                  <div className="h-10 bg-gray-900 border-b border-gray-800 flex justify-between items-center px-3 text-xs font-mono text-gray-400">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-gray-300">Console</span>
+                      <div className="w-px h-3 bg-gray-700 mx-1"></div>
+                      <div className="flex items-center gap-1">
+                        {['all', 'log', 'warn', 'error', 'network'].map(f => (
+                          <button 
+                            key={f} 
+                            onClick={() => setConsoleFilter(f)} 
+                            className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider transition-colors ${consoleFilter === f ? 'bg-indigo-500 text-white' : 'bg-gray-800 text-gray-500 hover:text-gray-300'}`}
+                          >
+                            {f}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <button onClick={() => setConsoleLogs([])} className="hover:text-white transition-colors">Clear</button>
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-2 font-mono text-xs space-y-1">
+                    {consoleLogs.filter(log => consoleFilter === 'all' || log.type === consoleFilter).length === 0 ? (
+                      <div className="text-gray-600 italic px-2 py-1">No logs matching filter.</div>
+                    ) : (
+                      consoleLogs.filter(log => consoleFilter === 'all' || log.type === consoleFilter).map(log => (
+                        <div key={log.id} className={`px-2 py-1.5 rounded border-l-2 ${log.type === 'error' ? 'bg-red-900/10 text-red-400 border-red-500' : log.type === 'warn' ? 'bg-amber-900/10 text-amber-400 border-amber-500' : log.type === 'network' ? 'bg-blue-900/10 text-blue-400 border-blue-500' : 'text-gray-300 border-gray-700 hover:bg-gray-900'}`}>
+                          <span className="text-gray-600 mr-3">[{log.time}]</span>{log.message}
+                        </div>
+                      ))
+                    )}
+                    <div ref={consoleEndRef} />
+                  </div>
+                </div>
+              )}
+
             </div>
           </div>
         </div>
-      )}
+      </main>
 
-      {/* LIBRARY MODAL */}
-      {showLibrary && (
-        <div className="fixed inset-0 bg-zinc-950/80 backdrop-blur-md flex items-center justify-center z-50 p-4 transition-all">
-          <div className="bg-zinc-900/90 backdrop-blur-2xl border border-zinc-700/50 rounded-3xl w-full max-w-3xl p-8 shadow-2xl flex flex-col max-h-[85vh] ring-1 ring-white/5">
-            <div className="flex items-center justify-between mb-8 border-b border-zinc-800/80 pb-4">
-               <h2 className="text-2xl font-extrabold text-white flex items-center gap-3"><Library className={`w-7 h-7 ${t.text}`}/> Local Component Library</h2>
-               <button onClick={() => setShowLibrary(false)} className="p-2 bg-zinc-800/50 hover:bg-zinc-700 rounded-full text-zinc-400 hover:text-white transition-colors"><X className="w-5 h-5" /></button>
+      {/* History Modal */}
+      {isHistoryOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
+            <div className="p-4 border-b border-gray-800 flex justify-between items-center">
+              <h3 className="text-lg font-semibold flex items-center gap-2"><History className="w-5 h-5 text-indigo-400" /> Version History</h3>
+              <button onClick={() => setIsHistoryOpen(false)} className="text-gray-500 hover:text-white"><X className="w-5 h-5" /></button>
             </div>
-            <div className="flex-1 overflow-y-auto space-y-4 custom-scrollbar pr-2">
-              {savedComponents.length === 0 ? <p className="text-zinc-500 text-center py-16 font-medium text-lg">No components saved yet. <br/><span className="text-sm font-normal mt-2 block">Click the Bookmark icon in the editor to save your code.</span></p> : savedComponents.map(comp => (
-                <div key={comp.id} className={`bg-zinc-950/50 border border-zinc-800 p-5 rounded-2xl flex justify-between items-center transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:${t.borderSubtle} group`}>
-                  <div className="flex flex-col gap-1.5">
-                     <h3 className={`${t.text} font-extrabold text-base`}>{comp.name}</h3>
-                     <p className="text-xs font-mono font-medium text-zinc-500 flex items-center gap-1.5"><History className="w-3.5 h-3.5"/> Saved at {comp.timestamp}</p>
+            <div className="p-4 space-y-3 max-h-[60vh] overflow-y-auto">
+              {codeHistory.map((_, i) => (
+                <div key={i} className={`flex justify-between items-center p-3 rounded-xl border ${historyIndex === i ? 'bg-indigo-500/10 border-indigo-500/50' : 'bg-gray-950 border-gray-800'}`}>
+                  <div>
+                    <h4 className={`font-medium text-sm ${historyIndex === i ? 'text-indigo-300' : 'text-gray-200'}`}>Version {i + 1}</h4>
+                    <p className="text-xs text-gray-500">{historyIndex === i ? 'Currently Active' : 'Auto-Saved State'}</p>
                   </div>
-                  <div className="flex gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => setSavedComponents(prev => prev.filter(c => c.id !== comp.id))} className="text-xs font-bold text-red-400 hover:text-white bg-red-500/10 hover:bg-red-500 px-4 py-2 rounded-xl transition-all border border-red-500/20 hover:border-red-500 shadow-sm">Delete</button>
-                    <button onClick={() => { const newHist = [...history].slice(Math.max(0, historyIndex + 1 - MAX_HISTORY_LEN + 1), historyIndex + 1); newHist.push({ code: comp.code, timestamp: new Date().toLocaleTimeString() }); setHistory(newHist); setHistoryIndex(newHist.length - 1); setShowLibrary(false); }} className={`${t.bg} ${t.bgHover} px-6 py-2 rounded-xl text-xs font-bold text-white transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5`}>Load</button>
-                  </div>
+                  <button onClick={() => restoreHistory(i)} disabled={historyIndex === i} className="px-3 py-1.5 bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 disabled:opacity-30 rounded-lg text-xs font-medium transition-colors shrink-0 ml-2">
+                    Restore
+                  </button>
                 </div>
               ))}
             </div>
@@ -1051,14 +1201,197 @@ export default function App() {
         </div>
       )}
 
-      <style dangerouslySetInnerHTML={{__html: `
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(63, 63, 70, 0.6); border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(161, 161, 170, 0.8); }
-        .animate-fade-in { animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(15px) scale(0.97); filter: blur(4px); } to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); } }
-      `}} />
+      {/* Components Modal */}
+      {isComponentsOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
+            <div className="p-4 border-b border-gray-800 flex justify-between items-center">
+              <h3 className="text-lg font-semibold flex items-center gap-2"><Blocks className="w-5 h-5 text-indigo-400" /> Tailwind Blocks</h3>
+              <button onClick={() => setIsComponentsOpen(false)} className="text-gray-500 hover:text-white"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-4 space-y-3 max-h-[60vh] overflow-y-auto">
+              {tailwindComponents.map((comp, i) => (
+                <div key={i} className="flex justify-between items-center p-3 rounded-xl bg-gray-950 border border-gray-800">
+                  <h4 className="font-medium text-gray-200 text-sm">{comp.name}</h4>
+                  <button onClick={() => injectComponent(comp.code)} className="px-3 py-1.5 bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 rounded-lg text-xs font-medium transition-colors shrink-0 ml-2">
+                    Insert
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Packages Modal */}
+      {isPackagesOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
+            <div className="p-4 border-b border-gray-800 flex justify-between items-center">
+              <h3 className="text-lg font-semibold flex items-center gap-2"><Package className="w-5 h-5 text-indigo-400" /> Inject Packages</h3>
+              <button onClick={() => setIsPackagesOpen(false)} className="text-gray-500 hover:text-white"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-4 space-y-3 max-h-[60vh] overflow-y-auto">
+              {popularPackages.map((pkg, i) => (
+                <div key={i} className="flex justify-between items-center p-3 rounded-xl bg-gray-950 border border-gray-800">
+                  <div>
+                    <h4 className="font-medium text-gray-200 text-sm">{pkg.name}</h4>
+                    <p className="text-xs text-gray-500">{pkg.desc}</p>
+                  </div>
+                  <button onClick={() => injectPackage(pkg.tag)} className="px-3 py-1.5 bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 rounded-lg text-xs font-medium transition-colors shrink-0 ml-2">
+                    Add
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Assets Modal */}
+      {isAssetsOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
+            <div className="p-4 border-b border-gray-800 flex justify-between items-center">
+              <h3 className="text-lg font-semibold flex items-center gap-2"><ImageIcon className="w-5 h-5 text-indigo-400" /> Asset Manager</h3>
+              <button onClick={() => setIsAssetsOpen(false)} className="text-gray-500 hover:text-white"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div className="border-2 border-dashed border-gray-700 rounded-xl p-8 text-center hover:bg-gray-800/50 transition-colors relative">
+                <input type="file" accept="image/*" onChange={handleAssetUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                <ImageIcon className="w-8 h-8 text-gray-500 mx-auto mb-2" />
+                <p className="text-sm text-gray-400">Click or drag image to upload<br/><span className="text-xs text-gray-500">(Converts to Base64)</span></p>
+              </div>
+              <div className="max-h-48 overflow-y-auto space-y-2">
+                {assets.map((asset, i) => (
+                  <div key={i} className="flex justify-between items-center p-2 rounded-lg bg-gray-950 border border-gray-800">
+                    <div className="flex items-center gap-2 overflow-hidden">
+                      <img src={asset.base64} alt="preview" className="w-8 h-8 object-cover rounded bg-gray-800 shrink-0" />
+                      <span className="text-xs text-gray-300 truncate">{asset.name}</span>
+                    </div>
+                    <button onClick={() => { navigator.clipboard.writeText(asset.base64); alert('Base64 copied to clipboard!'); }} className="p-1.5 hover:bg-indigo-500/20 text-indigo-400 rounded-md transition-colors shrink-0 ml-2" title="Copy Base64">
+                      <Copy className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+                {assets.length === 0 && <p className="text-xs text-center text-gray-600 py-4">No assets uploaded yet.</p>}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Settings Modal */}
+      {isSettingsOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl max-h-[90vh] flex flex-col">
+            <div className="p-4 border-b border-gray-800 flex justify-between items-center shrink-0">
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <KeyRound className="w-5 h-5 text-indigo-400" /> Settings & Key Vault
+              </h3>
+              <button onClick={() => setIsSettingsOpen(false)} className="text-gray-500 hover:text-white"><X className="w-5 h-5" /></button>
+            </div>
+            
+            <div className="p-6 space-y-6 overflow-y-auto">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-300">Active AI Provider</label>
+                  <select value={apiProvider} onChange={(e) => saveSetting('omni_api_provider', e.target.value, setApiProvider)} className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50">
+                    <option value="gemini">Google Gemini</option>
+                    <option value="longcat">Longcat.chat</option>
+                    <option value="ollama">Ollama (Local LLM)</option>
+                  </select>
+                </div>
+
+                {apiProvider === 'gemini' && (
+                  <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                    <label className="text-sm font-medium text-gray-300">Gemini API Key (BYOK)</label>
+                    <input type="password" value={userApiKey} onChange={(e) => saveSetting('omni_gemini_key', e.target.value, setUserApiKey)} placeholder="AIzaSy..." className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50" />
+                    <p className="text-xs text-gray-500">Stored securely in your local browser.</p>
+                  </div>
+                )}
+
+                {apiProvider === 'longcat' && (
+                  <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-300">Longcat API Key</label>
+                      <input type="password" value={longcatApiKey} onChange={(e) => saveSetting('omni_longcat_key', e.target.value, setLongcatApiKey)} placeholder="lc_..." className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-300">Base URL</label>
+                      <input type="text" value={longcatBaseUrl} onChange={(e) => saveSetting('omni_longcat_url', e.target.value, setLongcatBaseUrl)} className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50" />
+                    </div>
+                  </div>
+                )}
+
+                {apiProvider === 'ollama' && (
+                  <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
+                    <div className="p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-lg mb-2">
+                      <p className="text-xs text-indigo-300">Make sure Ollama is running locally and CORS is enabled (set <code>OLLAMA_ORIGINS="*"</code>).</p>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-300">Local Endpoint URL</label>
+                      <input type="text" value={ollamaUrl} onChange={(e) => saveSetting('omni_ollama_url', e.target.value, setOllamaUrl)} placeholder="http://localhost:11434/api/chat" className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-300">Model Name</label>
+                      <input type="text" value={ollamaModel} onChange={(e) => saveSetting('omni_ollama_model', e.target.value, setOllamaModel)} placeholder="llama3, deepseek-coder, etc." className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50" />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Environment Variables */}
+              <div className="pt-4 border-t border-gray-800 space-y-2">
+                 <label className="text-sm font-medium text-gray-300">Environment Variables (JSON)</label>
+                 <p className="text-xs text-gray-500 mb-2">These are injected safely into your Sandbox as <code>window.ENV</code>.</p>
+                 <textarea 
+                   value={sandboxEnv}
+                   onChange={(e) => saveSetting('omni_sandbox_env', e.target.value, setSandboxEnv)}
+                   className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-xs font-mono text-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 h-24 resize-none"
+                 />
+              </div>
+
+              {/* Smart Context Manager */}
+              <div className="pt-4 border-t border-gray-800 space-y-2">
+                 <div className="flex justify-between items-center">
+                   <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
+                     Context Memory Limit
+                     <span className="px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 text-xs">{maxContext === 0 ? 'Unlimited' : `${maxContext} Msgs`}</span>
+                   </label>
+                 </div>
+                 <p className="text-xs text-gray-500 mb-2">Lower limits save API costs and prevent "Token Limit" errors on long projects.</p>
+                 <input 
+                   type="range" min="0" max="40" step="2"
+                   value={maxContext}
+                   onChange={(e) => saveSetting('omni_max_context', parseInt(e.target.value), setMaxContext)}
+                   className="w-full accent-indigo-500"
+                 />
+              </div>
+
+              {/* Advanced System Prompt */}
+              <div className="pt-4 border-t border-gray-800 space-y-2">
+                 <div className="flex justify-between items-center">
+                   <label className="text-sm font-medium text-gray-300">System Prompt (Advanced)</label>
+                   <button onClick={() => saveSetting('omni_system_prompt', DEFAULT_SYSTEM_PROMPT, setCustomSystemPrompt)} className="text-xs text-indigo-400 hover:text-indigo-300">Reset to Default</button>
+                 </div>
+                 <textarea 
+                   value={customSystemPrompt}
+                   onChange={(e) => saveSetting('omni_system_prompt', e.target.value, setCustomSystemPrompt)}
+                   className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-xs font-mono text-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 h-32 resize-none"
+                 />
+              </div>
+
+            </div>
+            
+            <div className="p-4 border-t border-gray-800 bg-gray-900/50 flex justify-end shrink-0">
+              <button onClick={() => setIsSettingsOpen(false)} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors">
+                Save & Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
