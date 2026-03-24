@@ -6,7 +6,6 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build"
-    "app" : "src/App/jsx"
   },
   "dependencies": {
     "lucide-react": "^0.344.0",
