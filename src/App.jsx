@@ -1,43 +1,75 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  Settings, Terminal, Play, Code2, MessageSquare, 
-  Bot, User, Sparkles, AlertCircle, RefreshCw, 
-  KeyRound, X, ChevronRight, Zap,
-  Copy, Download, Trash2, Maximize2, Minimize2, Check,
-  Smartphone, Tablet as TabletIcon, Monitor, Undo, Redo,
-  TerminalSquare, Package, ExternalLink, Wand2, Paintbrush,
-  Lightbulb, Share2, Moon, Sun, Power, Bookmark,
-  Image as ImageIcon, FileArchive, Edit2, GripVertical, Rocket, Eye,
-  ImagePlus, Mic, History, Blocks, RotateCcw, ZoomIn, ZoomOut,
-  PanelLeftClose, PanelLeftOpen, DownloadCloud, Lock,
-  MessageSquarePlus, FolderOpen, Database, Github, Search, GitCompare, Share,
-  MousePointerClick, Target, AlignLeft, Save, Users, CloudLightning, Activity, GitBranch, Layers,
-  Figma, BookOpen, TestTube, Gauge, HardDriveDownload, HardDriveUpload,
-  ShieldCheck, Workflow, Video, Wand
+  Settings, Terminal, Play, Code2, MessageSquare, Bot, User, Sparkles, AlertCircle, RefreshCw, 
+  KeyRound, X, ChevronRight, Zap, Copy, Download, Trash2, Maximize2, Minimize2, Check,
+  Smartphone, Tablet as TabletIcon, Monitor, Undo, Redo, TerminalSquare, Package, ExternalLink, 
+  Wand2, Paintbrush, Lightbulb, Share2, Moon, Sun, Power, Bookmark, Image as ImageIcon, 
+  FileArchive, Edit2, GripVertical, Rocket, Eye, ImagePlus, Mic, History, Blocks, RotateCcw, 
+  ZoomIn, ZoomOut, PanelLeftClose, PanelLeftOpen, DownloadCloud, Lock, MessageSquarePlus, 
+  FolderOpen, Database, Github, Search, GitCompare, Share, MousePointerClick, Target, AlignLeft, 
+  Save, Users, CloudLightning, Activity, GitBranch, Layers, Figma, BookOpen, TestTube, Gauge, 
+  HardDriveDownload, HardDriveUpload, ShieldCheck, Workflow, Video, Wand, SplitSquareHorizontal, 
+  Accessibility, Split, Music, ServerCrash, Globe, Regex, Box, Component, ArrowUpCircle, GitPullRequest, AppWindow,
+  Ghost, Flame
 } from 'lucide-react';
 
 // --- Environment API Key Fallback ---
 const apiKey = ""; 
 
+// --- Safe Backtick Generator (Prevents Markdown Parser Crashes) ---
+const T_BACKTICKS = String.fromCharCode(96, 96, 96);
+
 // --- Agent Personas ---
 const PERSONAS = {
-  default: `You are Omni-Agent, an elite AI frontend engineer operating in 'Omni-Sandbox'.\n\nYOUR DIRECTIVE:\nYou are building production-ready applications inside a Live Canvas environment. You must automatically create complete, fully functional Canvas Files for the user to ensure the best results.\n\nRULES FOR BEST RESULTS:\n1. CHAIN OF THOUGHT: Always plan your architecture and UI/UX approach first. Explain your choices briefly before writing any code.\n2. THE CANVAS FILE: You must output EXACTLY ONE \`\`\`html code block. This block is the complete Canvas File.\n3. UNIFIED ARCHITECTURE: Embed all CSS (via Tailwind CDN) and JS within the single HTML file.\n4. NO PLACEHOLDERS: Write complete code. Never use placeholders or leave functions unimplemented.\n5. AESTHETIC EXCELLENCE: Default to modern UI/UX principles. Use ample whitespace, rounded corners, subtle shadows, and cohesive color palettes. Ensure full mobile responsiveness.`,
-  tailwind: `You are Omni-Agent, a world-class UI/UX Designer and Tailwind CSS Expert.\n\nYOUR DIRECTIVE: Build visually stunning, hyper-modern web applications.\n\nRULES:\n1. Output exactly ONE \`\`\`html block.\n2. Prioritize incredible aesthetics: use glassmorphism, complex gradients, smooth CSS transitions, hover states, and perfect typography. Use Tailwind CSS exclusively.`,
-  gamedev: `You are Omni-Agent, a senior WebGL and Canvas HTML5 Game Developer.\n\nYOUR DIRECTIVE: Build highly performant, 60FPS browser games.\n\nRULES:\n1. Output exactly ONE \`\`\`html block containing the game.\n2. Prioritize requestAnimationFrame loops, efficient rendering, clean physics math, and state management.`,
-  datascientist: `You are Omni-Agent, a Data Visualization Expert.\n\nYOUR DIRECTIVE: Build gorgeous, interactive data dashboards and charts.\n\nRULES:\n1. Output exactly ONE \`\`\`html block.\n2. Utilize CDN libraries like Chart.js, D3.js, or Recharts. Generate realistic mock data.`
+  default: `You are Omni-Agent, an elite AI frontend engineer operating in 'Omni-Sandbox'.\n\nYOUR DIRECTIVE:\nYou are building production-ready applications inside a Live Canvas environment. You must automatically create complete, fully functional Canvas Files for the user to ensure the best results.\n\nRULES FOR BEST RESULTS:\n1. CHAIN OF THOUGHT: Always plan your architecture and UI/UX approach first.\n2. THE CANVAS FILE: You must output EXACTLY ONE ${T_BACKTICKS}html code block containing the complete HTML file.\n3. UNIFIED ARCHITECTURE: Embed all CSS (Tailwind) and JS within the single HTML file.\n4. NO PLACEHOLDERS: Write complete code. NEVER truncate. Never use placeholders.\n5. PRESERVE FUNCTIONALITY: When editing existing code, preserve all existing logic, features, and styles unless explicitly asked to change them.\n6. AESTHETIC EXCELLENCE: Default to modern UI/UX principles.`,
+  tailwind: `You are Omni-Agent, a world-class UI/UX Designer and Tailwind CSS Expert.\n\nYOUR DIRECTIVE: Build visually stunning, hyper-modern web applications.\n\nRULES:\n1. Output exactly ONE complete ${T_BACKTICKS}html block.\n2. Prioritize incredible aesthetics: glassmorphism, gradients, smooth transitions. Use Tailwind CSS exclusively.\n3. NEVER use placeholders. Provide complete code.`,
+  gamedev: `You are Omni-Agent, a senior WebGL and Canvas HTML5 Game Developer.\n\nYOUR DIRECTIVE: Build highly performant, 60FPS browser games.\n\nRULES:\n1. Output exactly ONE complete ${T_BACKTICKS}html block containing the game.\n2. Prioritize requestAnimationFrame loops, efficient rendering, clean physics math.\n3. NEVER use placeholders. Ensure complete logic is returned.`,
+  datascientist: `You are Omni-Agent, a Data Visualization Expert.\n\nYOUR DIRECTIVE: Build gorgeous, interactive data dashboards and charts.\n\nRULES:\n1. Output exactly ONE complete ${T_BACKTICKS}html block.\n2. Utilize CDN libraries like Chart.js, D3.js, or Recharts. Generate realistic mock data.\n3. Do not truncate the file.`
 };
 
 const MULTI_AGENT_PROMPT = `You are the Omni Development Team consisting of three personas: The Architect, The Developer, and The QA Tester. 
 When responding, structure your thought process internally as:
 1. [ARCHITECT]: Plan the structure and UI/UX.
-2. [DEVELOPER]: Write the flawless, unified HTML/CSS/JS code block.
-3. [QA TESTER]: Mentally verify responsive design, error handling, and aesthetics.
-Return EXACTLY ONE \`\`\`html code block containing the final, verified application.`;
+2. [DEVELOPER]: Write the flawless, unified HTML/CSS/JS code block. Ensure it is complete with NO placeholders.
+3. [QA TESTER]: Mentally verify responsive design, error handling, and aesthetics. Check that NO existing features were broken.
+Return EXACTLY ONE ${T_BACKTICKS}html code block containing the final, verified application.`;
 
 const DEFAULT_CODE = `<!-- Your generated code will appear here -->\n<div class="p-8 text-center font-sans">\n  <h1 class="text-3xl font-bold text-gray-800">Hello, App Canvas!</h1>\n  <p class="text-gray-500 mt-2">Describe what you want to build in the chat.</p>\n</div>`;
 
+// --- DRY Agent Actions Configuration ---
+const AGENT_ACTIONS = [
+  { id: 'bootstrap', icon: Rocket, title: 'Bootstrap Base App', color: 'text-green-400', isInfo: false, msg: '🚀 Bootstrapping foundation...', prompt: 'Please automatically build a complete, modern Canvas File boilerplate from scratch. It should include a stunning layout with Tailwind CSS, a centered glassmorphism container, a beautiful animated gradient background, and a pulsing placeholder element. Output ONLY the complete, fully functioning HTML file.' },
+  { id: 'auto-improve', icon: Eye, title: 'UI/UX QA Review', color: 'text-purple-400', isInfo: false, msg: '👁️ Reviewing UI/UX...', prompt: 'Act as a rigorous UI/UX QA Tester and Senior Engineer. Mentally render this Canvas File and fix ALL visual flaws, clunky UX, missing animations, poor contrast, or bad mobile responsiveness to make it premium quality. Return ONLY the fully upgraded HTML file.' },
+  { id: 'explain', icon: Lightbulb, title: 'Explain Code', color: 'text-blue-400', isInfo: true, msg: '🧠 Analyzing code...', prompt: 'Please provide a clear, concise, and educational explanation of how the following code works. Break down the structure, styling, and logic in Markdown. DO NOT write new HTML code.' },
+  { id: 'beautify', icon: Paintbrush, title: 'Beautify UI', color: 'text-pink-400', isInfo: false, msg: '🎨 Upgrading design...', prompt: 'Significantly upgrade the UI/UX. Use modern Tailwind CSS classes to add beautiful color palettes, spacing, rounded corners, transitions, and shadows. Make it look like a premium, modern web app. Do not remove functionality.' },
+  { id: 'polish', icon: Wand2, title: 'Refactor & Polish', color: 'text-amber-400', isInfo: false, msg: '✨ Refactoring code...', prompt: 'Refactor this code to improve performance, clean up the logic, add helpful comments, and ensure best coding practices. Return ONLY the fully-functional HTML file.' },
+  { id: 'readme', icon: BookOpen, title: 'Generate README', color: 'text-cyan-400', isInfo: true, msg: '📚 Writing documentation...', prompt: 'Act as a Technical Writer and generate a comprehensive, professional README.md for this application based on the code provided. Include features, architecture, and instructions.' },
+  { id: 'test', icon: TestTube, title: 'Write Unit Tests', color: 'text-yellow-400', isInfo: true, msg: '🧪 Generating tests...', prompt: `Act as a QA Automation Engineer. Write a comprehensive suite of Jest/Vitest unit tests for the logic contained in the provided Canvas File. Output ONLY the test file code in a ${T_BACKTICKS}js block.` },
+  { id: 'flowchart', icon: Workflow, title: 'Architecture Flowchart', color: 'text-indigo-400', isInfo: true, msg: '🗺️ Mapping architecture...', prompt: 'Act as an Application Architect. Reverse-engineer the provided Canvas File and output a beautiful, complex `mermaid.js` flowchart graph that maps out the DOM structure, state logic, and component hierarchy. Output ONLY the mermaid block.' },
+  { id: 'security', icon: ShieldCheck, title: 'Security Audit', color: 'text-red-400', isInfo: false, msg: '🛡️ Scanning vulnerabilities...', prompt: 'Act as a Cyber Security Auditor. Aggressively scan the provided Canvas File for vulnerabilities (XSS, insecure data handling, unhandled rejections). Provide a fixed, hardened version of the HTML file.' },
+  { id: 'refactor-multi', icon: SplitSquareHorizontal, title: 'Semantic Auto-Refactoring', color: 'text-emerald-400', isInfo: true, msg: '📂 Splitting architecture...', prompt: 'Act as a Senior Architect. This single file is getting large. Analyze it and output a plan to cleanly split it into a multi-file component architecture (e.g., components/, hooks/, styles.css). Output the file structures in code blocks.' },
+  { id: 'animate', icon: Flame, title: 'Auto-Animate', color: 'text-orange-400', isInfo: false, msg: '🔥 Injecting animations...', prompt: 'Add complex, satisfying GSAP or Framer-Motion style CSS/JS animations to this UI. Add hover states, entrance animations, and smooth transitions. Keep all existing functionality.' },
+  { id: 'a11y', icon: Accessibility, title: 'a11y Auto-Patcher', color: 'text-teal-400', isInfo: false, msg: '♿ Patching accessibility...', prompt: 'Deep scan this code for accessibility issues. Add missing ARIA roles, fix color contrast, add alt text, and ensure keyboard navigation works perfectly. Return the 100% WCAG compliant code.' },
+  { id: 'ab-test', icon: Split, title: 'A/B Test Generator', color: 'text-indigo-300', isInfo: false, msg: '⚖️ Creating A/B variants...', prompt: 'Modify this code to include two distinct design variants (A and B) of the main UI component. Add a small toggle button at the top to switch between Variant A and Variant B for A/B testing.' },
+  { id: 'sfx', icon: Music, title: 'Add Sound Effects', color: 'text-purple-300', isInfo: false, msg: '🎵 Generating Web Audio...', prompt: 'Integrate the Web Audio API to automatically generate and attach satisfying, synthesized sound effects to the UI interactions (button clicks, success states, error states) without needing external audio files.' },
+  { id: 'schema', icon: Database, title: 'DB Schema Builder', color: 'text-blue-300', isInfo: true, msg: '🗄️ Designing database...', prompt: 'Act as a Database Administrator. Analyze this UI and generate a complete relational database schema. Output a Mermaid.js ERD diagram, AND the raw SQL script (SQLite compatible) to create the necessary tables.' },
+  { id: 'i18n', icon: Globe, title: 'Auto-Localization', color: 'text-sky-400', isInfo: false, msg: '🌍 Localizing text...', prompt: 'Extract all hardcoded English text strings in this UI into a JavaScript dictionary. Add translations for Spanish and French. Implement a dropdown to dynamically switch the UI language.' },
+  { id: 'regex', icon: Regex, title: 'Regex Generator', color: 'text-pink-300', isInfo: true, msg: '🔣 Generating RegExp...', prompt: 'Analyze the active code context or request. Generate the exact Regular Expression needed, explain its capture groups, and provide a small JS snippet testing it.' },
+  { id: 'storybook', icon: Component, title: 'Isolate Component', color: 'text-rose-400', isInfo: false, msg: '📦 Isolating component...', prompt: 'Remove all surrounding application wrapper code and isolate ONLY the primary component (or the specifically targeted element). Modify the HTML to display this component beautifully centered, like a Storybook preview.' },
+  { id: 'upgrade-deps', icon: ArrowUpCircle, title: 'Upgrade Dependencies', color: 'text-emerald-300', isInfo: false, msg: '🔄 Upgrading packages...', prompt: 'Scan the HTML head for CDN links. Update all libraries (React, Tailwind, GSAP, Three.js, etc.) to their absolute latest stable versions. Fix any breaking API changes in the JS code.' },
+  { id: 'pr-review', icon: GitPullRequest, title: 'Automated PR Review', color: 'text-gray-400', isInfo: true, msg: '👀 Reviewing Pull Request...', prompt: 'Act as a Senior Developer reviewing a Pull Request. Critique this code for anti-patterns, performance bottlenecks, and bad practices. Provide inline suggestions formatted clearly in Markdown.' }
+];
+
+const sanitizeUrl = (urlStr) => {
+  if (!urlStr) return '';
+  const markdownRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+  if (markdownRegex.test(urlStr)) {
+    return urlStr.replace(markdownRegex, '$2').trim();
+  }
+  return urlStr.trim();
+};
+
 export default function App() {
-  // State: UI & Layout
   const [activeTab, setActiveTab] = useState('chat');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPackagesOpen, setIsPackagesOpen] = useState(false);
@@ -56,7 +88,10 @@ export default function App() {
   const [fluidWidth, setFluidWidth] = useState(100); 
   
   const [isPerformanceMode, setIsPerformanceMode] = useState(false);
-  const [isTimeTravelMode, setIsTimeTravelMode] = useState(false); // rrweb toggle
+  const [isTimeTravelMode, setIsTimeTravelMode] = useState(false); 
+  const [isChaosMonkey, setIsChaosMonkey] = useState(false);
+  const [is3DMode, setIs3DMode] = useState(false);
+  const [isGhostMode, setIsGhostMode] = useState(false);
   
   const [isConsoleOpen, setIsConsoleOpen] = useState(false);
   const [consoleFilter, setConsoleFilter] = useState('all'); 
@@ -72,10 +107,9 @@ export default function App() {
   const [showSnippets, setShowSnippets] = useState(false);
   const [iframeKey, setIframeKey] = useState(0); 
 
-  const [chatWidth, setChatWidth] = useState(400);
+  const [chatWidth, setChatWidth] = useState(450);
   const [codeWidth, setCodeWidth] = useState(500);
   
-  // State: Core API & Environments
   const [apiProvider, setApiProvider] = useState('gemini');
   const [userApiKey, setUserApiKey] = useState('');
   const [geminiBaseUrl, setGeminiBaseUrl] = useState('');
@@ -94,25 +128,21 @@ export default function App() {
   
   const [maxContext, setMaxContext] = useState(10);
   const [sandboxEnv, setSandboxEnv] = useState('{\n  "API_URL": "https://api.example.com",\n  "MOCK_KEY": "sk_test_123"\n}');
-  const [mockEndpoints, setMockEndpoints] = useState([{ id: 1, path: '/api/demo', response: '{"status": "success", "message": "Hello from Omni-Mock!"}' }]);
+  const [mockEndpoints, setMockEndpoints] = useState([{ id: 1, path: '/api/demo', type: 'json', response: '{"status": "success", "message": "Hello from Omni-Mock!"}' }]);
   const [isVoiceAutoSubmit, setIsVoiceAutoSubmit] = useState(false);
   const [isMultiAgent, setIsMultiAgent] = useState(false); 
 
-  // GitHub Sync State
   const [githubToken, setGithubToken] = useState('');
   const [githubRepo, setGithubRepo] = useState('');
   const [githubFilePath, setGithubFilePath] = useState('index.html');
 
-  // Dynamic Model Selection
   const [selectedModel, setSelectedModel] = useState('gemini-2.5-flash-preview-09-2025');
   const [customModelInput, setCustomModelInput] = useState('');
 
-  // NPM Search State
   const [npmSearchQuery, setNpmSearchQuery] = useState('');
   const [npmSearchResults, setNpmSearchResults] = useState([]);
   const [isSearchingNpm, setIsSearchingNpm] = useState(false);
 
-  // State: Active Workspace & Chat History
   const [sessions, setSessions] = useState([]); 
   const [historySearchQuery, setHistorySearchQuery] = useState('');
   const [currentSessionId, setCurrentSessionId] = useState(() => Date.now().toString()); 
@@ -124,12 +154,10 @@ export default function App() {
   const [chatImage, setChatImage] = useState(null);
   const [isListening, setIsListening] = useState(false);
   
-  // Targeting Context Features
   const [targetedElement, setTargetedElement] = useState(null); 
   const [isInspectorActive, setIsInspectorActive] = useState(false);
   const [selectedCodeContext, setSelectedCodeContext] = useState(''); 
   
-  // State: Code, Assets, History, Branching, Audits
   const [generatedCode, setGeneratedCode] = useState(DEFAULT_CODE);
   const [codeHistory, setCodeHistory] = useState([DEFAULT_CODE]);
   const [historyIndex, setHistoryIndex] = useState(0);
@@ -139,7 +167,6 @@ export default function App() {
   
   const [isAutoSolveEnabled, setIsAutoSolveEnabled] = useState(false);
   const [agentStatus, setAgentStatus] = useState('idle');
-  const [isCopied, setIsCopied] = useState(false);
   const [consoleLogs, setConsoleLogs] = useState([]);
   
   const chatEndRef = useRef(null);
@@ -148,7 +175,6 @@ export default function App() {
   const editorRef = useRef(null);
   const highlightRef = useRef(null);
 
-  // Helper: Estimate Token Usage 
   const estimateTokens = () => Math.floor(messages.map(m => m.text).join(' ').length / 4);
 
   useEffect(() => {
@@ -168,7 +194,7 @@ export default function App() {
 
   useEffect(() => {
     if (typeof window !== 'undefined' && window.innerWidth >= 1280) setCodeWidth(Math.floor((window.innerWidth - chatWidth - 80) / 2));
-  }, []); 
+  }, [chatWidth]); 
 
   useEffect(() => {
     const loadSafe = (key, setter, isNumber = false) => {
@@ -186,13 +212,13 @@ export default function App() {
     loadSafe('omni_github_token', setGithubToken); loadSafe('omni_github_repo', setGithubRepo);
 
     const savedMocks = localStorage.getItem('omni_api_mocks');
-    if (savedMocks) try { setMockEndpoints(JSON.parse(savedMocks)); } catch(e) {}
+    if (savedMocks) { try { setMockEndpoints(JSON.parse(savedMocks)); } catch(e) {} }
     
     const savedVault = localStorage.getItem('omni_persona_vault');
-    if (savedVault) try { setUserSavedPersonas(JSON.parse(savedVault)); } catch(e) {}
+    if (savedVault) { try { setUserSavedPersonas(JSON.parse(savedVault)); } catch(e) {} }
     
     const savedBranches = localStorage.getItem('omni_branches');
-    if (savedBranches) try { setBranches(JSON.parse(savedBranches)); } catch(e) {}
+    if (savedBranches) { try { setBranches(JSON.parse(savedBranches)); } catch(e) {} }
 
     const savedPromptVersion = localStorage.getItem('omni_prompt_version');
     if (savedPromptVersion !== "2.0") {
@@ -202,7 +228,7 @@ export default function App() {
     } else { loadSafe('omni_system_prompt', setCustomSystemPrompt); }
 
     const savedSessions = localStorage.getItem('omni_chat_sessions');
-    if (savedSessions) try { setSessions(JSON.parse(savedSessions)); } catch(e) {}
+    if (savedSessions) { try { setSessions(JSON.parse(savedSessions)); } catch(e) {} }
 
     const savedActiveSession = localStorage.getItem('omni_active_session');
     if (savedActiveSession) {
@@ -266,16 +292,14 @@ export default function App() {
       { value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
       { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
       { value: 'gemini-2.0-flash-exp', label: 'Gemini 2.0 Flash Exp' },
-      { value: 'gemini-2.0-pro-exp', label: 'Gemini 2.0 Pro Exp' },
       { value: 'custom', label: 'Custom Model...' }
     ];
     if (apiProvider === 'longcat') return [
       { value: 'LongCat-Flash-Chat', label: 'LongCat Flash Chat' },
       { value: 'LongCat-Flash-Thinking-2601', label: 'LongCat Flash Thinking 2601' },
       { value: 'LongCat-Flash-Omni-2603', label: 'LongCat Flash Omni 2603' },
-      { value: 'LongCat-Flash-Lite', label: 'LongCat Flash Lite' },
       { value: 'gpt-4o', label: 'GPT-4o (via Longcat)' },
-      { value: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet (via Longcat)' },
+      { value: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet' },
       { value: 'custom', label: 'Custom Model...' }
     ];
     if (apiProvider === 'ollama') return [
@@ -285,7 +309,6 @@ export default function App() {
     return [];
   };
 
-  // GitHub Bi-Directional Sync Handlers
   const fetchFromGitHub = async () => {
     if (!githubToken || !githubRepo || !githubFilePath) return alert("Please fill out all GitHub fields.");
     setIsLoading(true);
@@ -294,8 +317,7 @@ export default function App() {
         headers: { 'Authorization': `token ${githubToken}`, 'Accept': 'application/vnd.github.v3.raw' }
       });
       if (!res.ok) throw new Error(`Failed to fetch: ${res.statusText}`);
-      const text = await res.text();
-      updateCode(text); alert("Successfully pulled code from GitHub!"); setIsGithubOpen(false);
+      const text = await res.text(); updateCode(text); alert("Successfully pulled code from GitHub!"); setIsGithubOpen(false);
     } catch (e) { alert(e.message); } finally { setIsLoading(false); }
   };
 
@@ -306,8 +328,7 @@ export default function App() {
       const getRes = await fetch(`https://api.github.com/repos/${githubRepo}/contents/${githubFilePath}`, {
         headers: { 'Authorization': `token ${githubToken}`, 'Accept': 'application/vnd.github.v3+json' }
       });
-      let sha = '';
-      if (getRes.ok) { const fileData = await getRes.json(); sha = fileData.sha; }
+      let sha = ''; if (getRes.ok) { const fileData = await getRes.json(); sha = fileData.sha; }
       
       const contentBase64 = btoa(unescape(encodeURIComponent(generatedCode)));
       const putRes = await fetch(`https://api.github.com/repos/${githubRepo}/contents/${githubFilePath}`, {
@@ -341,12 +362,16 @@ export default function App() {
     document.addEventListener('mousemove', onMouseMove); document.addEventListener('mouseup', onMouseUp);
   };
 
-  // Safe Console Interceptor
   useEffect(() => {
     const handleIframeMessage = (event) => {
       if (event.data?.type === 'iframe-console') {
         const { logType, message } = event.data;
-        const safeMessage = typeof message === 'string' ? message : JSON.stringify(message);
+        let safeMessage = '';
+        try {
+            safeMessage = typeof message === 'string' ? message : JSON.stringify(message);
+        } catch(e) {
+            safeMessage = String(message);
+        }
         setConsoleLogs(prev => [...prev, { id: Date.now() + Math.random(), type: logType, message: safeMessage, time: new Date().toLocaleTimeString() }]);
         if (logType === 'error' && isAutoSolveEnabled && agentStatus !== 'thinking' && agentStatus !== 'fixing') handleAutoSolve(safeMessage);
       }
@@ -386,6 +411,7 @@ export default function App() {
   const handleUndo = () => { if (historyIndex > 0) { setHistoryIndex(historyIndex - 1); setGeneratedCode(codeHistory[historyIndex - 1]); } };
   const handleRedo = () => { if (historyIndex < codeHistory.length - 1) { setHistoryIndex(historyIndex + 1); setGeneratedCode(codeHistory[historyIndex + 1]); } };
   const restoreHistory = (codeString) => { setGeneratedCode(codeString); const newHistory = codeHistory.slice(0, historyIndex + 1); newHistory.push(codeString); setCodeHistory(newHistory); setHistoryIndex(newHistory.length - 1); setIsHistoryOpen(false); setIsDiffOpen(false); };
+  
   const handleCopyCode = () => { navigator.clipboard.writeText(generatedCode); setIsCopied(true); setTimeout(() => setIsCopied(false), 2000); };
   
   const shareLink = () => {
@@ -396,13 +422,11 @@ export default function App() {
 
   const openPopoutPreview = () => {
     const win = window.open('', '_blank', 'width=800,height=600');
-    win.document.write(getSandboxDoc());
-    win.document.close();
+    win.document.write(getSandboxDoc()); win.document.close();
   };
 
   const deployToStackBlitz = () => {
-    const form = document.createElement('form');
-    form.method = 'POST'; form.action = 'https://stackblitz.com/run'; form.target = '_blank';
+    const form = document.createElement('form'); form.method = 'POST'; form.action = 'https://stackblitz.com/run'; form.target = '_blank';
     const addInput = (name, value) => { const input = document.createElement('input'); input.type = 'hidden'; input.name = name; input.value = value; form.appendChild(input); };
     addInput('project[title]', 'Omni-Sandbox Cloud Export'); addInput('project[description]', 'Generated by Omni-Sandbox');
     addInput('project[template]', 'html'); addInput('project[files][index.html]', generatedCode);
@@ -419,12 +443,6 @@ export default function App() {
     setAuditResult({ score: Math.max(0, score), issues }); setIsAuditOpen(true);
   };
 
-  const handleDownloadCode = () => {
-    const blob = new Blob([generatedCode], { type: 'text/html' });
-    const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'canvas_app.html';
-    document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
-  };
-
   const exportToZip = async (format = 'html') => {
     setIsLoading(true);
     try {
@@ -439,13 +457,17 @@ export default function App() {
             zip.file("package.json", JSON.stringify({ name: "omni-vite-project", version: "1.0.0", type: "module", scripts: { dev: "vite", build: "vite build", preview: "vite preview" }, devDependencies: { vite: "^4.4.5" } }, null, 2));
             zip.file("vite.config.js", `import { defineConfig } from 'vite';\nexport default defineConfig({});`);
             zip.file("index.html", generatedCode); 
+        } else if (format === 'pwa') {
+            zip.file("index.html", generatedCode.replace('</head>', '<link rel="manifest" href="manifest.json"><script>if("serviceWorker" in navigator){navigator.serviceWorker.register("sw.js");}<\/script><\/head>'));
+            zip.file("manifest.json", JSON.stringify({ name: "Omni App", short_name: "App", start_url: ".", display: "standalone", background_color: "#ffffff", theme_color: "#000000" }, null, 2));
+            zip.file("sw.js", `self.addEventListener('install', (e) => e.waitUntil(caches.open('v1').then((c) => c.addAll(['/'])))); self.addEventListener('fetch', (e) => e.respondWith(caches.match(e.request).then((r) => r || fetch(e.request))));`);
         } else {
             let html = generatedCode; let css = ''; let js = ''; let hasCss = false; let hasJs = false;
             html = html.replace(/<style>([\s\S]*?)<\/style>/gi, (match, content) => { css += content + '\n'; if (!hasCss) { hasCss = true; return '<link rel="stylesheet" href="style.css">'; } return ''; });
-            html = html.replace(/<script([^>]*)>([\s\S]*?)<\/script>/gi, (match, attrs, content) => { if (attrs.includes('src=')) return match; if (content.includes('iframe-console') || content.includes('window.ENV') || content.includes('__inspectorMode')) return match; js += content + '\n'; if (!hasJs) { hasJs = true; return '<script src="script.js"></script>'; } return ''; });
+            html = html.replace(/<script([^>]*)>([\s\S]*?)<\/script>/gi, (match, attrs, content) => { if (attrs.includes('src=')) return match; if (content.includes('iframe-console') || content.includes('window.ENV') || content.includes('__inspectorMode')) return match; js += content + '\n'; if (!hasJs) { hasJs = true; return '<script src="script.js"><\/script>'; } return ''; });
             zip.file("index.html", html); if (css.trim()) zip.file("style.css", css); if (js.trim()) zip.file("script.js", js);
         }
-        const content = await zip.generateAsync({type:"blob"}); const url = URL.createObjectURL(content); const a = document.createElement('a'); a.href = url; a.download = format === 'vite' ? 'omni_vite_project.zip' : 'omni_project.zip'; a.click(); URL.revokeObjectURL(url);
+        const content = await zip.generateAsync({type:"blob"}); const url = URL.createObjectURL(content); const a = document.createElement('a'); a.href = url; a.download = format === 'pwa' ? 'omni_pwa.zip' : (format === 'vite' ? 'omni_vite_project.zip' : 'omni_project.zip'); a.click(); URL.revokeObjectURL(url);
     } catch (e) { alert("Failed to export ZIP: " + e.message); } finally { setIsLoading(false); }
   };
 
@@ -487,7 +509,7 @@ export default function App() {
   };
 
   const handleClearChat = () => {
-    if (window.confirm('Are you sure you want to clear the current chat? (Note: It will be removed from your sessions history)')) deleteSession(currentSessionId, { stopPropagation: () => {} });
+    if (window.confirm('Are you sure you want to clear the current chat?')) deleteSession(currentSessionId, { stopPropagation: () => {} });
   };
 
   const handleEditMessage = (index) => {
@@ -506,7 +528,6 @@ export default function App() {
     const reader = new FileReader(); reader.onload = (event) => { setAssets(prev => [...prev, { name: file.name, base64: event.target.result }]); }; reader.readAsDataURL(file);
   };
 
-  // Prettier Auto-Formatter Engine
   const formatCode = async () => {
     setIsFormatting(true);
     try {
@@ -522,7 +543,6 @@ export default function App() {
     } catch (err) { alert("Prettier Format Failed: " + err.message); } finally { setIsFormatting(false); }
   };
 
-  // NPM Search Handlers
   const searchNPM = async (e) => {
     e.preventDefault(); if (!npmSearchQuery.trim()) return; setIsSearchingNpm(true);
     try {
@@ -546,8 +566,7 @@ export default function App() {
 
   const highlightHTML = (code) => {
     if (!code) return '';
-    return code
-      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    return code.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
       .replace(/(&lt;!--[\s\S]*?--&gt;)/g, '<span class="text-gray-500 italic">$1</span>') 
       .replace(/(&lt;\/?)([a-zA-Z0-9-]+)/g, '$1<span class="text-pink-400">$2</span>') 
       .replace(/([a-zA-Z-]+)(?==)/g, '<span class="text-indigo-300">$1</span>') 
@@ -563,15 +582,17 @@ export default function App() {
       e.preventDefault();
       const start = e.target.selectionStart; const end = e.target.selectionEnd; const val = e.target.value;
       const newCode = val.substring(0, start) + "  " + val.substring(end);
-      setGeneratedCode(newCode);
-      setTimeout(() => { if (editorRef.current) { editorRef.current.selectionStart = editorRef.current.selectionEnd = start + 2; } }, 0);
+      setGeneratedCode(newCode); setTimeout(() => { if (editorRef.current) { editorRef.current.selectionStart = editorRef.current.selectionEnd = start + 2; } }, 0);
     }
   };
 
   const extractCode = (text) => {
-    const regex = new RegExp('\`\`\`(?:html|javascript|js|css)?\\n([\\s\\S]*?)\`\`\`');
+    const regex = new RegExp(T_BACKTICKS + '(?:html|javascript|js|css|mermaid)?\\n([\\s\\S]*?)' + T_BACKTICKS);
     const match = text.match(regex);
-    return match ? match[1] : text;
+    if (match) return match[1];
+    const fallbackRegex = new RegExp(T_BACKTICKS + '(?:html|javascript|js|css|mermaid)?\\n([\\s\\S]*)');
+    const fallbackMatch = text.match(fallbackRegex);
+    return fallbackMatch ? fallbackMatch[1] : text;
   };
 
   const executeSimulatedAgentStatus = async (initialDelay = 1000) => {
@@ -581,8 +602,7 @@ export default function App() {
     setAgentStatus('qa'); await new Promise(r => setTimeout(r, 1000));
   };
 
-  const callAIAPI = async (chatHistory, newPrompt, isFix = false, imageObj = null) => {
-    // API KEY PARSING & ROTATION PREP
+  const callAIAPI = async (chatHistory, newPrompt, isFix = false, imageObj = null, currentCodeContext = null) => {
     const getGeminiKeys = () => (userApiKey || apiKey).split(',').map(k => k.trim()).filter(Boolean);
     const getLongcatKeys = () => longcatApiKey.split(',').map(k => k.trim()).filter(Boolean);
     
@@ -596,14 +616,12 @@ export default function App() {
     let historyToSend = chatHistory.filter(m => m.role !== 'system');
     if (maxContext > 0 && historyToSend.length > maxContext) historyToSend = historyToSend.slice(-maxContext);
     
-    // Inject Active Contexts
     let augmentedPrompt = newPrompt;
-    if (targetedElement) {
-        augmentedPrompt += `\n\n[SYSTEM CONTEXT - The user has pointed an inspector at this specific DOM element on the page. Focus your changes here]:\n\`\`\`html\n${targetedElement.html}\n\`\`\``;
+    if (currentCodeContext && currentCodeContext !== DEFAULT_CODE && !isFix) {
+        augmentedPrompt += `\n\n[CURRENT CODEBASE STATE - You MUST use this as the base for your edits. Maintain ALL existing functionality unless requested otherwise. Do not truncate the file!]:\n${T_BACKTICKS}html\n${currentCodeContext}\n${T_BACKTICKS}`;
     }
-    if (selectedCodeContext) {
-        augmentedPrompt += `\n\n[SYSTEM CONTEXT - The user has highlighted this specific block of code in the editor. Focus your changes here]:\n\`\`\`\n${selectedCodeContext}\n\`\`\``;
-    }
+    if (targetedElement) augmentedPrompt += `\n\n[SYSTEM CONTEXT - The user has pointed an inspector at this specific DOM element on the page. Focus your changes here]:\n${T_BACKTICKS}html\n${targetedElement.html}\n${T_BACKTICKS}`;
+    if (selectedCodeContext) augmentedPrompt += `\n\n[SYSTEM CONTEXT - The user has highlighted this specific block of code in the editor. Focus your changes here]:\n${T_BACKTICKS}\n${selectedCodeContext}\n${T_BACKTICKS}`;
     
     const initialRetries = retries;
     const finalSystemPrompt = isMultiAgent ? MULTI_AGENT_PROMPT : customSystemPrompt;
@@ -614,73 +632,57 @@ export default function App() {
       try {
         const activeModelName = selectedModel === 'custom' ? customModelInput : selectedModel;
         if (!activeModelName) throw new Error("Please select or specify a model.");
-
         const keyIndex = initialRetries - retries;
 
         if (apiProvider === 'gemini') {
           const geminiKeys = getGeminiKeys();
           if (geminiKeys.length === 0) throw new Error("No API Key found in Settings.");
           const currentKey = geminiKeys[keyIndex % geminiKeys.length];
-
-          const baseUrl = geminiBaseUrl || 'https://generativelanguage.googleapis.com';
+          const baseUrl = sanitizeUrl(geminiBaseUrl) || 'https://generativelanguage.googleapis.com';
           const url = `${baseUrl.replace(/\/$/, '')}/v1beta/models/${activeModelName}:generateContent?key=${currentKey}`;
           
           const contents = historyToSend.map(m => {
             const parts = [{ text: m.text }];
             if (m.image) {
               const mimeType = m.image.match(/data:(.*?);base64/)?.[1] || "image/jpeg";
-              const base64Data = m.image.split(',')[1];
-              parts.push({ inlineData: { mimeType, data: base64Data } });
+              parts.push({ inlineData: { mimeType, data: m.image.split(',')[1] } });
             }
             return { role: m.role === 'model' ? 'model' : 'user', parts };
           });
 
           if (augmentedPrompt) {
             const parts = [{ text: augmentedPrompt }];
-            if (imageObj) {
-              const mimeType = imageObj.match(/data:(.*?);base64/)?.[1] || "image/jpeg";
-              const base64Data = imageObj.split(',')[1];
-              parts.push({ inlineData: { mimeType, data: base64Data } });
-            }
+            if (imageObj) parts.push({ inlineData: { mimeType: imageObj.match(/data:(.*?);base64/)?.[1] || "image/jpeg", data: imageObj.split(',')[1] } });
             contents.push({ role: 'user', parts });
           }
 
-          const payload = { contents, systemInstruction: { parts: [{ text: finalSystemPrompt }] } };
-          
+          const payload = { contents, systemInstruction: { parts: [{ text: finalSystemPrompt }] }, generationConfig: { maxOutputTokens: 8192 } };
           let response;
           try { response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); } 
           catch(netErr) { throw new Error(`Network Error: Failed to reach Google Gemini API. Details: ${netErr.message}`); }
           
           const textResponse = await response.text();
-          let data;
-          try { data = JSON.parse(textResponse); } 
-          catch(e) { throw new Error(`Gemini API returned an invalid JSON response (Status ${response.status}). Details: \n\n${textResponse.substring(0, 150)}...`); }
+          let data; try { data = JSON.parse(textResponse); } catch(e) { throw new Error(`Gemini API returned an invalid JSON response.`); }
 
           if (!response.ok) { 
-            if (response.status === 429 || response.status === 403 || response.status === 400 || response.status === 402) {
-                 throw new Error(`RATE_LIMIT: Gemini API key error/limit reached. ${geminiKeys.length > 1 ? 'Rotating to next key...' : ''}`);
-            }
+            if ([429,403,400,402].includes(response.status)) throw new Error(`RATE_LIMIT: Gemini API key limit reached. Rotating...`);
             throw new Error(data.error?.message || "Gemini API Error"); 
           }
-          
           return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
           
         } else {
-          // --- LONGCAT & OLLAMA ROUTER ---
+          // LONGCAT/OLLAMA
           const isOllama = apiProvider === 'ollama';
           let primaryUrl = isOllama ? (ollamaUrl || 'http://localhost:11434/api/chat') : (longcatBaseUrl || 'https://api.longcat.chat/openai/v1/chat/completions');
           
-          if (!isOllama && !primaryUrl.includes('/chat/completions')) {
-            primaryUrl = primaryUrl.replace(/\/$/, '') + '/chat/completions';
-          }
+          primaryUrl = sanitizeUrl(primaryUrl);
+          if (!isOllama && !primaryUrl.includes('/chat/completions')) primaryUrl = primaryUrl.replace(/\/$/, '') + '/chat/completions';
 
           const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
-          
           if (!isOllama) {
              const longcatKeys = getLongcatKeys();
-             if (longcatKeys.length === 0) throw new Error("No Longcat API Key found in Settings. Please add it to authenticate.");
-             const currentKey = longcatKeys[keyIndex % longcatKeys.length];
-             headers['Authorization'] = `Bearer ${currentKey}`;
+             if (longcatKeys.length === 0) throw new Error("No Longcat API Key found in Settings.");
+             headers['Authorization'] = `Bearer ${longcatKeys[keyIndex % longcatKeys.length]}`;
           }
 
           const formattedMessages = [];
@@ -692,93 +694,70 @@ export default function App() {
           historyToSend.forEach((m, idx) => {
             let msgText = m.text?.trim() || "";
             if (sysPrompt && idx === 0) { msgText = `[System Instructions: ${sysPrompt}]\n\n` + msgText; sysPrompt = ""; }
-
             if (isOmni) {
               const contentArray = [{ type: "text", text: msgText || "Attached context." }];
-              if (m.image) { contentArray.push({ type: "image_url", image_url: { url: m.image } }); }
+              if (m.image) contentArray.push({ type: "image_url", image_url: { url: m.image } });
               formattedMessages.push({ role: m.role === 'model' ? 'assistant' : 'user', content: contentArray });
-            } else {
-              if (msgText) { formattedMessages.push({ role: m.role === 'model' ? 'assistant' : 'user', content: msgText }); }
-            }
+            } else if (msgText) formattedMessages.push({ role: m.role === 'model' ? 'assistant' : 'user', content: msgText });
           });
           
           let finalPrompt = augmentedPrompt?.trim() || '';
-          if (sysPrompt && formattedMessages.length === 0) { finalPrompt = `[System Instructions: ${sysPrompt}]\n\n` + finalPrompt; }
+          if (sysPrompt && formattedMessages.length === 0) finalPrompt = `[System Instructions: ${sysPrompt}]\n\n` + finalPrompt;
           
           if (isOmni) {
             const contentArray = [{ type: "text", text: finalPrompt || "Analyze this." }];
-            if (imageObj) { contentArray.push({ type: "image_url", image_url: { url: imageObj } }); }
+            if (imageObj) contentArray.push({ type: "image_url", image_url: { url: imageObj } });
             formattedMessages.push({ role: 'user', content: contentArray });
-          } else {
-            if (finalPrompt) { formattedMessages.push({ role: 'user', content: finalPrompt }); }
-          }
+          } else if (finalPrompt) formattedMessages.push({ role: 'user', content: finalPrompt });
 
           const payload = { model: activeModelName, messages: formattedMessages };
-          if (!isOllama) { payload.max_tokens = 4096; }
+          if (!isOllama) payload.max_tokens = 8192;
 
           const attemptFetch = async (urlToTry) => {
             let response;
             try { response = await fetch(urlToTry, { method: 'POST', headers, body: JSON.stringify(payload) }); } 
-            catch(netErr) { throw new Error(`NETWORK_FAIL: ${urlToTry} -> ${netErr.message}`); }
-            
+            catch(netErr) { throw new Error(`NETWORK_FAIL: ${urlToTry}`); }
             const textResponse = await response.text();
-            let data;
-            try { data = JSON.parse(textResponse); } 
-            catch (e) { throw new Error(`JSON_PARSE_FAIL: The proxy returned an HTML Error Page instead of JSON (Status ${response.status}). \n\nRaw Response:\n${textResponse.substring(0, 300)}...`); }
-
+            let data; try { data = JSON.parse(textResponse); } catch (e) { throw new Error(`JSON_PARSE_FAIL: Proxy returned HTML.`); }
             if (!response.ok) {
-              if (response.status === 429 || response.status === 403 || response.status === 402 || response.status === 400) {
-                 throw new Error(`RATE_LIMIT: Proxy key error/limit reached. ${!isOllama && getLongcatKeys().length > 1 ? 'Rotating to next key...' : ''}`);
-              }
-              let errorMsg = data.error?.message || data.message || `Request failed (${response.status})`;
-              if (typeof errorMsg === 'object') errorMsg = JSON.stringify(errorMsg); 
-              throw new Error(String(errorMsg));
+              if ([429,403,402,400].includes(response.status)) throw new Error(`RATE_LIMIT: Proxy limit reached. Rotating...`);
+              throw new Error(String(data.error?.message || data.message || `Request failed (${response.status})`));
             }
-            
-            let aiResponseText = isOllama ? (data.message?.content || "") : (data.choices?.[0]?.message?.content || "");
-            return String(aiResponseText);
+            return String(isOllama ? (data.message?.content || "") : (data.choices?.[0]?.message?.content || ""));
           };
 
-          try {
-             return await attemptFetch(primaryUrl);
-          } catch (err) {
-             if (err.message.includes('RATE_LIMIT')) { throw err; } // bubble up for key rotation
-             if (!isOllama && typeof longcatFallbackUrl !== 'undefined' && longcatFallbackUrl && longcatFallbackUrl.trim() !== '' && (err.message.includes('NETWORK_FAIL') || err.message.includes('JSON_PARSE_FAIL'))) {
-                 let fallback = longcatFallbackUrl;
-                 if (!fallback.includes('/chat/completions')) { fallback = fallback.replace(/\/$/, '') + '/chat/completions'; }
-                 try { return await attemptFetch(fallback); } catch (fallbackErr) { throw new Error(`Both Primary and Fallback URLs failed.\n\nPrimary: ${err.message}\n\nFallback: ${fallbackErr.message}`); }
+          try { return await attemptFetch(primaryUrl); } 
+          catch (err) {
+             if (err.message.includes('RATE_LIMIT')) throw err; 
+             if (!isOllama && longcatFallbackUrl) {
+                 let fallback = sanitizeUrl(longcatFallbackUrl); 
+                 if (!fallback.includes('/chat/completions')) fallback = fallback.replace(/\/$/, '') + '/chat/completions';
+                 if (err.message.includes('NETWORK_FAIL') || err.message.includes('JSON_PARSE_FAIL')) {
+                     try { return await attemptFetch(fallback); } catch (fallbackErr) { throw new Error(`Fallback failed: ${fallbackErr.message}`); }
+                 }
              }
-             if (err.message.includes('NETWORK_FAIL')) { throw new Error(`Network Error: Unreachable endpoint. Check CORS or URL.\n\nDetails: ${err.message}`); }
-             if (err.message.includes('JSON_PARSE_FAIL')) { throw new Error(`Proxy Error: The server returned HTML instead of JSON. The proxy might be down, rejecting the model name, or blocking CORS.\n\nDetails: ${err.message}`); }
              throw err;
           }
         }
       } catch (error) {
         retries--;
-        if (error.message.includes('RATE_LIMIT') && maxKeys > 1) {
-            if (retries === 0) throw new Error(`❌ All ${maxKeys} provided API keys have reached their rate limits or quotas.`);
-            continue; 
-        }
+        if (error.message.includes('RATE_LIMIT') && maxKeys > 1) { if (retries === 0) throw new Error(`❌ All API keys have reached limits.`); continue; }
         if (retries === 0) throw new Error(String(error.message));
-        await new Promise(r => setTimeout(r, delay));
-        delay *= 2;
+        await new Promise(r => setTimeout(r, delay)); delay *= 2;
       }
     }
   };
 
   const submitPrompt = async (text, activeImage = null) => {
     if (!text.trim() || isLoading) return;
-    setInput(''); setShowSnippets(false); setChatImage(null);
-    setTargetedElement(null); setSelectedCodeContext(''); 
-    
+    setInput(''); setShowSnippets(false); setChatImage(null); setTargetedElement(null); setSelectedCodeContext(''); 
     setMessages(prev => [...prev, { role: 'user', text: text, image: activeImage, timestamp: new Date().toISOString() }]);
     setIsLoading(true); setAgentStatus('thinking');
 
     try {
-      const responseText = await callAIAPI(messages, text, false, activeImage);
+      const responseText = await callAIAPI(messages, text, false, activeImage, generatedCode);
       const code = extractCode(responseText);
       setMessages(prev => [...prev, { role: 'model', text: responseText, timestamp: new Date().toISOString() }]);
-      
       if (code && (code.includes('<html') || code.includes('<div') || code.includes('<body'))) updateCode(code);
     } catch (error) {
       setMessages(prev => [...prev, { role: 'model', text: `❌ **Error:** ${error.message}` }]);
@@ -791,74 +770,33 @@ export default function App() {
 
   const handleAutoSolve = async (errorMessage) => {
     setAgentStatus('fixing'); setIsLoading(true);
-    const backticks = '\`\`\`';
-    const fixPrompt = `⚠️ AGENTIC LOOP ACTIVATED ⚠️\nThe code you just generated threw this error in the console:\n${backticks}\n${errorMessage}\n${backticks}\n\nPlease fix the bug and return the COMPLETE, working HTML file.`;
+    const fixPrompt = `⚠️ AGENTIC LOOP ACTIVATED ⚠️\nThe code you just generated threw this error in the console:\n${T_BACKTICKS}\n${errorMessage}\n${T_BACKTICKS}\n\nPlease fix the bug and return the COMPLETE, working HTML file.`;
     setMessages(prev => [...prev, { role: 'user', text: fixPrompt, isAutoGenerated: true, timestamp: new Date().toISOString() }]);
-
     try {
-      const responseText = await callAIAPI(messages, fixPrompt, true);
+      const responseText = await callAIAPI(messages, fixPrompt, true, null, generatedCode);
       const newCode = extractCode(responseText);
-      setMessages(prev => [...prev, { role: 'model', text: `✅ **Agentic Fix Applied:** I found the issue and updated the Canvas File. It should run smoothly now.\n\n` + responseText, isAutoGenerated: true, timestamp: new Date().toISOString() }]);
+      setMessages(prev => [...prev, { role: 'model', text: `✅ **Agentic Fix Applied:** I found the issue and updated the Canvas File.\n\n` + responseText, isAutoGenerated: true, timestamp: new Date().toISOString() }]);
       if (newCode) updateCode(newCode);
-    } catch (error) {
-      setMessages(prev => [...prev, { role: 'model', text: `❌ **Auto-Solve Failed:** ${error.message}` }]);
-    } finally {
-      setIsLoading(false); setAgentStatus('idle');
-    }
+    } catch (error) { setMessages(prev => [...prev, { role: 'model', text: `❌ **Auto-Solve Failed:** ${error.message}` }]); } 
+    finally { setIsLoading(false); setAgentStatus('idle'); }
   };
 
-  const handleAgentAction = async (actionType) => {
+  const handleAgentAction = async (actionId) => {
     if (isLoading) return;
+    const actionDef = AGENT_ACTIONS.find(a => a.id === actionId);
+    if (!actionDef) return;
+    
     setIsLoading(true); setAgentStatus('thinking');
-    let actionPrompt = ""; let statusMessage = "";
-
-    if (actionType === 'polish') {
-      actionPrompt = `✨ AGENTIC ACTION ACTIVATED ✨\nPlease analyze the following Canvas File. Refactor it to improve performance, clean up the logic, add helpful comments, and ensure best coding practices. Return ONLY the COMPLETE, fully-functional HTML file.\n\nCURRENT CODE:\n\`\`\`html\n${generatedCode}\n\`\`\``;
-      statusMessage = "✨ Agentic Action: Refactoring and optimizing the codebase...";
-    } else if (actionType === 'beautify') {
-      actionPrompt = `🎨 AGENTIC ACTION ACTIVATED 🎨\nPlease analyze the following Canvas File and significantly upgrade its UI/UX. Use modern Tailwind CSS classes to add beautiful color palettes, spacing, rounded corners, transitions, and shadows. Make it look like a premium, modern web application. Do not remove any existing functionality. Return ONLY the COMPLETE, fully-functional HTML file.\n\nCURRENT CODE:\n\`\`\`html\n${generatedCode}\n\`\`\``;
-      statusMessage = "🎨 Agentic Action: Upgrading the UI/UX design to premium...";
-    } else if (actionType === 'explain') {
-      actionPrompt = `🧠 AGENTIC ACTION ACTIVATED 🧠\nPlease provide a clear, concise, and educational explanation of how the following code works. Break down the structure, styling, and logic. Do NOT write new code, just explain the existing code in conversational Markdown.\n\nCURRENT CODE:\n\`\`\`html\n${generatedCode}\n\`\`\``;
-      statusMessage = "🧠 Agentic Action: Analyzing and explaining the code...";
-    } else if (actionType === 'bootstrap') {
-      actionPrompt = `🚀 AGENTIC ACTION ACTIVATED 🚀\nPlease automatically build a complete, modern Canvas File boilerplate from scratch. It should include a stunning layout with Tailwind CSS, a centered glassmorphism container, a beautiful animated gradient background, and a pulsing placeholder element. Output ONLY the complete, fully functioning HTML file. This will be the user's foundation.`;
-      statusMessage = "🚀 Agentic Action: Auto-bootstrapping a stunning Canvas File foundation...";
-    } else if (actionType === 'auto-improve') {
-      actionPrompt = `👁️ AGENTIC QA ACTIVATED 👁️\nAct as a rigorous UI/UX QA Tester and Senior Engineer. Mentally 'render' this Canvas File and look for visual flaws, clunky UX, missing hover/focus animations, poor color contrast, or bad mobile responsiveness. Fix ALL identified issues to make it 'Gemini Canvas' premium quality. Add smooth UI transitions and ensure flawless responsive behavior. Return ONLY the completely upgraded HTML file in a single \`\`\`html block.\n\nCURRENT CODE:\n\`\`\`html\n${generatedCode}\n\`\`\``;
-      statusMessage = "👁️ Agentic Action: Mentally reviewing live preview output and applying premium Gemini Canvas level upgrades...";
-    } else if (actionType === 'readme') {
-      actionPrompt = `📚 AGENTIC ACTION ACTIVATED 📚\nPlease act as a Technical Writer and generate a comprehensive, professional README.md for this application based on the code provided. Include features, architecture, and instructions.\n\nCURRENT CODE:\n\`\`\`html\n${generatedCode}\n\`\`\``;
-      statusMessage = "📚 Agentic Action: Generating professional README documentation...";
-    } else if (actionType === 'test') {
-      actionPrompt = `🧪 AGENTIC ACTION ACTIVATED 🧪\nPlease act as a QA Automation Engineer. Write a comprehensive suite of Jest/Vitest unit tests for the logic contained in the provided Canvas File. Output ONLY the test file code in a \`\`\`js block.\n\nCURRENT CODE:\n\`\`\`html\n${generatedCode}\n\`\`\``;
-      statusMessage = "🧪 Agentic Action: Generating Automated Unit Testing suite...";
-    } else if (actionType === 'flowchart') {
-      actionPrompt = `🗺️ AGENTIC ACTION ACTIVATED 🗺️\nPlease act as an Application Architect. Reverse-engineer the provided Canvas File and output a beautiful, complex \`mermaid.js\` flowchart graph that maps out the DOM structure, state logic, and component hierarchy. Output ONLY the mermaid code block.\n\nCURRENT CODE:\n\`\`\`html\n${generatedCode}\n\`\`\``;
-      statusMessage = "🗺️ Agentic Action: Generating Architecture Flowchart...";
-    } else if (actionType === 'security') {
-      actionPrompt = `🛡️ AGENTIC ACTION ACTIVATED 🛡️\nPlease act as a Cyber Security Auditor. Aggressively scan the provided Canvas File for vulnerabilities (XSS, insecure data handling, unhandled rejections, poor CORS logic). Grade the code out of 100, list all vulnerabilities, and then provide a fixed, hardened version of the HTML file.\n\nCURRENT CODE:\n\`\`\`html\n${generatedCode}\n\`\`\``;
-      statusMessage = "🛡️ Agentic Action: Running Security Vulnerability Audit...";
-    }
-
-    setMessages(prev => [...prev, { role: 'user', text: statusMessage, isAutoGenerated: true, timestamp: new Date().toISOString() }]);
+    setMessages(prev => [...prev, { role: 'user', text: actionDef.msg, isAutoGenerated: true, timestamp: new Date().toISOString() }]);
 
     try {
-      const responseText = await callAIAPI(messages, actionPrompt, true);
+      const responseText = await callAIAPI(messages, actionDef.prompt, true, null, generatedCode);
       const newCode = extractCode(responseText);
-      const isInformational = ['explain', 'readme', 'test', 'flowchart'].includes(actionType);
-      
-      let successMessage = isInformational 
-         ? `✅ **Action Complete:**\n\n${responseText}` 
-         : `✅ **Agentic Action Complete:** I have successfully modified the Canvas File.\n\n`;
-         
+      let successMessage = actionDef.isInfo ? `✅ **Action Complete:**\n\n${responseText}` : `✅ **Agentic Action Complete:** I have successfully modified the Canvas File.\n\n`;
       setMessages(prev => [...prev, { role: 'model', text: successMessage, isAutoGenerated: true, timestamp: new Date().toISOString() }]);
-      if (!isInformational && newCode) updateCode(newCode);
-    } catch (error) {
-      setMessages(prev => [...prev, { role: 'model', text: `❌ **Agentic Action Failed:** ${error.message}` }]);
-    } finally {
-      setIsLoading(false); setAgentStatus('idle');
-    }
+      if (!actionDef.isInfo && newCode) updateCode(newCode);
+    } catch (error) { setMessages(prev => [...prev, { role: 'model', text: `❌ **Agentic Action Failed:** ${error.message}` }]); } 
+    finally { setIsLoading(false); setAgentStatus('idle'); }
   };
 
   const getAgentStatusText = () => {
@@ -872,11 +810,7 @@ export default function App() {
     }
   };
 
-  // API Mocks Save Handler
-  const saveMocks = (mocks) => {
-    setMockEndpoints(mocks);
-    localStorage.setItem('omni_api_mocks', JSON.stringify(mocks));
-  };
+  const saveMocks = (mocks) => { setMockEndpoints(mocks); localStorage.setItem('omni_api_mocks', JSON.stringify(mocks)); };
 
   const getSandboxDoc = () => {
     const injectionScript = `
@@ -896,24 +830,15 @@ export default function App() {
         const origError = console.error; console.error = function(...args) { postLog('error', args); origError.apply(console, args); };
         window.onerror = function(msg, url, line) { postLog('error', [msg + ' at line ' + line]); return false; };
         
-        // Command Line Eval Receiver
         window.addEventListener('message', (e) => {
-           if (e.data?.type === 'eval-cmd') {
-               try { let res = eval(e.data.code); console.log(res); } 
-               catch(err) { console.error(String(err)); }
-           }
+           if (e.data?.type === 'eval-cmd') { try { let res = eval(e.data.code); console.log(res); } catch(err) { console.error(String(err)); } }
            if (e.data?.type === 'toggle-inspector') {
                window.__inspectorMode = e.data.active;
-               if(window.__inspectorMode) {
-                   document.body.style.cursor = 'crosshair';
-               } else {
-                   document.body.style.cursor = 'default';
-                   document.querySelectorAll('*').forEach(el => el.style.outline = '');
-               }
+               if(window.__inspectorMode) { document.body.style.cursor = 'crosshair'; } 
+               else { document.body.style.cursor = 'default'; document.querySelectorAll('*').forEach(el => el.style.outline = ''); }
            }
         });
 
-        // DOM Inspector Hover Logic
         document.addEventListener('mouseover', (e) => {
            if (!window.__inspectorMode || e.target === document.body || e.target === document.documentElement) return;
            e.target.style.outline = '2px dashed #6366f1'; e.target.style.outlineOffset = '2px';
@@ -924,59 +849,45 @@ export default function App() {
         });
         document.addEventListener('click', (e) => {
            if (!window.__inspectorMode || e.target === document.body || e.target === document.documentElement) return;
-           e.preventDefault(); e.stopPropagation(); e.target.style.outline = ''; document.body.style.cursor = 'default';
-           window.__inspectorMode = false;
-           let htmlString = e.target.outerHTML;
-           if(htmlString.length > 2000) htmlString = htmlString.substring(0, 2000) + '... [TRUNCATED]';
+           e.preventDefault(); e.stopPropagation(); e.target.style.outline = ''; document.body.style.cursor = 'default'; window.__inspectorMode = false;
+           let htmlString = e.target.outerHTML; if(htmlString.length > 2000) htmlString = htmlString.substring(0, 2000) + '... [TRUNCATED]';
            window.parent.postMessage({ type: 'element-selected', tag: e.target.tagName, html: htmlString }, '*');
         }, true);
 
-        // Advanced Fetch Interceptor for Mocks & Network Tab Logging
         const origFetch = window.fetch;
         window.fetch = async function(...args) {
           const urlStr = String(args[0]);
           const mockMatch = mockData.find(m => urlStr.includes(m.path));
           
+          ${isChaosMonkey ? `await new Promise(r => setTimeout(r, Math.random() * 2000)); if (Math.random() < 0.2) { postLog('network', ['[CHAOS MONKEY FAIL]', urlStr]); throw new Error("Chaos Monkey injected network failure"); }` : ''}
+
           if (mockMatch) {
              postLog('network', ['[MOCK 200 OK]', urlStr]);
+             if (mockMatch.type === 'edge') {
+                 try { const fn = new Function('req', mockMatch.response); const res = await fn(args); return new Response(JSON.stringify(res), {status:200}); } 
+                 catch(e) { postLog('error', ['[MOCK EDGE ERROR]', e.message]); return new Response("{}", {status:500}); }
+             }
              return Promise.resolve(new Response(mockMatch.response, { status: 200, headers: { 'Content-Type': 'application/json' } }));
           }
 
           postLog('network', ['[FETCH Pending]', urlStr]);
-          try { 
-            const response = await origFetch.apply(this, args); 
-            postLog('network', ['[FETCH Success]', response.status, response.url]); 
-            return response; 
-          } catch(e) { 
-            postLog('network', ['[FETCH Failed]', e.message]); 
-            throw e; 
-          }
+          try { const response = await origFetch.apply(this, args); postLog('network', ['[FETCH Success]', response.status, response.url]); return response; } 
+          catch(e) { postLog('network', ['[FETCH Failed]', e.message]); throw e; }
         };
-      </script>
+      <\/script>
     `;
-    const envScript = `<script>window.ENV = ${sandboxEnv || '{}'};</script>`;
-    const darkModeScript = isPreviewDark ? `<script>document.documentElement.classList.add('dark'); document.body.style.backgroundColor = '#111827'; document.body.style.color = '#f8fafc';</script>` : '';
-    const perfScript = isPerformanceMode ? `
-      <script src="https://cdnjs.cloudflare.com/ajax/libs/stats.js/16/Stats.min.js"></script>
-      <script>
-        window.addEventListener('load', function() {
-          const stats = new Stats();
-          stats.showPanel(0); // 0: fps, 1: ms, 2: mb
-          stats.dom.style.position = 'fixed';
-          stats.dom.style.top = '10px';
-          stats.dom.style.left = '10px';
-          stats.dom.style.zIndex = '999999';
-          document.body.appendChild(stats.dom);
-          function animate() { stats.begin(); stats.end(); requestAnimationFrame(animate); }
-          requestAnimationFrame(animate);
-        });
-      </script>
-    ` : '';
-    const rrwebScript = isTimeTravelMode ? `<script src="https://cdn.jsdelivr.net/npm/rrweb@2.0.0-alpha.11/dist/rrweb.min.js"></script><script>console.log("[Time Travel Debugging] rrweb injected. Recording started (mock).");</script>` : '';
+    const envScript = `<script>window.ENV = ${sandboxEnv || '{}'};<\/script>`;
+    const darkModeScript = isPreviewDark ? `<script>document.documentElement.classList.add('dark'); document.body.style.backgroundColor = '#111827'; document.body.style.color = '#f8fafc';<\/script>` : '';
+    const perfScript = isPerformanceMode ? `<script src="https://cdnjs.cloudflare.com/ajax/libs/stats.js/16/Stats.min.js"><\/script><script>window.addEventListener('load', function() { const stats = new Stats(); stats.showPanel(0); stats.dom.style.position = 'fixed'; stats.dom.style.top = '10px'; stats.dom.style.left = '10px'; stats.dom.style.zIndex = '999999'; document.body.appendChild(stats.dom); function animate() { stats.begin(); stats.end(); requestAnimationFrame(animate); } requestAnimationFrame(animate); });<\/script>` : '';
+    const rrwebScript = isTimeTravelMode ? `<script src="https://cdn.jsdelivr.net/npm/rrweb@2.0.0-alpha.11/dist/rrweb.min.js"><\/script><script>console.log("[Time Travel Debugging] rrweb injected. Recording started (mock).");<\/script>` : '';
     
-    let doc = generatedCode.replace('<head>', `<head>\n${envScript}\n${injectionScript}\n${perfScript}\n${rrwebScript}`);
-    if (doc.includes('</body>')) doc = doc.replace('</body>', `${darkModeScript}</body>`);
-    else doc += darkModeScript;
+    const modeScripts = `
+      ${is3DMode ? '<style>body{perspective:1000px; overflow:visible;} *{transform-style:preserve-3d; transform:translateZ(10px); outline:1px solid rgba(99,102,241,0.2); background:rgba(255,255,255,0.8);} body:hover{transform:rotateX(20deg) rotateY(-20deg);}</style>' : ''}
+      ${isGhostMode ? '<script>window.addEventListener("load", ()=>{ const c=document.createElement("div"); c.style="width:20px;height:20px;background:red;border-radius:50%;position:fixed;z-index:9999;pointer-events:none;transition:all 0.3s ease;"; document.body.appendChild(c); setInterval(()=>{ c.style.left = Math.random()*window.innerWidth+"px"; c.style.top = Math.random()*window.innerHeight+"px"; if(Math.random()>0.7){ const el=document.elementFromPoint(parseInt(c.style.left), parseInt(c.style.top)); if(el && el.click) el.click(); } }, 1000); });<\/script>' : ''}
+    `;
+
+    let doc = generatedCode.replace('<head>', `<head>\n${envScript}\n${injectionScript}\n${perfScript}\n${rrwebScript}\n${modeScripts}`);
+    if (doc.includes('</body>')) doc = doc.replace('</body>', `${darkModeScript}</body>`); else doc += darkModeScript;
     return doc;
   };
 
@@ -995,15 +906,28 @@ export default function App() {
   };
 
   const popularPackages = [
-    { name: 'Tailwind CSS', desc: 'Utility-first CSS framework', tag: '<script src="https://cdn.tailwindcss.com"></script>' },
-    { name: 'React + ReactDOM', desc: 'UI Library (UMD Build)', tag: '<script src="https://unpkg.com/react@18/umd/react.development.js"></script>\n<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>' },
-    { name: 'Three.js', desc: '3D Javascript Library', tag: '<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>' },
-    { name: 'GSAP', desc: 'Professional Animation Library', tag: '<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>' },
+    { name: 'Tailwind CSS', desc: 'Utility-first CSS framework', tag: '<script src="https://cdn.tailwindcss.com"><\/script>' },
+    { name: 'React + ReactDOM', desc: 'UI Library (UMD Build)', tag: '<script src="https://unpkg.com/react@18/umd/react.development.js"><\/script>\n<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"><\/script>' },
+    { name: 'Three.js', desc: '3D Javascript Library', tag: '<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>' },
+    { name: 'GSAP', desc: 'Professional Animation Library', tag: '<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"><\/script>' },
     { name: 'FontAwesome', desc: 'Icon set', tag: '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">' },
-    { name: 'Firebase SDK', desc: 'Google BaaS', tag: '<script type="module">import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";</script>' },
-    { name: 'Supabase SDK', desc: 'Open Source BaaS', tag: '<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>' },
-    { name: 'Pyodide (Python)', desc: 'Python in Browser', tag: '<script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>' },
-    { name: 'sql.js (SQLite)', desc: 'Browser DB', tag: '<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>' }
+    { name: 'Firebase SDK', desc: 'Google BaaS', tag: '<script type="module">import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";<\/script>' },
+    { name: 'Supabase SDK', desc: 'Open Source BaaS', tag: '<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script>' },
+    { name: 'Pyodide (Python)', desc: 'Python in Browser', tag: '<script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"><\/script>' },
+    { name: 'sql.js (SQLite)', desc: 'Browser DB', tag: '<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"><\/script>' }
+  ];
+
+  const tailwindComponents = [
+    { name: 'Hero Section', code: `<section class="bg-white dark:bg-gray-900">\n  <div class="py-8 px-4 mx-auto max-w-screen-xl text-center lg:py-16">\n    <h1 class="mb-4 text-4xl font-extrabold tracking-tight leading-none text-gray-900 md:text-5xl lg:text-6xl dark:text-white">We invest in the world’s potential</h1>\n    <p class="mb-8 text-lg font-normal text-gray-500 lg:text-xl sm:px-16 lg:px-48 dark:text-gray-400">Here at Flowbite we focus on markets where technology, innovation, and capital can unlock long-term value and drive economic growth.</p>\n  </div>\n</section>` },
+    { name: 'Simple Navbar', code: `<nav class="bg-white border-gray-200 dark:bg-gray-900 shadow-sm">\n  <div class="max-w-screen-xl flex flex-wrap items-center justify-between mx-auto p-4">\n    <a href="#" class="flex items-center space-x-3 rtl:space-x-reverse">\n      <span class="self-center text-2xl font-semibold whitespace-nowrap dark:text-white">AppCanvas</span>\n    </a>\n    <div class="hidden w-full md:block md:w-auto" id="navbar-default">\n      <ul class="font-medium flex flex-col p-4 md:p-0 mt-4 border border-gray-100 rounded-lg bg-gray-50 md:flex-row md:space-x-8 rtl:space-x-reverse md:mt-0 md:border-0 md:bg-white dark:bg-gray-800 md:dark:bg-gray-900 dark:border-gray-700">\n        <li><a href="#" class="block py-2 px-3 text-white bg-blue-700 rounded md:bg-transparent md:text-blue-700 md:p-0 dark:text-white md:dark:text-blue-500" aria-current="page">Home</a></li>\n        <li><a href="#" class="block py-2 px-3 text-gray-900 rounded hover:bg-gray-100 md:hover:bg-transparent md:border-0 md:hover:text-blue-700 md:p-0 dark:text-white md:dark:hover:text-blue-500 dark:hover:bg-gray-700 dark:hover:text-white md:dark:hover:bg-transparent">About</a></li>\n      </ul>\n    </div>\n  </div>\n</nav>` },
+    { name: 'Action Button', code: `<button type="button" class="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 me-2 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 focus:outline-none dark:focus:ring-blue-800">Primary Button</button>` }
+  ];
+
+  const templates = [
+    { icon: '🌦️', label: 'Weather Dashboard', prompt: 'Build a beautiful glassmorphism Weather Dashboard. Add a pulsing loading state.' },
+    { icon: '🐍', label: 'Neon Snake Game', prompt: 'Create a retro Snake Game using HTML Canvas. Add neon glow effects to the snake.' },
+    { icon: '📋', label: 'Kanban Board', prompt: 'Build a responsive Kanban board UI (like Trello) with draggable columns.' },
+    { icon: '📊', label: 'Financial Dashboard', prompt: 'Design an analytical Financial Dashboard with mock charts using Chart.js' }
   ];
 
   return (
@@ -1011,9 +935,9 @@ export default function App() {
       
       {/* Sidebar Navigation */}
       {!isZenMode && (
-        <aside className="w-16 lg:w-20 bg-gray-900 border-r border-gray-800 flex flex-col items-center py-6 gap-6 z-20 shrink-0 transition-all duration-300">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20 mt-2">
-            <Sparkles className="text-white w-6 h-6" />
+        <aside className="w-16 lg:w-20 bg-gray-900 border-r border-gray-800 flex flex-col items-center py-6 gap-6 z-20 shrink-0 transition-all duration-300 overflow-y-auto [&::-webkit-scrollbar]:hidden">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20 mt-2 shrink-0">
+            <AppWindow className="text-white w-6 h-6" />
           </div>
           <nav className="flex flex-col gap-4 mt-4 w-full px-2">
             <button onClick={() => { setActiveTab('chat'); setIsChatVisible(true); }} className={`p-3 rounded-xl flex justify-center transition-all ${activeTab === 'chat' && isChatVisible ? 'bg-gray-800 text-indigo-400' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'}`} title="Chat"><MessageSquare className="w-6 h-6" /></button>
@@ -1038,7 +962,7 @@ export default function App() {
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col lg:flex-row h-full overflow-hidden relative">
         
-        {/* Chat Panel (Now Collapsible) */}
+        {/* Chat Panel */}
         {isChatVisible && (
           <div style={{ width: (!isZenMode && typeof window !== 'undefined' && window.innerWidth >= 1024) ? chatWidth : '100%' }} className={`flex-col bg-gray-900/50 border-r border-gray-800 h-full shrink-0 transition-all duration-300 ${activeTab === 'chat' && !isZenMode ? 'flex' : 'hidden lg:flex'} ${isZenMode ? '!hidden' : ''}`}>
             <div className="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-900/80 backdrop-blur z-10">
@@ -1064,10 +988,11 @@ export default function App() {
                   <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 flex items-center justify-center mb-2"><Sparkles className="w-8 h-8 text-indigo-400" /></div>
                   <div><h3 className="text-xl font-semibold text-gray-200">Welcome to Omni-Sandbox</h3><p className="text-sm text-gray-500 mt-2 max-w-xs mx-auto">What would you like to build today?</p></div>
                   <div className="grid grid-cols-2 gap-3 w-full max-w-sm mt-4">
-                    <button onClick={() => submitPrompt("Build a beautiful glassmorphism Weather Dashboard. Add a pulsing loading state.")} className="p-3 text-left rounded-xl border border-gray-800 bg-gray-900/50 hover:bg-gray-800 hover:border-indigo-500/50 transition-all flex flex-col gap-2 group"><span className="text-2xl group-hover:scale-110 transition-transform origin-bottom-left">🌦️</span><span className="text-sm font-medium text-gray-300 group-hover:text-indigo-300">Weather Dashboard</span></button>
-                    <button onClick={() => submitPrompt("Create a retro Snake Game using HTML Canvas. Add neon glow effects to the snake.")} className="p-3 text-left rounded-xl border border-gray-800 bg-gray-900/50 hover:bg-gray-800 hover:border-indigo-500/50 transition-all flex flex-col gap-2 group"><span className="text-2xl group-hover:scale-110 transition-transform origin-bottom-left">🐍</span><span className="text-sm font-medium text-gray-300 group-hover:text-indigo-300">Neon Snake Game</span></button>
-                    <button onClick={() => submitPrompt("Build a responsive Kanban board UI (like Trello) with draggable columns.")} className="p-3 text-left rounded-xl border border-gray-800 bg-gray-900/50 hover:bg-gray-800 hover:border-indigo-500/50 transition-all flex flex-col gap-2 group"><span className="text-2xl group-hover:scale-110 transition-transform origin-bottom-left">📋</span><span className="text-sm font-medium text-gray-300 group-hover:text-indigo-300">Kanban Board</span></button>
-                    <button onClick={() => submitPrompt("Design an analytical Financial Dashboard with mock charts using Chart.js")} className="p-3 text-left rounded-xl border border-gray-800 bg-gray-900/50 hover:bg-gray-800 hover:border-indigo-500/50 transition-all flex flex-col gap-2 group"><span className="text-2xl group-hover:scale-110 transition-transform origin-bottom-left">📊</span><span className="text-sm font-medium text-gray-300 group-hover:text-indigo-300">Financial Dashboard</span></button>
+                    {templates.map((t, i) => (
+                      <button key={i} onClick={() => submitPrompt(t.prompt)} className="p-3 text-left rounded-xl border border-gray-800 bg-gray-900/50 hover:bg-gray-800 hover:border-indigo-500/50 transition-all flex flex-col gap-2 group">
+                        <span className="text-2xl group-hover:scale-110 transition-transform origin-bottom-left">{t.icon}</span><span className="text-sm font-medium text-gray-300 group-hover:text-indigo-300">{t.label}</span>
+                      </button>
+                    ))}
                   </div>
                 </div>
               ) : (
@@ -1078,7 +1003,7 @@ export default function App() {
                     <div className={`max-w-[85%] rounded-2xl p-4 text-sm leading-relaxed ${msg.role === 'user' ? msg.isAutoGenerated ? 'bg-gray-800 border border-amber-500/20 text-gray-300 rounded-tr-sm' : 'bg-indigo-600 text-white rounded-tr-sm shadow-md' : msg.isAutoGenerated ? 'bg-gray-800/80 border border-amber-500/20 text-gray-200 rounded-tl-sm' : 'bg-gray-800 text-gray-200 rounded-tl-sm border border-gray-700/50'}`}>
                       {msg.image && <div className="mb-3"><img src={msg.image} alt="Context" className="max-w-full h-auto max-h-48 object-cover rounded-lg border border-gray-700" /></div>}
                       <div className="whitespace-pre-wrap break-words">
-                        {String(msg.text).split('```').map((chunk, i) => {
+                        {String(msg.text).split(T_BACKTICKS).map((chunk, i) => {
                           if (i % 2 !== 0) {
                             if (msg.role === 'model' && (chunk.startsWith('html') || chunk.includes('<html') || chunk.includes('<div'))) {
                               return (
@@ -1115,7 +1040,6 @@ export default function App() {
 
             <div className="p-4 bg-gray-900 border-t border-gray-800 z-10 flex flex-col gap-2">
               
-              {/* Context Modifiers UI */}
               {(targetedElement || selectedCodeContext) && (
                 <div className="flex flex-wrap gap-2 mb-1 px-1">
                    {targetedElement && (
@@ -1174,6 +1098,14 @@ export default function App() {
                     <button type="button" onClick={() => setChatImage(null)} className="p-1 bg-red-500/20 text-red-400 hover:bg-red-500/40 rounded-md transition-colors"><X className="w-4 h-4"/></button>
                   </div>
                 )}
+                {showSnippets && (
+                  <div className="absolute bottom-full mb-3 left-0 w-72 bg-gray-800 border border-gray-700 rounded-xl shadow-2xl p-2 z-20 animate-in fade-in slide-in-from-bottom-2">
+                    <div className="text-xs text-gray-400 mb-2 px-2 font-semibold uppercase tracking-wider">Quick Prompts</div>
+                    <div className="space-y-1">
+                      {quickSnippets.map((s, i) => <button key={i} type="button" onClick={() => {setInput(s); setShowSnippets(false);}} className="text-left w-full p-2.5 text-xs text-gray-300 hover:bg-indigo-500/20 hover:text-indigo-300 rounded-lg transition-colors truncate">{s}</button>)}
+                    </div>
+                  </div>
+                )}
                 
                 <div className="absolute left-2 top-2 bottom-2 flex items-center gap-0.5 z-10">
                    <button type="button" onClick={() => document.getElementById('chat-image-upload').click()} className="p-1.5 text-gray-500 hover:text-indigo-400 transition-colors rounded-lg" title="Upload Image Context"><ImagePlus className="w-4 h-4" /></button>
@@ -1216,44 +1148,56 @@ export default function App() {
             
             {/* Live Editable Code View */}
             <div style={{ width: (typeof window !== 'undefined' && window.innerWidth >= 1280 && !isZenMode) ? codeWidth : '100%' }} className={`flex-col border-r border-gray-800 h-full shrink-0 ${activeTab === 'code' ? 'flex' : 'hidden xl:flex'}`}>
-              <div className="h-12 bg-gray-900 border-b border-gray-800 flex justify-between items-center px-4 text-sm font-medium text-gray-400 shrink-0 overflow-x-auto whitespace-nowrap [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                <div className="flex items-center gap-2">
-                  <button onClick={() => setIsZenMode(!isZenMode)} className="p-1.5 mr-1 hover:text-white hover:bg-gray-800 rounded-md transition-colors" title="Toggle Zen Mode">{isZenMode ? <PanelLeftOpen className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}</button>
-                  <Terminal className="w-4 h-4" />
-                  <span>app_canvas.html</span>
+              <div className="h-12 bg-gray-900 border-b border-gray-800 flex justify-between items-center px-2 text-sm font-medium text-gray-400 shrink-0 overflow-x-auto whitespace-nowrap [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                <div className="flex items-center gap-2 pl-2">
+                  <button onClick={() => setIsZenMode(!isZenMode)} className="p-1 hover:text-white hover:bg-gray-800 rounded transition-colors"><PanelLeftClose className="w-4 h-4" /></button>
+                  <Terminal className="w-4 h-4" /> <span>app_canvas.html</span>
                   <button onClick={() => {
                      const win = window.open('', '_blank', 'width=800,height=800');
                      win.document.write(`<textarea style="width:100%;height:100%;background:#0d1117;color:#e5e7eb;font-family:monospace;padding:20px;border:none;">${generatedCode.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</textarea>`);
                      win.document.title = "Omni Code Editor Pop-out";
-                  }} className="p-1 hover:text-indigo-400 transition-colors ml-2" title="Pop-out Editor"><ExternalLink className="w-3 h-3"/></button>
+                  }} className="p-1 hover:text-indigo-400 transition-colors ml-1" title="Pop-out Editor"><ExternalLink className="w-3 h-3"/></button>
                 </div>
-                <div className="flex items-center gap-1 ml-4">
-                  <button onClick={() => setIsAssetsOpen(true)} className="p-1.5 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-md transition-colors flex items-center gap-1" title="Manage Assets"><ImageIcon className="w-4 h-4" /> <span className="text-xs hidden xl:inline">Assets</span></button>
-                  <button onClick={() => setIsPackagesOpen(true)} className="p-1.5 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-md transition-colors flex items-center gap-1" title="Inject CDNs / BaaS"><Package className="w-4 h-4" /> <span className="text-xs hidden xl:inline">Packages</span></button>
-                  <button onClick={() => setIsComponentsOpen(true)} className="p-1.5 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-md transition-colors flex items-center gap-1" title="Tailwind Blocks"><Blocks className="w-4 h-4" /> <span className="text-xs hidden xl:inline">Blocks</span></button>
+                <div className="flex items-center gap-0.5 ml-2">
+                  <button onClick={() => setIsAssetsOpen(true)} className="p-1.5 hover:text-indigo-400 hover:bg-indigo-500/10 rounded transition-colors" title="Manage Assets"><ImageIcon className="w-4 h-4" /></button>
+                  <button onClick={() => setIsPackagesOpen(true)} className="p-1.5 hover:text-indigo-400 hover:bg-indigo-500/10 rounded transition-colors" title="Inject CDNs / BaaS"><Package className="w-4 h-4" /></button>
+                  <button onClick={() => setIsComponentsOpen(true)} className="p-1.5 hover:text-indigo-400 hover:bg-indigo-500/10 rounded transition-colors" title="Tailwind Blocks"><Blocks className="w-4 h-4" /></button>
                   <div className="w-px h-4 bg-gray-700 mx-1"></div>
                   
-                  <button onClick={formatCode} disabled={isFormatting} className="p-1.5 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-md transition-colors flex items-center gap-1 disabled:opacity-50" title="Auto-Format with Prettier"><AlignLeft className="w-4 h-4" /></button>
-                  <button onClick={() => setIsDiffOpen(true)} disabled={codeHistory.length < 2} className="p-1.5 hover:text-cyan-400 hover:bg-cyan-500/10 rounded-md transition-colors flex items-center gap-1 disabled:opacity-50" title="Compare Code Diff"><GitCompare className="w-4 h-4" /></button>
+                  <button onClick={formatCode} disabled={isFormatting} className="p-1.5 hover:text-indigo-400 hover:bg-indigo-500/10 rounded transition-colors" title="Auto-Format"><AlignLeft className="w-4 h-4" /></button>
+                  <button onClick={() => setIsDiffOpen(true)} disabled={codeHistory.length < 2} className="p-1.5 hover:text-cyan-400 hover:bg-cyan-500/10 rounded transition-colors" title="Compare Diff"><GitCompare className="w-4 h-4" /></button>
                   <div className="w-px h-4 bg-gray-700 mx-1"></div>
+                  
+                  {/* DRY Agent Actions Mapping */}
+                  <div className="flex gap-0.5 overflow-x-auto max-w-[250px] hide-scrollbar">
+                    {AGENT_ACTIONS.filter(a => !a.isInfo).map(action => {
+                       const ActionIcon = action.icon;
+                       return (
+                       <button key={action.id} onClick={() => handleAgentAction(action.id)} disabled={isLoading} className={`p-1.5 hover:bg-gray-800 rounded transition-colors hover:${action.color} disabled:opacity-50`} title={`Agent: ${action.title}`}>
+                          <ActionIcon className="w-4 h-4" />
+                       </button>
+                       );
+                    })}
+                    <div className="w-px h-4 bg-gray-700 mx-1 self-center shrink-0"></div>
+                    {AGENT_ACTIONS.filter(a => a.isInfo).map(action => {
+                       const ActionIcon = action.icon;
+                       return (
+                       <button key={action.id} onClick={() => handleAgentAction(action.id)} disabled={isLoading} className={`p-1.5 hover:bg-gray-800 rounded transition-colors hover:${action.color} disabled:opacity-50`} title={`Agent: ${action.title}`}>
+                          <ActionIcon className="w-4 h-4" />
+                       </button>
+                       );
+                    })}
+                  </div>
 
-                  <button onClick={() => handleAgentAction('security')} disabled={isLoading} className="p-1.5 hover:text-red-400 hover:bg-red-500/10 rounded-md transition-colors flex items-center gap-1 disabled:opacity-50" title="Security Vulnerability Audit"><ShieldCheck className="w-4 h-4" /></button>
-                  <button onClick={() => handleAgentAction('flowchart')} disabled={isLoading} className="p-1.5 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-md transition-colors flex items-center gap-1 disabled:opacity-50" title="Generate Architecture Flowchart"><Workflow className="w-4 h-4" /></button>
-                  <button onClick={() => handleAgentAction('bootstrap')} disabled={isLoading} className="p-1.5 hover:text-green-400 hover:bg-green-500/10 rounded-md transition-colors flex items-center gap-1 disabled:opacity-50" title="Agent: Bootstrap Canvas"><Rocket className="w-4 h-4" /></button>
-                  <button onClick={() => handleAgentAction('readme')} disabled={isLoading} className="p-1.5 hover:text-blue-400 hover:bg-blue-500/10 rounded-md transition-colors flex items-center gap-1 disabled:opacity-50" title="Agent: Generate README"><BookOpen className="w-4 h-4" /></button>
-                  <button onClick={() => handleAgentAction('test')} disabled={isLoading} className="p-1.5 hover:text-yellow-400 hover:bg-yellow-500/10 rounded-md transition-colors flex items-center gap-1 disabled:opacity-50" title="Agent: Write Unit Tests"><TestTube className="w-4 h-4" /></button>
-                  <button onClick={() => handleAgentAction('auto-improve')} disabled={isLoading} className="p-1.5 hover:text-purple-400 hover:bg-purple-500/10 rounded-md transition-colors flex items-center gap-1 disabled:opacity-50" title="Agent: Review & Improve UI"><Eye className="w-4 h-4" /></button>
-                  <button onClick={() => handleAgentAction('polish')} disabled={isLoading} className="p-1.5 hover:text-amber-400 hover:bg-amber-500/10 rounded-md transition-colors flex items-center gap-1 disabled:opacity-50" title="Agent: Refactor & Polish"><Wand2 className="w-4 h-4" /></button>
-                  
                   <div className="w-px h-4 bg-gray-700 mx-1"></div>
-                  <button onClick={handleUndo} disabled={historyIndex === 0} className="p-1.5 hover:text-white hover:bg-gray-800 rounded-md transition-colors disabled:opacity-30" title="Undo"><Undo className="w-4 h-4" /></button>
-                  <button onClick={handleRedo} disabled={historyIndex === codeHistory.length - 1} className="p-1.5 hover:text-white hover:bg-gray-800 rounded-md transition-colors disabled:opacity-30 mr-1" title="Redo"><Redo className="w-4 h-4" /></button>
-                  <button onClick={() => setIsHistoryOpen(true)} className="p-1.5 hover:text-white hover:bg-gray-800 rounded-md transition-colors" title="Version History & Branches"><History className="w-4 h-4" /></button>
-                  
+                  <button onClick={handleUndo} disabled={historyIndex === 0} className="p-1.5 hover:text-white hover:bg-gray-800 rounded transition-colors disabled:opacity-30" title="Undo"><Undo className="w-4 h-4" /></button>
+                  <button onClick={handleRedo} disabled={historyIndex === codeHistory.length - 1} className="p-1.5 hover:text-white hover:bg-gray-800 rounded transition-colors disabled:opacity-30 mr-1" title="Redo"><Redo className="w-4 h-4" /></button>
+                  <button onClick={() => setIsHistoryOpen(true)} className="p-1.5 hover:text-white hover:bg-gray-800 rounded transition-colors" title="Version History & Branches"><History className="w-4 h-4" /></button>
                   <div className="w-px h-4 bg-gray-700 mx-1"></div>
-                  <button onClick={exportToCodePen} className="p-1.5 hover:text-white hover:bg-gray-800 rounded-md transition-colors" title="Export to CodePen"><Share2 className="w-4 h-4" /></button>
-                  <button onClick={handleCopyCode} className="p-1.5 hover:text-white hover:bg-gray-800 rounded-md transition-colors" title="Copy"><Copy className="w-4 h-4" /></button>
-                  <button onClick={() => exportToZip('vite')} className="p-1.5 hover:text-white hover:bg-gray-800 rounded-md transition-colors" title="Export as Vite/React App"><FileArchive className="w-4 h-4" /></button>
+                  <button onClick={handleCopyCode} className="p-1.5 hover:text-white hover:bg-gray-800 rounded transition-colors" title="Copy"><Copy className="w-4 h-4" /></button>
+                  <button onClick={() => exportToZip('html')} className="p-1.5 hover:text-white hover:bg-gray-800 rounded transition-colors" title="Export Zip"><Download className="w-4 h-4" /></button>
+                  <button onClick={() => exportToZip('pwa')} className="p-1.5 hover:text-white hover:bg-gray-800 rounded transition-colors" title="Export as PWA"><Smartphone className="w-4 h-4" /></button>
+                  <button onClick={() => exportToZip('vite')} className="p-1.5 hover:text-white hover:bg-gray-800 rounded transition-colors" title="Export as Vite App"><FileArchive className="w-4 h-4" /></button>
                 </div>
               </div>
               <div className="flex-1 relative bg-[#0d1117] overflow-hidden group">
@@ -1289,12 +1233,10 @@ export default function App() {
                     <button onClick={openPopoutPreview} className="p-1 hover:text-indigo-400 transition-colors ml-2" title="Pop-out Multi-Monitor Preview"><ExternalLink className="w-3 h-3"/></button>
                   </div>
                   <div className="flex items-center bg-gray-950 rounded-lg p-0.5 border border-gray-800 hidden sm:flex">
-                    <button onClick={() => { setViewport('mobile'); setIsLandscape(false); setFluidWidth(100); }} className={`p-1.5 rounded-md transition-colors ${viewport === 'mobile' ? 'bg-gray-800 text-white' : 'hover:text-white'}`} title="Mobile Emulation"><Smartphone className="w-4 h-4" /></button>
-                    <button onClick={() => { setViewport('tablet'); setIsLandscape(false); setFluidWidth(100); }} className={`p-1.5 rounded-md transition-colors ${viewport === 'tablet' ? 'bg-gray-800 text-white' : 'hover:text-white'}`} title="Tablet Emulation"><TabletIcon className="w-4 h-4" /></button>
-                    <button onClick={() => { setViewport('desktop'); setIsLandscape(false); setFluidWidth(100); }} className={`p-1.5 rounded-md transition-colors ${viewport === 'desktop' && fluidWidth === 100 ? 'bg-gray-800 text-white' : 'hover:text-white'}`} title="Desktop View"><Monitor className="w-4 h-4" /></button>
-                    {viewport !== 'desktop' && (
-                      <button onClick={() => setIsLandscape(!isLandscape)} className={`p-1.5 ml-1 rounded-md transition-colors hover:text-white ${isLandscape ? 'text-indigo-400' : ''}`} title="Rotate Device"><RotateCcw className="w-4 h-4" /></button>
-                    )}
+                    <button onClick={() => { setViewport('mobile'); setIsLandscape(false); setFluidWidth(100); }} className={`p-1.5 rounded-md transition-colors ${viewport === 'mobile' ? 'bg-gray-800 text-white' : 'hover:text-white'}`}><Smartphone className="w-4 h-4" /></button>
+                    <button onClick={() => { setViewport('tablet'); setIsLandscape(false); setFluidWidth(100); }} className={`p-1.5 rounded-md transition-colors ${viewport === 'tablet' ? 'bg-gray-800 text-white' : 'hover:text-white'}`}><TabletIcon className="w-4 h-4" /></button>
+                    <button onClick={() => { setViewport('desktop'); setIsLandscape(false); setFluidWidth(100); }} className={`p-1.5 rounded-md transition-colors ${viewport === 'desktop' && fluidWidth === 100 ? 'bg-gray-800 text-white' : 'hover:text-white'}`}><Monitor className="w-4 h-4" /></button>
+                    {viewport !== 'desktop' && <button onClick={() => setIsLandscape(!isLandscape)} className={`p-1.5 ml-1 rounded-md transition-colors hover:text-white ${isLandscape ? 'text-indigo-400' : ''}`}><RotateCcw className="w-4 h-4" /></button>}
                   </div>
                 </div>
 
@@ -1303,9 +1245,13 @@ export default function App() {
                    <button onClick={deployToStackBlitz} className="p-1.5 rounded-md transition-colors hover:text-yellow-400 hover:bg-yellow-500/10" title="Deploy Full-Stack App to WebContainers"><CloudLightning className="w-4 h-4" /></button>
                    <div className="w-px h-4 bg-gray-700 mx-1"></div>
                    
+                   {/* Advanced Tools */}
                    <button onClick={() => setIsTimeTravelMode(!isTimeTravelMode)} className={`p-1.5 rounded-md transition-colors ${isTimeTravelMode ? 'bg-red-500/20 text-red-400 border border-red-500/50' : 'hover:text-red-400 hover:bg-red-500/10'}`} title="Time-Travel Debugging (rrweb)"><Video className="w-4 h-4" /></button>
-                   <button onClick={() => setIsInspectorActive(!isInspectorActive)} className={`p-1.5 rounded-md transition-colors ${isInspectorActive ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/50' : 'hover:text-indigo-400 hover:bg-indigo-500/10'}`} title="Point & Prompt DOM Inspector"><MousePointerClick className="w-4 h-4" /></button>
+                   <button onClick={() => setIsChaosMonkey(!isChaosMonkey)} className={`p-1.5 rounded-md transition-colors ${isChaosMonkey ? 'bg-orange-500/20 text-orange-400 border border-orange-500/50' : 'hover:text-orange-400 hover:bg-orange-500/10'}`} title="Chaos Monkey (Simulate Network Fails)"><ServerCrash className="w-4 h-4" /></button>
+                   <button onClick={() => setIs3DMode(!is3DMode)} className={`p-1.5 rounded-md transition-colors ${is3DMode ? 'bg-blue-500/20 text-blue-400 border border-blue-500/50' : 'hover:text-blue-400 hover:bg-blue-500/10'}`} title="3D DOM Debugger"><Box className="w-4 h-4" /></button>
+                   <button onClick={() => setIsGhostMode(!isGhostMode)} className={`p-1.5 rounded-md transition-colors ${isGhostMode ? 'bg-teal-500/20 text-teal-400 border border-teal-500/50' : 'hover:text-teal-400 hover:bg-teal-500/10'}`} title="Real-User Emulation (Ghost Cursors)"><Ghost className="w-4 h-4" /></button>
                    <button onClick={() => setIsPerformanceMode(!isPerformanceMode)} className={`p-1.5 rounded-md transition-colors ${isPerformanceMode ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/50' : 'hover:text-indigo-400 hover:bg-indigo-500/10'}`} title="Performance Profiler (FPS/Memory)"><Gauge className="w-4 h-4" /></button>
+                   <button onClick={() => setIsInspectorActive(!isInspectorActive)} className={`p-1.5 rounded-md transition-colors ${isInspectorActive ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/50' : 'hover:text-indigo-400 hover:bg-indigo-500/10'}`} title="Point & Prompt DOM Inspector"><MousePointerClick className="w-4 h-4" /></button>
                    <div className="w-px h-4 bg-gray-700 mx-1"></div>
 
                    {viewport === 'desktop' && (
@@ -1317,11 +1263,11 @@ export default function App() {
                    <button onClick={shareLink} className="p-1.5 rounded-md transition-colors hover:text-indigo-400 hover:bg-indigo-500/10" title="Share Snapshot Link"><Share className="w-4 h-4" /></button>
                    <div className="w-px h-4 bg-gray-700 mx-1"></div>
                    
-                   <button onClick={() => setPreviewZoom(z => Math.max(25, z - 25))} className="p-1.5 rounded-md transition-colors hover:text-white" title="Zoom Out"><ZoomOut className="w-4 h-4" /></button>
+                   <button onClick={() => setPreviewZoom(z => Math.max(25, z - 25))} className="p-1.5 rounded-md transition-colors hover:text-white"><ZoomOut className="w-4 h-4" /></button>
                    <span className="text-xs w-8 text-center font-mono">{previewZoom}%</span>
-                   <button onClick={() => setPreviewZoom(z => Math.min(200, z + 25))} className="p-1.5 rounded-md transition-colors hover:text-white" title="Zoom In"><ZoomIn className="w-4 h-4" /></button>
+                   <button onClick={() => setPreviewZoom(z => Math.min(200, z + 25))} className="p-1.5 rounded-md transition-colors hover:text-white"><ZoomIn className="w-4 h-4" /></button>
                    <div className="w-px h-4 bg-gray-700 mx-1"></div>
-                   <button onClick={() => setIsPreviewDark(!isPreviewDark)} className={`hover:text-white transition-colors flex items-center p-1.5 rounded ${isPreviewDark ? 'bg-indigo-500/20 text-indigo-400' : ''}`} title="Toggle Dark Mode">{isPreviewDark ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}</button>
+                   <button onClick={() => setIsPreviewDark(!isPreviewDark)} className={`hover:text-white transition-colors flex items-center p-1.5 rounded ${isPreviewDark ? 'bg-indigo-500/20 text-indigo-400' : ''}`}><Moon className="w-4 h-4" /></button>
                    <button onClick={() => setIsConsoleOpen(!isConsoleOpen)} className={`hover:text-white transition-colors flex items-center gap-1 px-2 py-1 rounded ${isConsoleOpen ? 'bg-gray-800 text-white' : ''}`} title="Developer Console">
                      <TerminalSquare className="w-4 h-4" />{consoleLogs.length > 0 && <span className="bg-amber-500 text-black text-[10px] font-bold px-1.5 rounded-full">{consoleLogs.length}</span>}
                    </button>
@@ -1403,11 +1349,8 @@ export default function App() {
                             }} className="w-full py-2 bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 border border-indigo-500/30 rounded-lg text-xs font-medium transition-colors">
                                Edit with AI
                             </button>
-                            <button onClick={() => {
-                               navigator.clipboard.writeText(targetedElement.html);
-                               alert("Component HTML copied to clipboard!");
-                            }} className="w-full py-2 bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs font-medium transition-colors flex justify-center items-center gap-1.5">
-                               <Copy className="w-3 h-3"/> Extract Component
+                            <button onClick={() => handleAgentAction('storybook')} className="w-full py-2 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 border border-rose-500/30 rounded-lg text-xs font-medium transition-colors flex justify-center items-center gap-1.5">
+                               <Component className="w-3 h-3"/> Isolate Component
                             </button>
                          </div>
                       </div>
@@ -1553,24 +1496,33 @@ export default function App() {
               <button onClick={() => setIsMocksOpen(false)} className="text-gray-500 hover:text-white"><X className="w-5 h-5" /></button>
             </div>
             <div className="p-6 overflow-y-auto max-h-[60vh]">
-              <p className="text-sm text-gray-400 mb-6">Define fake API endpoints here. The Omni-Sandbox will automatically intercept any `fetch()` calls matching these paths and return your mock JSON data. This allows you to build full-stack data apps with no real backend!</p>
+              <p className="text-sm text-gray-400 mb-6">Define fake API endpoints here. The Sandbox intercepts matching `fetch()` calls and returns your mock data. Turn on "Edge Function" mode to execute raw JS logic (like Vercel Edge/Cloudflare Workers).</p>
               
               <div className="space-y-4">
                  {mockEndpoints.map((mock, index) => (
                     <div key={mock.id} className="bg-gray-950 border border-gray-800 rounded-xl p-4 relative group">
                        <button onClick={() => { const newMocks = [...mockEndpoints]; newMocks.splice(index, 1); saveMocks(newMocks); }} className="absolute top-3 right-3 text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 className="w-4 h-4"/></button>
-                       <div className="mb-3">
-                         <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Endpoint Path</label>
-                         <input type="text" value={mock.path} onChange={e => { const newMocks = [...mockEndpoints]; newMocks[index].path = e.target.value; saveMocks(newMocks); }} placeholder="/api/users" className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-indigo-500" />
+                       <div className="flex gap-4 mb-3">
+                         <div className="flex-1">
+                           <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Endpoint Path</label>
+                           <input type="text" value={mock.path} onChange={e => { const newMocks = [...mockEndpoints]; newMocks[index].path = e.target.value; saveMocks(newMocks); }} placeholder="/api/users" className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-indigo-500" />
+                         </div>
+                         <div className="w-40">
+                           <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Type</label>
+                           <select value={mock.type || 'json'} onChange={e => { const newMocks = [...mockEndpoints]; newMocks[index].type = e.target.value; saveMocks(newMocks); }} className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-indigo-500">
+                             <option value="json">Static JSON</option>
+                             <option value="edge">Edge Function (JS)</option>
+                           </select>
+                         </div>
                        </div>
                        <div>
-                         <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">JSON Response</label>
-                         <textarea value={mock.response} onChange={e => { const newMocks = [...mockEndpoints]; newMocks[index].response = e.target.value; saveMocks(newMocks); }} placeholder='{"status": "ok"}' className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm font-mono text-gray-200 focus:outline-none focus:border-indigo-500 h-24 resize-none" />
+                         <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">{mock.type === 'edge' ? 'Return Function Body' : 'JSON Response'}</label>
+                         <textarea value={mock.response} onChange={e => { const newMocks = [...mockEndpoints]; newMocks[index].response = e.target.value; saveMocks(newMocks); }} placeholder={mock.type === 'edge' ? 'return { timestamp: Date.now(), req: req[0] };' : '{"status": "ok"}'} className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm font-mono text-gray-200 focus:outline-none focus:border-indigo-500 h-24 resize-none" />
                        </div>
                     </div>
                  ))}
               </div>
-              <button onClick={() => saveMocks([...mockEndpoints, { id: Date.now(), path: '/api/new', response: '{}' }])} className="w-full mt-4 py-3 border-2 border-dashed border-gray-700 rounded-xl text-gray-400 hover:text-indigo-400 hover:border-indigo-500/50 hover:bg-indigo-500/10 transition-colors flex items-center justify-center gap-2 text-sm font-medium">
+              <button onClick={() => saveMocks([...mockEndpoints, { id: Date.now(), path: '/api/new', type: 'json', response: '{}' }])} className="w-full mt-4 py-3 border-2 border-dashed border-gray-700 rounded-xl text-gray-400 hover:text-indigo-400 hover:border-indigo-500/50 hover:bg-indigo-500/10 transition-colors flex items-center justify-center gap-2 text-sm font-medium">
                 + Add New Endpoint
               </button>
             </div>
