@@ -9,26 +9,21 @@ import {
   Lightbulb, Share2, Moon, Sun, Power, Bookmark,
   Image as ImageIcon, FileArchive, Edit2, GripVertical, Rocket, Eye,
   ImagePlus, Mic, History, Blocks, RotateCcw, ZoomIn, ZoomOut,
-  PanelLeftClose, PanelLeftOpen, DownloadCloud, Lock
+  PanelLeftClose, PanelLeftOpen, DownloadCloud, Lock,
+  MessageSquarePlus, FolderOpen, Database, Github, Search, GitCompare, Share,
+  MousePointerClick, Target
 } from 'lucide-react';
 
 // --- Environment API Key Fallback ---
 const apiKey = ""; // Provided by environment at runtime
 
-// --- V2 Agentic System Prompt ---
-const DEFAULT_SYSTEM_PROMPT = `You are Omni-Agent, an elite AI frontend engineer operating in 'Omni-Sandbox'.
-
-YOUR DIRECTIVE:
-You are building production-ready applications inside a Live Canvas environment. You must automatically create complete, fully functional Canvas Files for the user to ensure the best results.
-
-RULES FOR BEST RESULTS:
-1. CHAIN OF THOUGHT: Always plan your architecture and UI/UX approach first. Explain your choices briefly before writing any code.
-2. THE CANVAS FILE: You must output EXACTLY ONE \`\`\`html code block. This block is the complete Canvas File.
-3. UNIFIED ARCHITECTURE: Embed all CSS (via Tailwind CDN) and JS within the single HTML file.
-4. NO PLACEHOLDERS: Write complete code. Never use placeholders or leave functions unimplemented.
-5. AESTHETIC EXCELLENCE: Default to modern UI/UX principles. Use ample whitespace, rounded corners, subtle shadows, and cohesive color palettes. Ensure full mobile responsiveness.
-
-If the user reports an error, explain what caused it, then return the entirely fixed Canvas File in a new \`\`\`html block.`;
+// --- Agent Personas ---
+const PERSONAS = {
+  default: `You are Omni-Agent, an elite AI frontend engineer operating in 'Omni-Sandbox'.\n\nYOUR DIRECTIVE:\nYou are building production-ready applications inside a Live Canvas environment. You must automatically create complete, fully functional Canvas Files for the user to ensure the best results.\n\nRULES FOR BEST RESULTS:\n1. CHAIN OF THOUGHT: Always plan your architecture and UI/UX approach first. Explain your choices briefly before writing any code.\n2. THE CANVAS FILE: You must output EXACTLY ONE \`\`\`html code block. This block is the complete Canvas File.\n3. UNIFIED ARCHITECTURE: Embed all CSS (via Tailwind CDN) and JS within the single HTML file.\n4. NO PLACEHOLDERS: Write complete code. Never use placeholders or leave functions unimplemented.\n5. AESTHETIC EXCELLENCE: Default to modern UI/UX principles. Use ample whitespace, rounded corners, subtle shadows, and cohesive color palettes. Ensure full mobile responsiveness.\n\nIf the user reports an error, explain what caused it, then return the entirely fixed Canvas File in a new \`\`\`html block.`,
+  tailwind: `You are Omni-Agent, a world-class UI/UX Designer and Tailwind CSS Expert.\n\nYOUR DIRECTIVE: Build visually stunning, hyper-modern web applications.\n\nRULES:\n1. Output exactly ONE \`\`\`html block.\n2. Prioritize incredible aesthetics: use glassmorphism, complex gradients, smooth CSS transitions, hover states, and perfect typography.\n3. Everything must be responsive.\n4. Use Tailwind CSS exclusively for styling. Ensure high contrast and accessibility. No placeholders.`,
+  gamedev: `You are Omni-Agent, a senior WebGL and Canvas HTML5 Game Developer.\n\nYOUR DIRECTIVE: Build highly performant, 60FPS browser games.\n\nRULES:\n1. Output exactly ONE \`\`\`html block containing the game.\n2. Prioritize requestAnimationFrame loops, efficient rendering, clean physics math, and state management.\n3. Add comments explaining the game loop and logic.\n4. Ensure keyboard and mouse/touch controls work perfectly. Provide a start and game over screen. No placeholders.`,
+  datascientist: `You are Omni-Agent, a Data Visualization Expert.\n\nYOUR DIRECTIVE: Build gorgeous, interactive data dashboards and charts.\n\nRULES:\n1. Output exactly ONE \`\`\`html block.\n2. Utilize CDN libraries like Chart.js, D3.js, or Recharts.\n3. Generate realistic mock data to populate the charts.\n4. Ensure tooltips, legends, and responsive resizing work flawlessly. Prioritize a clean, analytical UI design.`
+};
 
 const DEFAULT_CODE = `<!-- Your generated code will appear here -->\n<div class="p-8 text-center font-sans">\n  <h1 class="text-3xl font-bold text-gray-800">Hello, App Canvas!</h1>\n  <p class="text-gray-500 mt-2">Describe what you want to build in the chat.</p>\n</div>`;
 
@@ -40,13 +35,19 @@ export default function App() {
   const [isAssetsOpen, setIsAssetsOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isComponentsOpen, setIsComponentsOpen] = useState(false);
+  const [isSessionsModalOpen, setIsSessionsModalOpen] = useState(false); 
+  const [isMocksOpen, setIsMocksOpen] = useState(false); 
+  const [isDiffOpen, setIsDiffOpen] = useState(false); 
   
   const [viewport, setViewport] = useState('desktop'); 
   const [isLandscape, setIsLandscape] = useState(false);
   const [previewZoom, setPreviewZoom] = useState(100);
+  const [fluidWidth, setFluidWidth] = useState(100); // 100%
   
   const [isConsoleOpen, setIsConsoleOpen] = useState(false);
   const [consoleFilter, setConsoleFilter] = useState('all'); 
+  const [consoleInput, setConsoleInput] = useState(''); // REPL Input
+  
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isZenMode, setIsZenMode] = useState(false);
   const [isPreviewDark, setIsPreviewDark] = useState(false);
@@ -62,27 +63,43 @@ export default function App() {
   const [userApiKey, setUserApiKey] = useState('');
   const [geminiBaseUrl, setGeminiBaseUrl] = useState('');
   
-  // Longcat States safely defined
   const [longcatApiKey, setLongcatApiKey] = useState('');
   const [longcatBaseUrl, setLongcatBaseUrl] = useState('https://api.longcat.chat/openai/v1/chat/completions');
   const [longcatFallbackUrl, setLongcatFallbackUrl] = useState(''); 
   
   const [ollamaUrl, setOllamaUrl] = useState('http://localhost:11434/api/chat');
   const [ollamaModel, setOllamaModel] = useState('llama3');
-  const [customSystemPrompt, setCustomSystemPrompt] = useState(DEFAULT_SYSTEM_PROMPT);
+  
+  const [activePersona, setActivePersona] = useState('default');
+  const [customSystemPrompt, setCustomSystemPrompt] = useState(PERSONAS.default);
   const [maxContext, setMaxContext] = useState(10);
   const [sandboxEnv, setSandboxEnv] = useState('{\n  "API_URL": "https://api.example.com",\n  "MOCK_KEY": "sk_test_123"\n}');
+  const [mockEndpoints, setMockEndpoints] = useState([{ id: 1, path: '/api/demo', response: '{"status": "success", "message": "Hello from Omni-Mock!"}' }]);
+  const [isVoiceAutoSubmit, setIsVoiceAutoSubmit] = useState(false);
 
   // Dynamic Model Selection
   const [selectedModel, setSelectedModel] = useState('gemini-2.5-flash-preview-09-2025');
   const [customModelInput, setCustomModelInput] = useState('');
 
-  // State: Active Workspace
+  // NPM Search State
+  const [npmSearchQuery, setNpmSearchQuery] = useState('');
+  const [npmSearchResults, setNpmSearchResults] = useState([]);
+  const [isSearchingNpm, setIsSearchingNpm] = useState(false);
+
+  // State: Active Workspace & Chat History
+  const [sessions, setSessions] = useState([]); 
+  const [currentSessionId, setCurrentSessionId] = useState(() => Date.now().toString()); 
+  
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [chatImage, setChatImage] = useState(null);
   const [isListening, setIsListening] = useState(false);
+  
+  // NEW: Targeting Context Features
+  const [targetedElement, setTargetedElement] = useState(null); // DOM Inspector Element
+  const [isInspectorActive, setIsInspectorActive] = useState(false);
+  const [selectedCodeContext, setSelectedCodeContext] = useState(''); // Textarea selected text
   
   // State: Code, Assets & History
   const [generatedCode, setGeneratedCode] = useState(DEFAULT_CODE);
@@ -101,8 +118,25 @@ export default function App() {
   const editorRef = useRef(null);
   const highlightRef = useRef(null);
 
+  // --- Link Sharing (Base64 Decode on Load) ---
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.hash.startsWith('#code=')) {
+      try {
+        const decoded = decodeURIComponent(atob(window.location.hash.replace('#code=', '')));
+        if (decoded) {
+          setGeneratedCode(decoded);
+          setCodeHistory([decoded]);
+          setHistoryIndex(0);
+          window.history.replaceState(null, null, window.location.pathname);
+        }
+      } catch (e) {
+        console.error("Invalid share link", e);
+      }
+    }
+  }, []);
+
   // --- Auto-Scroll Chat & Console ---
-  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, agentStatus]);
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, agentStatus, targetedElement, selectedCodeContext]);
   useEffect(() => { consoleEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [consoleLogs, isConsoleOpen, consoleFilter]);
 
   // --- Initialize Layout Widths ---
@@ -131,24 +165,38 @@ export default function App() {
     loadSafe('omni_sandbox_env', setSandboxEnv);
     loadSafe('omni_selected_model', setSelectedModel);
     loadSafe('omni_custom_model_input', setCustomModelInput);
+    loadSafe('omni_active_persona', setActivePersona);
+    loadSafe('omni_voice_autosubmit', setIsVoiceAutoSubmit);
+
+    // Load Mocks
+    const savedMocks = localStorage.getItem('omni_api_mocks');
+    if (savedMocks) {
+      try { setMockEndpoints(JSON.parse(savedMocks)); } catch(e) {}
+    }
 
     const savedPromptVersion = localStorage.getItem('omni_prompt_version');
     if (savedPromptVersion !== "2.0") {
-      setCustomSystemPrompt(DEFAULT_SYSTEM_PROMPT);
-      localStorage.setItem('omni_system_prompt', DEFAULT_SYSTEM_PROMPT);
+      setCustomSystemPrompt(PERSONAS.default);
+      localStorage.setItem('omni_system_prompt', PERSONAS.default);
       localStorage.setItem('omni_prompt_version', "2.0");
     } else {
       loadSafe('omni_system_prompt', setCustomSystemPrompt);
     }
 
-    const savedSession = localStorage.getItem('omni_active_session');
-    if (savedSession) {
+    const savedSessions = localStorage.getItem('omni_chat_sessions');
+    if (savedSessions) {
+      try { setSessions(JSON.parse(savedSessions)); } catch(e) {}
+    }
+
+    const savedActiveSession = localStorage.getItem('omni_active_session');
+    if (savedActiveSession) {
       try {
-        const parsed = JSON.parse(savedSession);
+        const parsed = JSON.parse(savedActiveSession);
         if (parsed.messages) setMessages(parsed.messages);
         if (parsed.generatedCode) setGeneratedCode(parsed.generatedCode);
         if (parsed.codeHistory) setCodeHistory(parsed.codeHistory);
         if (parsed.historyIndex !== undefined) setHistoryIndex(parsed.historyIndex);
+        if (parsed.sessionId) setCurrentSessionId(parsed.sessionId);
       } catch (e) {
         console.error("Failed to restore session", e);
       }
@@ -170,11 +218,33 @@ export default function App() {
 
   // --- Invisible Auto-Save Loop ---
   useEffect(() => {
-    if (messages.length > 0 || generatedCode !== DEFAULT_CODE) {
-      const sessionData = { messages, generatedCode, codeHistory, historyIndex };
-      localStorage.setItem('omni_active_session', JSON.stringify(sessionData));
-    }
-  }, [messages, generatedCode, codeHistory, historyIndex]);
+    if (messages.length === 0 && generatedCode === DEFAULT_CODE) return;
+
+    const sessionData = { sessionId: currentSessionId, messages, generatedCode, codeHistory, historyIndex };
+    localStorage.setItem('omni_active_session', JSON.stringify(sessionData));
+
+    const timer = setTimeout(() => {
+      setSessions(prev => {
+        const existingIdx = prev.findIndex(s => s.id === currentSessionId);
+        const title = messages.length > 0 
+           ? (messages[0].text.length > 35 ? messages[0].text.substring(0, 35) + '...' : messages[0].text)
+           : 'New Application';
+           
+        const updatedSession = { id: currentSessionId, title, messages, generatedCode, codeHistory, updatedAt: Date.now() };
+        
+        let nextSessions = [...prev];
+        if (existingIdx >= 0) {
+          nextSessions[existingIdx] = updatedSession;
+        } else {
+          nextSessions.unshift(updatedSession);
+        }
+        localStorage.setItem('omni_chat_sessions', JSON.stringify(nextSessions));
+        return nextSessions;
+      });
+    }, 1000);
+    
+    return () => clearTimeout(timer);
+  }, [messages, generatedCode, codeHistory, historyIndex, currentSessionId]);
 
   const saveSetting = (key, val, setter) => {
     setter(val);
@@ -199,6 +269,8 @@ export default function App() {
         { value: 'LongCat-Flash-Thinking-2601', label: 'LongCat Flash Thinking 2601' },
         { value: 'LongCat-Flash-Omni-2603', label: 'LongCat Flash Omni 2603' },
         { value: 'LongCat-Flash-Lite', label: 'LongCat Flash Lite' },
+        { value: 'gpt-4o', label: 'GPT-4o (via Longcat)' },
+        { value: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet (via Longcat)' },
         { value: 'custom', label: 'Custom Model...' }
       ];
     }
@@ -229,7 +301,7 @@ export default function App() {
     document.addEventListener('mousemove', onMouseMove); document.addEventListener('mouseup', onMouseUp);
   };
 
-  // Safe Console Interceptor
+  // Safe Console Interceptor, Command Exec, & DOM Inspector Interceptor
   useEffect(() => {
     const handleIframeMessage = (event) => {
       if (event.data?.type === 'iframe-console') {
@@ -247,10 +319,35 @@ export default function App() {
           handleAutoSolve(safeMessage);
         }
       }
+      
+      // NEW: Intercept DOM Element Clicks from Inspector Mode
+      if (event.data?.type === 'element-selected') {
+        setTargetedElement({
+          tag: event.data.tag,
+          html: event.data.html
+        });
+        setIsInspectorActive(false); // Turn off after click
+      }
     };
     window.addEventListener('message', handleIframeMessage);
     return () => window.removeEventListener('message', handleIframeMessage);
   }, [isAutoSolveEnabled, agentStatus, generatedCode, messages]);
+
+  // NEW: Toggle Inspector Mode inside iframe
+  useEffect(() => {
+    if (iframeRef.current && iframeRef.current.contentWindow) {
+      iframeRef.current.contentWindow.postMessage({ type: 'toggle-inspector', active: isInspectorActive }, '*');
+    }
+  }, [isInspectorActive]);
+
+  const handleConsoleCommand = (e) => {
+    e.preventDefault();
+    if (!consoleInput.trim() || !iframeRef.current) return;
+    
+    setConsoleLogs(prev => [...prev, { id: Date.now(), type: 'all', message: `> ${consoleInput}`, time: new Date().toLocaleTimeString() }]);
+    iframeRef.current.contentWindow.postMessage({ type: 'eval-cmd', code: consoleInput }, '*');
+    setConsoleInput('');
+  };
 
   const updateCode = (newCode) => {
     setGeneratedCode(newCode);
@@ -273,12 +370,20 @@ export default function App() {
     setHistoryIndex(idx);
     setGeneratedCode(codeHistory[idx]);
     setIsHistoryOpen(false);
+    setIsDiffOpen(false);
   };
 
   const handleCopyCode = () => {
     navigator.clipboard.writeText(generatedCode);
     setIsCopied(true);
     setTimeout(() => setIsCopied(false), 2000);
+  };
+
+  const shareLink = () => {
+    const encoded = btoa(encodeURIComponent(generatedCode));
+    const url = `${window.location.origin}${window.location.pathname}#code=${encoded}`;
+    navigator.clipboard.writeText(url);
+    alert("Shareable Snapshot Link copied to clipboard!");
   };
 
   const handleDownloadCode = () => {
@@ -293,7 +398,7 @@ export default function App() {
     URL.revokeObjectURL(url);
   };
 
-  const exportToZip = async () => {
+  const exportToZip = async (format = 'html') => {
     setIsLoading(true);
     try {
         if (!window.JSZip) {
@@ -307,32 +412,43 @@ export default function App() {
         }
         
         const zip = new window.JSZip();
-        let html = generatedCode;
-        let css = ''; let js = ''; let hasCss = false; let hasJs = false;
+        
+        if (format === 'vite') {
+            zip.file("package.json", JSON.stringify({
+              name: "omni-vite-project", version: "1.0.0", type: "module",
+              scripts: { dev: "vite", build: "vite build", preview: "vite preview" },
+              devDependencies: { vite: "^4.4.5" }
+            }, null, 2));
+            zip.file("vite.config.js", `import { defineConfig } from 'vite';\nexport default defineConfig({});`);
+            zip.file("index.html", generatedCode); 
+        } else {
+            let html = generatedCode;
+            let css = ''; let js = ''; let hasCss = false; let hasJs = false;
 
-        html = html.replace(/<style>([\s\S]*?)<\/style>/gi, (match, content) => {
-            css += content + '\n';
-            if (!hasCss) { hasCss = true; return '<link rel="stylesheet" href="style.css">'; }
-            return ''; 
-        });
+            html = html.replace(/<style>([\s\S]*?)<\/style>/gi, (match, content) => {
+                css += content + '\n';
+                if (!hasCss) { hasCss = true; return '<link rel="stylesheet" href="style.css">'; }
+                return ''; 
+            });
 
-        html = html.replace(/<script([^>]*)>([\s\S]*?)<\/script>/gi, (match, attrs, content) => {
-            if (attrs.includes('src=')) return match;
-            if (content.includes('iframe-console') || content.includes('window.ENV')) return match;
-            js += content + '\n';
-            if (!hasJs) { hasJs = true; return '<script src="script.js"></script>'; }
-            return '';
-        });
+            html = html.replace(/<script([^>]*)>([\s\S]*?)<\/script>/gi, (match, attrs, content) => {
+                if (attrs.includes('src=')) return match;
+                if (content.includes('iframe-console') || content.includes('window.ENV') || content.includes('__inspectorMode')) return match;
+                js += content + '\n';
+                if (!hasJs) { hasJs = true; return '<script src="script.js"></script>'; }
+                return '';
+            });
 
-        zip.file("index.html", html);
-        if (css.trim()) zip.file("style.css", css);
-        if (js.trim()) zip.file("script.js", js);
+            zip.file("index.html", html);
+            if (css.trim()) zip.file("style.css", css);
+            if (js.trim()) zip.file("script.js", js);
+        }
 
         const content = await zip.generateAsync({type:"blob"});
         const url = URL.createObjectURL(content);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'omni_project.zip';
+        a.download = format === 'vite' ? 'omni_vite_project.zip' : 'omni_project.zip';
         a.click();
         URL.revokeObjectURL(url);
     } catch (e) {
@@ -368,10 +484,35 @@ export default function App() {
     document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
   };
 
+  const handleNewChat = () => {
+    setMessages([]); setGeneratedCode(DEFAULT_CODE); setCodeHistory([DEFAULT_CODE]);
+    setHistoryIndex(0); setCurrentSessionId(Date.now().toString()); setConsoleLogs([]);
+    setAgentStatus('idle'); setActiveTab('chat');
+  };
+
+  const loadSession = (id) => {
+    const session = sessions.find(s => s.id === id);
+    if (session) {
+      setMessages(session.messages || []);
+      setGeneratedCode(session.generatedCode || DEFAULT_CODE);
+      setCodeHistory(session.codeHistory || [session.generatedCode || DEFAULT_CODE]);
+      setHistoryIndex((session.codeHistory?.length || 1) - 1);
+      setCurrentSessionId(session.id);
+      setIsSessionsModalOpen(false); setConsoleLogs([]);
+    }
+  };
+
+  const deleteSession = (id, e) => {
+    e.stopPropagation();
+    const nextSessions = sessions.filter(s => s.id !== id);
+    setSessions(nextSessions);
+    localStorage.setItem('omni_chat_sessions', JSON.stringify(nextSessions));
+    if (id === currentSessionId) handleNewChat();
+  };
+
   const handleClearChat = () => {
-    if (window.confirm('Are you sure you want to clear the chat and workspace?')) {
-      setMessages([]); updateCode(DEFAULT_CODE); setAgentStatus('idle'); setConsoleLogs([]); setChatImage(null);
-      localStorage.removeItem('omni_active_session');
+    if (window.confirm('Are you sure you want to clear the current chat? (Note: It will be removed from your sessions history)')) {
+      deleteSession(currentSessionId, { stopPropagation: () => {} });
     }
   };
 
@@ -398,6 +539,22 @@ export default function App() {
     reader.readAsDataURL(file);
   };
 
+  // NPM Search Handlers
+  const searchNPM = async (e) => {
+    e.preventDefault();
+    if (!npmSearchQuery.trim()) return;
+    setIsSearchingNpm(true);
+    try {
+      const res = await fetch(`https://api.cdnjs.com/libraries?search=${encodeURIComponent(npmSearchQuery)}&limit=10&fields=version,description`);
+      const data = await res.json();
+      setNpmSearchResults(data.results || []);
+    } catch(err) {
+      alert("NPM Search Failed: " + err.message);
+    } finally {
+      setIsSearchingNpm(false);
+    }
+  };
+
   const toggleListen = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) return alert("Speech recognition is not supported in your browser.");
@@ -406,11 +563,18 @@ export default function App() {
     } else {
       const recognition = new SpeechRecognition();
       recognition.continuous = false; recognition.interimResults = true;
+      let finalTranscript = '';
       recognition.onresult = (event) => {
-        const transcript = Array.from(event.results).map(res => res[0].transcript).join('');
-        setInput(prev => prev.trim() + ' ' + transcript);
+        finalTranscript = Array.from(event.results).map(res => res[0].transcript).join('');
+        setInput(prev => prev.trim() + ' ' + finalTranscript);
       };
-      recognition.onend = () => setIsListening(false);
+      recognition.onend = () => {
+        setIsListening(false);
+        // Voice Auto Submit Feature
+        if (isVoiceAutoSubmit && finalTranscript.trim() !== '') {
+          submitPrompt(finalTranscript); 
+        }
+      };
       recognition.start(); setIsListening(true);
     }
   };
@@ -429,6 +593,17 @@ export default function App() {
     if (highlightRef.current) {
       highlightRef.current.scrollTop = e.target.scrollTop;
       highlightRef.current.scrollLeft = e.target.scrollLeft;
+    }
+  };
+
+  // NEW: Code Selection Highlighting logic
+  const handleEditorSelect = (e) => {
+    const start = e.target.selectionStart;
+    const end = e.target.selectionEnd;
+    if (start !== end) {
+       setSelectedCodeContext(e.target.value.substring(start, end));
+    } else {
+       setSelectedCodeContext('');
     }
   };
 
@@ -455,6 +630,15 @@ export default function App() {
     let historyToSend = chatHistory.filter(m => m.role !== 'system');
     if (maxContext > 0 && historyToSend.length > maxContext) historyToSend = historyToSend.slice(-maxContext);
     
+    // Inject Active Contexts (DOM Inspector & Selected Code) into the prompt secretly
+    let augmentedPrompt = newPrompt;
+    if (targetedElement) {
+        augmentedPrompt += `\n\n[SYSTEM CONTEXT - The user has pointed an inspector at this specific DOM element on the page. Focus your changes here]:\n\`\`\`html\n${targetedElement.html}\n\`\`\``;
+    }
+    if (selectedCodeContext) {
+        augmentedPrompt += `\n\n[SYSTEM CONTEXT - The user has highlighted this specific block of code in the editor. Focus your changes here]:\n\`\`\`\n${selectedCodeContext}\n\`\`\``;
+    }
+    
     while (retries > 0) {
       try {
         const activeModelName = selectedModel === 'custom' ? customModelInput : selectedModel;
@@ -477,8 +661,8 @@ export default function App() {
             return { role: m.role === 'model' ? 'model' : 'user', parts };
           });
 
-          if (newPrompt) {
-            const parts = [{ text: newPrompt }];
+          if (augmentedPrompt) {
+            const parts = [{ text: augmentedPrompt }];
             if (imageObj) {
               const mimeType = imageObj.match(/data:(.*?);base64/)?.[1] || "image/jpeg";
               const base64Data = imageObj.split(',')[1];
@@ -511,7 +695,7 @@ export default function App() {
           return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
           
         } else {
-          // --- LONGCAT & OLLAMA BULLETPROOF ROUTER WITH OMNI ENVIRONMENT ---
+          // --- LONGCAT & OLLAMA ROUTER ---
           const isOllama = apiProvider === 'ollama';
           let primaryUrl = isOllama ? (ollamaUrl || 'http://localhost:11434/api/chat') : (longcatBaseUrl || 'https://api.longcat.chat/openai/v1/chat/completions');
           
@@ -525,17 +709,15 @@ export default function App() {
           };
           
           if (!isOllama) {
-             if (!longcatApiKey) throw new Error("No Longcat API Key found in Settings. Please add it to authenticate.");
+             if (!longcatApiKey) throw new Error("No Longcat API Key found in Settings.");
              headers['Authorization'] = `Bearer ${longcatApiKey}`;
           }
 
-          // DYNAMIC PAYLOAD BUILDER: Prevents "JSON format error" on Omni models
           const formattedMessages = [];
           const isOmni = activeModelName.toLowerCase().includes('omni') || activeModelName.toLowerCase().includes('vision');
           
           let sysPrompt = customSystemPrompt?.trim() || "";
           
-          // Attach system prompt. Omni models strictly reject explicit system roles in many proxy setups.
           if (sysPrompt && !isOmni) {
             formattedMessages.push({ role: 'system', content: sysPrompt });
             sysPrompt = "";
@@ -544,28 +726,25 @@ export default function App() {
           historyToSend.forEach((m, idx) => {
             let msgText = m.text?.trim() || "";
             
-            // Safely inject the system prompt into the first user message for Omni models
             if (sysPrompt && idx === 0) {
                 msgText = `[System Instructions: ${sysPrompt}]\n\n` + msgText;
                 sysPrompt = "";
             }
 
             if (isOmni) {
-              // Omni STRICTLY REQUIRES an array of objects for the content field
               const contentArray = [{ type: "text", text: msgText || "Attached context." }];
               if (m.image) {
                   contentArray.push({ type: "image_url", image_url: { url: m.image } });
               }
               formattedMessages.push({ role: m.role === 'model' ? 'assistant' : 'user', content: contentArray });
             } else {
-              // Standard models STRICTLY REQUIRE strings
               if (msgText) {
                   formattedMessages.push({ role: m.role === 'model' ? 'assistant' : 'user', content: msgText });
               }
             }
           });
           
-          let finalPrompt = newPrompt?.trim() || '';
+          let finalPrompt = augmentedPrompt?.trim() || '';
           if (sysPrompt && formattedMessages.length === 0) {
               finalPrompt = `[System Instructions: ${sysPrompt}]\n\n` + finalPrompt;
           }
@@ -605,7 +784,7 @@ export default function App() {
 
             if (!response.ok) {
               let errorMsg = data.error?.message || data.message || `Request failed (${response.status})`;
-              if (typeof errorMsg === 'object') errorMsg = JSON.stringify(errorMsg);
+              if (typeof errorMsg === 'object') errorMsg = JSON.stringify(errorMsg); 
               throw new Error(String(errorMsg));
             }
             
@@ -650,6 +829,8 @@ export default function App() {
   const submitPrompt = async (text, activeImage = null) => {
     if (!text.trim() || isLoading) return;
     setInput(''); setShowSnippets(false); setChatImage(null);
+    setTargetedElement(null); setSelectedCodeContext(''); // Clear contexts on send
+    
     setMessages(prev => [...prev, { role: 'user', text: text, image: activeImage, timestamp: new Date().toISOString() }]);
     setIsLoading(true); setAgentStatus('thinking');
 
@@ -723,9 +904,16 @@ export default function App() {
     }
   };
 
+  // API Mocks Save Handler
+  const saveMocks = (mocks) => {
+    setMockEndpoints(mocks);
+    localStorage.setItem('omni_api_mocks', JSON.stringify(mocks));
+  };
+
   const getSandboxDoc = () => {
     const injectionScript = `
       <script>
+        const mockData = ${JSON.stringify(mockEndpoints)};
         const postLog = (type, args) => {
           try {
             const msg = Array.from(args).map(a => {
@@ -739,11 +927,77 @@ export default function App() {
         const origWarn = console.warn; console.warn = function(...args) { postLog('warn', args); origWarn.apply(console, args); };
         const origError = console.error; console.error = function(...args) { postLog('error', args); origError.apply(console, args); };
         window.onerror = function(msg, url, line) { postLog('error', [msg + ' at line ' + line]); return false; };
+        
+        // Command Line Eval Receiver
+        window.addEventListener('message', (e) => {
+           if (e.data?.type === 'eval-cmd') {
+               try { 
+                   let res = eval(e.data.code); 
+                   console.log(res); 
+               } catch(err) { 
+                   console.error(String(err)); 
+               }
+           }
+           
+           // Toggle DOM Inspector
+           if (e.data?.type === 'toggle-inspector') {
+               window.__inspectorMode = e.data.active;
+               if(window.__inspectorMode) {
+                   document.body.style.cursor = 'crosshair';
+               } else {
+                   document.body.style.cursor = 'default';
+                   // remove all outlines
+                   document.querySelectorAll('*').forEach(el => el.style.outline = '');
+               }
+           }
+        });
+
+        // DOM Inspector Hover Logic
+        document.addEventListener('mouseover', (e) => {
+           if (!window.__inspectorMode || e.target === document.body || e.target === document.documentElement) return;
+           e.target.style.outline = '2px dashed #6366f1';
+           e.target.style.outlineOffset = '2px';
+        });
+        document.addEventListener('mouseout', (e) => {
+           if (!window.__inspectorMode || e.target === document.body || e.target === document.documentElement) return;
+           e.target.style.outline = '';
+        });
+        document.addEventListener('click', (e) => {
+           if (!window.__inspectorMode || e.target === document.body || e.target === document.documentElement) return;
+           e.preventDefault();
+           e.stopPropagation();
+           e.target.style.outline = '';
+           document.body.style.cursor = 'default';
+           window.__inspectorMode = false;
+           // Extract Element Context securely
+           let htmlString = e.target.outerHTML;
+           if(htmlString.length > 2000) htmlString = htmlString.substring(0, 2000) + '... [TRUNCATED]';
+           window.parent.postMessage({ type: 'element-selected', tag: e.target.tagName, html: htmlString }, '*');
+        }, true); // Use capture phase to intercept
+
+        // Advanced Fetch Interceptor for Mocks
         const origFetch = window.fetch;
         window.fetch = async function(...args) {
-          postLog('network', ['[FETCH Request]', args[0]]);
-          try { const response = await origFetch.apply(this, args); postLog('network', ['[FETCH Response]', response.status, response.url]); return response; } 
-          catch(e) { postLog('error', ['[FETCH Error]', e.message]); throw e; }
+          const urlStr = String(args[0]);
+          const mockMatch = mockData.find(m => urlStr.includes(m.path));
+          
+          if (mockMatch) {
+             postLog('network', ['[MOCKED FETCH]', urlStr]);
+             return Promise.resolve(new Response(mockMatch.response, {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' }
+             }));
+          }
+
+          postLog('network', ['[FETCH Request]', urlStr]);
+          try { 
+            const response = await origFetch.apply(this, args); 
+            postLog('network', ['[FETCH Response]', response.status, response.url]); 
+            return response; 
+          } catch(e) { 
+            postLog('error', ['[FETCH Error]', e.message]); 
+            throw e; 
+          }
         };
       </script>
     `;
@@ -803,15 +1057,20 @@ export default function App() {
       {/* Sidebar Navigation */}
       {!isZenMode && (
         <aside className="w-16 lg:w-20 bg-gray-900 border-r border-gray-800 flex flex-col items-center py-6 gap-6 z-20 shrink-0 transition-all duration-300">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20 mt-2">
             <Sparkles className="text-white w-6 h-6" />
           </div>
           <nav className="flex flex-col gap-4 mt-4 w-full px-2">
             <button onClick={() => setActiveTab('chat')} className={`p-3 rounded-xl flex justify-center transition-all ${activeTab === 'chat' ? 'bg-gray-800 text-indigo-400' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'}`} title="Chat"><MessageSquare className="w-6 h-6" /></button>
+            <button onClick={() => setIsSessionsModalOpen(true)} className="p-3 rounded-xl flex justify-center lg:hidden transition-all text-gray-500 hover:text-gray-300 hover:bg-gray-800/50" title="Chat History"><FolderOpen className="w-6 h-6" /></button>
             <button onClick={() => setActiveTab('code')} className={`p-3 rounded-xl flex justify-center lg:hidden transition-all ${activeTab === 'code' ? 'bg-gray-800 text-indigo-400' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'}`} title="Code"><Code2 className="w-6 h-6" /></button>
             <button onClick={() => setActiveTab('preview')} className={`p-3 rounded-xl flex justify-center lg:hidden transition-all ${activeTab === 'preview' ? 'bg-gray-800 text-indigo-400' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'}`} title="Preview"><Play className="w-6 h-6" /></button>
+            
+            <div className="w-8 h-px bg-gray-800 mx-auto my-2"></div>
+            <button onClick={() => setIsMocksOpen(true)} className="p-3 rounded-xl flex justify-center text-gray-500 hover:text-gray-300 hover:bg-gray-800/50 transition-all" title="Local API Mocks Dashboard"><Database className="w-6 h-6" /></button>
           </nav>
           <div className="mt-auto flex flex-col gap-4 w-full px-2">
+            <button onClick={() => setIsSessionsModalOpen(true)} className="p-3 rounded-xl hidden lg:flex flex justify-center text-gray-500 hover:text-gray-300 hover:bg-gray-800/50 transition-all" title="Chat History"><FolderOpen className="w-6 h-6" /></button>
             <button onClick={() => setIsSettingsOpen(true)} className="p-3 rounded-xl flex justify-center text-gray-500 hover:text-gray-300 hover:bg-gray-800/50 transition-all" title="Key Vault & Settings"><Settings className="w-6 h-6" /></button>
           </div>
         </aside>
@@ -830,8 +1089,8 @@ export default function App() {
               <p className="text-xs text-gray-500">BYOK Unlimited Context Engine</p>
             </div>
             <div className="flex items-center gap-2">
-              <button onClick={exportChatHistory} className="p-1.5 text-gray-500 hover:text-indigo-400 hover:bg-indigo-400/10 rounded-lg transition-colors" title="Export Chat to Markdown"><DownloadCloud className="w-4 h-4" /></button>
-              <button onClick={handleClearChat} className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors" title="Clear Workspace (Wipes Auto-Save)"><Trash2 className="w-4 h-4" /></button>
+              <button onClick={handleNewChat} className="p-1.5 text-gray-500 hover:text-indigo-400 hover:bg-indigo-400/10 rounded-lg transition-colors" title="Start New Chat"><MessageSquarePlus className="w-4 h-4" /></button>
+              <button onClick={handleClearChat} className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors" title="Delete Current Session"><Trash2 className="w-4 h-4" /></button>
               <button onClick={() => setIsAutoSolveEnabled(!isAutoSolveEnabled)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${isAutoSolveEnabled ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' : 'bg-gray-800 text-gray-400 border-gray-700 hover:bg-gray-700'}`} title="Autonomously fix runtime errors"><Zap className="w-3.5 h-3.5" /> Auto-Solve</button>
             </div>
           </div>
@@ -887,21 +1146,54 @@ export default function App() {
             <div ref={chatEndRef} />
           </div>
 
-          <div className="p-4 bg-gray-900 border-t border-gray-800 z-10">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="flex items-center gap-2 bg-gray-950 border border-gray-800 rounded-lg px-3 py-1.5 shadow-sm w-max">
+          <div className="p-4 bg-gray-900 border-t border-gray-800 z-10 flex flex-col gap-2">
+            
+            {/* Context Modifiers UI */}
+            {(targetedElement || selectedCodeContext) && (
+              <div className="flex flex-wrap gap-2 mb-1 px-1">
+                 {targetedElement && (
+                   <div className="flex items-center gap-1.5 bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 px-3 py-1.5 rounded-lg text-xs font-medium max-w-[200px]">
+                      <Target className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">Element: &lt;{targetedElement.tag.toLowerCase()}&gt;</span>
+                      <button onClick={() => setTargetedElement(null)} className="ml-auto hover:text-white"><X className="w-3.5 h-3.5"/></button>
+                   </div>
+                 )}
+                 {selectedCodeContext && (
+                   <div className="flex items-center gap-1.5 bg-blue-500/20 border border-blue-500/30 text-blue-300 px-3 py-1.5 rounded-lg text-xs font-medium max-w-[200px]">
+                      <Code2 className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">Code Selected ({selectedCodeContext.split('\n').length} lines)</span>
+                      <button onClick={() => setSelectedCodeContext('')} className="ml-auto hover:text-white"><X className="w-3.5 h-3.5"/></button>
+                   </div>
+                 )}
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+              <div className="flex items-center gap-2 bg-gray-950 border border-gray-800 rounded-lg px-3 py-1.5 shadow-sm max-w-full sm:max-w-fit">
                 <Bot className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
                 <select value={selectedModel} onChange={(e) => saveSetting('omni_selected_model', e.target.value, setSelectedModel)} className="bg-transparent text-xs font-medium text-gray-300 focus:outline-none cursor-pointer appearance-none outline-none pr-4">
                   {getModelOptions().map(opt => <option key={opt.value} value={opt.value} className="bg-gray-900 text-gray-300">{opt.label}</option>)}
                 </select>
                 <ChevronRight className="w-3 h-3 text-gray-600 shrink-0 rotate-90 -ml-2" />
               </div>
+              
+              <div className="flex items-center gap-2 bg-gray-950 border border-gray-800 rounded-lg px-3 py-1.5 shadow-sm max-w-full sm:max-w-fit">
+                <User className="w-3.5 h-3.5 text-pink-400 shrink-0" />
+                <select value={activePersona} onChange={(e) => { saveSetting('omni_active_persona', e.target.value, setActivePersona); setCustomSystemPrompt(PERSONAS[e.target.value]); }} className="bg-transparent text-xs font-medium text-gray-300 focus:outline-none cursor-pointer appearance-none outline-none pr-4">
+                  <option value="default" className="bg-gray-900 text-gray-300">Default Agent</option>
+                  <option value="tailwind" className="bg-gray-900 text-gray-300">Tailwind Pro</option>
+                  <option value="gamedev" className="bg-gray-900 text-gray-300">Game Developer</option>
+                  <option value="datascientist" className="bg-gray-900 text-gray-300">Data Scientist</option>
+                </select>
+                <ChevronRight className="w-3 h-3 text-gray-600 shrink-0 rotate-90 -ml-2" />
+              </div>
+
               {selectedModel === 'custom' && (
-                <input type="text" value={customModelInput} onChange={(e) => saveSetting('omni_custom_model_input', e.target.value, setCustomModelInput)} placeholder="e.g., gemini-exp-1234" className="bg-gray-950 border border-gray-800 rounded-lg px-3 py-1.5 text-xs text-gray-100 focus:outline-none focus:border-indigo-500 w-48 shadow-sm" />
+                <input type="text" value={customModelInput} onChange={(e) => saveSetting('omni_custom_model_input', e.target.value, setCustomModelInput)} placeholder="e.g., gemini-exp-1234" className="bg-gray-950 border border-gray-800 rounded-lg px-3 py-1.5 text-xs text-gray-100 focus:outline-none focus:border-indigo-500 w-full sm:w-48 shadow-sm" />
               )}
             </div>
             
-            <form onSubmit={handleSendMessage} className="relative">
+            <form onSubmit={handleSendMessage} className="relative mt-1">
               {chatImage && (
                 <div className="absolute bottom-full mb-2 left-0 p-2 bg-gray-800 rounded-xl border border-gray-700 shadow-xl flex items-center gap-2 animate-in fade-in">
                   <img src={chatImage} alt="Upload preview" className="h-16 w-16 object-cover rounded-lg border border-gray-600" />
@@ -957,8 +1249,9 @@ export default function App() {
                   <button onClick={() => setIsAssetsOpen(true)} className="p-1.5 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-md transition-colors flex items-center gap-1" title="Manage Assets"><ImageIcon className="w-4 h-4" /> <span className="text-xs hidden xl:inline">Assets</span></button>
                   <button onClick={() => setIsPackagesOpen(true)} className="p-1.5 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-md transition-colors flex items-center gap-1" title="Inject CDNs"><Package className="w-4 h-4" /> <span className="text-xs hidden xl:inline">Packages</span></button>
                   <button onClick={() => setIsComponentsOpen(true)} className="p-1.5 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-md transition-colors flex items-center gap-1" title="Tailwind Blocks"><Blocks className="w-4 h-4" /> <span className="text-xs hidden xl:inline">Blocks</span></button>
-                  <button onClick={() => handleAgentAction('bootstrap')} disabled={isLoading} className="p-1.5 hover:text-green-400 hover:bg-green-500/10 rounded-md transition-colors flex items-center gap-1 disabled:opacity-50" title="Agent: Bootstrap Canvas"><Rocket className="w-4 h-4" /></button>
                   <div className="w-px h-4 bg-gray-700 mx-1"></div>
+                  <button onClick={() => setIsDiffOpen(true)} disabled={codeHistory.length < 2} className="p-1.5 hover:text-cyan-400 hover:bg-cyan-500/10 rounded-md transition-colors flex items-center gap-1 disabled:opacity-50" title="Compare Code Diff"><GitCompare className="w-4 h-4" /></button>
+                  <button onClick={() => handleAgentAction('bootstrap')} disabled={isLoading} className="p-1.5 hover:text-green-400 hover:bg-green-500/10 rounded-md transition-colors flex items-center gap-1 disabled:opacity-50" title="Agent: Bootstrap Canvas"><Rocket className="w-4 h-4" /></button>
                   <button onClick={() => handleAgentAction('auto-improve')} disabled={isLoading} className="p-1.5 hover:text-purple-400 hover:bg-purple-500/10 rounded-md transition-colors flex items-center gap-1 disabled:opacity-50" title="Agent: Review & Improve UI"><Eye className="w-4 h-4" /></button>
                   <button onClick={() => handleAgentAction('explain')} disabled={isLoading} className="p-1.5 hover:text-blue-400 hover:bg-blue-500/10 rounded-md transition-colors flex items-center gap-1 disabled:opacity-50" title="Agent: Explain Code"><Lightbulb className="w-4 h-4" /></button>
                   <button onClick={() => handleAgentAction('beautify')} disabled={isLoading} className="p-1.5 hover:text-pink-400 hover:bg-pink-500/10 rounded-md transition-colors flex items-center gap-1 disabled:opacity-50" title="Agent: Beautify UI"><Paintbrush className="w-4 h-4" /></button>
@@ -968,10 +1261,8 @@ export default function App() {
                   <button onClick={handleRedo} disabled={historyIndex === codeHistory.length - 1} className="p-1.5 hover:text-white hover:bg-gray-800 rounded-md transition-colors disabled:opacity-30 mr-1" title="Redo"><Redo className="w-4 h-4" /></button>
                   <button onClick={() => setIsHistoryOpen(true)} className="p-1.5 hover:text-white hover:bg-gray-800 rounded-md transition-colors" title="Version History"><History className="w-4 h-4" /></button>
                   <div className="w-px h-4 bg-gray-700 mx-1"></div>
-                  <button onClick={exportToCodePen} className="p-1.5 hover:text-white hover:bg-gray-800 rounded-md transition-colors" title="Export to CodePen"><Share2 className="w-4 h-4" /></button>
                   <button onClick={handleCopyCode} className="p-1.5 hover:text-white hover:bg-gray-800 rounded-md transition-colors" title="Copy"><Copy className="w-4 h-4" /></button>
-                  <button onClick={exportToZip} className="p-1.5 hover:text-white hover:bg-gray-800 rounded-md transition-colors" title="Export as ZIP"><FileArchive className="w-4 h-4" /></button>
-                  <button onClick={handleDownloadCode} className="p-1.5 hover:text-white hover:bg-gray-800 rounded-md transition-colors" title="Download HTML (Cmd+S)"><Download className="w-4 h-4" /></button>
+                  <button onClick={() => exportToZip('vite')} className="p-1.5 hover:text-white hover:bg-gray-800 rounded-md transition-colors" title="Export as Vite/React App"><FileArchive className="w-4 h-4" /></button>
                 </div>
               </div>
               <div className="flex-1 relative bg-[#0d1117] overflow-hidden group">
@@ -985,6 +1276,7 @@ export default function App() {
                   ref={editorRef}
                   value={generatedCode}
                   onChange={(e) => updateCode(e.target.value)}
+                  onSelect={handleEditorSelect} // NEW: Selection Capturing
                   onKeyDown={handleEditorKeyDown}
                   onScroll={handleEditorScroll}
                   spellCheck="false"
@@ -1005,9 +1297,9 @@ export default function App() {
                     <span className="hidden sm:inline">Live Canvas</span>
                   </div>
                   <div className="flex items-center bg-gray-950 rounded-lg p-0.5 border border-gray-800 hidden sm:flex">
-                    <button onClick={() => { setViewport('mobile'); setIsLandscape(false); }} className={`p-1.5 rounded-md transition-colors ${viewport === 'mobile' ? 'bg-gray-800 text-white' : 'hover:text-white'}`} title="Mobile"><Smartphone className="w-4 h-4" /></button>
-                    <button onClick={() => { setViewport('tablet'); setIsLandscape(false); }} className={`p-1.5 rounded-md transition-colors ${viewport === 'tablet' ? 'bg-gray-800 text-white' : 'hover:text-white'}`} title="Tablet"><TabletIcon className="w-4 h-4" /></button>
-                    <button onClick={() => { setViewport('desktop'); setIsLandscape(false); }} className={`p-1.5 rounded-md transition-colors ${viewport === 'desktop' ? 'bg-gray-800 text-white' : 'hover:text-white'}`} title="Desktop"><Monitor className="w-4 h-4" /></button>
+                    <button onClick={() => { setViewport('mobile'); setIsLandscape(false); setFluidWidth(100); }} className={`p-1.5 rounded-md transition-colors ${viewport === 'mobile' ? 'bg-gray-800 text-white' : 'hover:text-white'}`} title="Mobile"><Smartphone className="w-4 h-4" /></button>
+                    <button onClick={() => { setViewport('tablet'); setIsLandscape(false); setFluidWidth(100); }} className={`p-1.5 rounded-md transition-colors ${viewport === 'tablet' ? 'bg-gray-800 text-white' : 'hover:text-white'}`} title="Tablet"><TabletIcon className="w-4 h-4" /></button>
+                    <button onClick={() => { setViewport('desktop'); setIsLandscape(false); setFluidWidth(100); }} className={`p-1.5 rounded-md transition-colors ${viewport === 'desktop' && fluidWidth === 100 ? 'bg-gray-800 text-white' : 'hover:text-white'}`} title="Desktop"><Monitor className="w-4 h-4" /></button>
                     {viewport !== 'desktop' && (
                       <button onClick={() => setIsLandscape(!isLandscape)} className={`p-1.5 ml-1 rounded-md transition-colors hover:text-white ${isLandscape ? 'text-indigo-400' : ''}`} title="Rotate Device"><RotateCcw className="w-4 h-4" /></button>
                     )}
@@ -1015,6 +1307,19 @@ export default function App() {
                 </div>
 
                 <div className="flex gap-2 items-center">
+                   {/* NEW DOM Inspector Toggle */}
+                   <button onClick={() => setIsInspectorActive(!isInspectorActive)} className={`p-1.5 rounded-md transition-colors ${isInspectorActive ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/50' : 'hover:text-indigo-400 hover:bg-indigo-500/10'}`} title="Point & Prompt DOM Inspector"><MousePointerClick className="w-4 h-4" /></button>
+                   <div className="w-px h-4 bg-gray-700 mx-1"></div>
+
+                   {viewport === 'desktop' && (
+                     <div className="flex items-center gap-2 mr-2 hidden lg:flex">
+                        <span className="text-[10px] uppercase font-bold text-gray-600">Fluid Width</span>
+                        <input type="range" min="30" max="100" value={fluidWidth} onChange={(e)=>setFluidWidth(e.target.value)} className="w-24 accent-indigo-500" />
+                     </div>
+                   )}
+                   <button onClick={shareLink} className="p-1.5 rounded-md transition-colors hover:text-indigo-400 hover:bg-indigo-500/10" title="Share Snapshot Link"><Share className="w-4 h-4" /></button>
+                   <div className="w-px h-4 bg-gray-700 mx-1"></div>
+                   
                    <button onClick={() => setPreviewZoom(z => Math.max(25, z - 25))} className="p-1.5 rounded-md transition-colors hover:text-white" title="Zoom Out"><ZoomOut className="w-4 h-4" /></button>
                    <span className="text-xs w-8 text-center font-mono">{previewZoom}%</span>
                    <button onClick={() => setPreviewZoom(z => Math.min(200, z + 25))} className="p-1.5 rounded-md transition-colors hover:text-white" title="Zoom In"><ZoomIn className="w-4 h-4" /></button>
@@ -1036,7 +1341,7 @@ export default function App() {
               >
                 <div 
                   className={`bg-white transition-all duration-300 ease-in-out relative origin-top flex flex-col ${
-                    viewport !== 'desktop' 
+                    viewport !== 'desktop' || fluidWidth < 100
                       ? 'rounded-[2.5rem] border-[14px] border-[#1a1b1e] overflow-hidden shrink-0 shadow-[0_0_0_2px_rgba(255,255,255,0.05)_inset,0_25px_50px_-12px_rgba(0,0,0,0.8)]' 
                       : 'w-full h-full overflow-hidden border-t border-l border-gray-700/50 rounded-tl-xl shadow-2xl mr-[-1px]'
                   }`}
@@ -1044,9 +1349,15 @@ export default function App() {
                     width: viewport === 'mobile' ? (isLandscape ? 812 : 375) : (isLandscape ? 1024 : 768), 
                     height: viewport === 'mobile' ? (isLandscape ? 375 : 812) : (isLandscape ? 768 : 1024),
                     transform: `scale(${previewZoom / 100})`
-                  } : { transform: `scale(${previewZoom / 100})`, transformOrigin: 'top left' }}
+                  } : { 
+                    width: fluidWidth < 100 ? `${fluidWidth}%` : '100%',
+                    height: fluidWidth < 100 ? '90%' : '100%',
+                    marginTop: fluidWidth < 100 ? '2%' : '0',
+                    transform: `scale(${previewZoom / 100})`, 
+                    transformOrigin: 'top center' 
+                  }}
                 >
-                  {viewport === 'desktop' && (
+                  {(viewport === 'desktop' && fluidWidth === 100) && (
                     <div className="h-10 bg-gray-50 border-b border-gray-200 flex items-center px-4 gap-4 shrink-0 w-full z-10 select-none">
                       <div className="flex gap-2"><div className="w-3 h-3 rounded-full bg-[#ff5f56] border border-[#e0443e] shadow-sm"/><div className="w-3 h-3 rounded-full bg-[#ffbd2e] border border-[#dea123] shadow-sm"/><div className="w-3 h-3 rounded-full bg-[#27c93f] border border-[#1aab29] shadow-sm"/></div>
                       <div className="flex-1 flex justify-center px-4"><div className="bg-white border border-gray-200/60 rounded-md px-3 py-1 text-[11px] text-gray-500 font-mono w-full max-w-md text-center truncate shadow-sm flex items-center justify-center gap-2"><Lock className="w-3 h-3 text-gray-400" /> localhost:3000</div></div>
@@ -1064,14 +1375,14 @@ export default function App() {
                     </div>
                   )}
                   
-                  <div className="flex-1 relative bg-white w-full h-full">
+                  <div className={`flex-1 relative bg-white w-full h-full ${isInspectorActive ? 'pointer-events-auto' : ''}`}>
                     <iframe key={iframeKey} ref={iframeRef} title="Preview" className="absolute inset-0 w-full h-full border-none bg-transparent z-0" sandbox="allow-scripts allow-forms allow-popups allow-modals allow-same-origin" srcDoc={getSandboxDoc()} />
                   </div>
                 </div>
               </div>
 
               {isConsoleOpen && (
-                <div className="h-56 bg-gray-950 border-t border-gray-800 flex flex-col shrink-0">
+                <div className="h-64 bg-gray-950 border-t border-gray-800 flex flex-col shrink-0">
                   <div className="h-10 bg-gray-900 border-b border-gray-800 flex justify-between items-center px-3 text-xs font-mono text-gray-400">
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-gray-300">Console</span>
@@ -1089,13 +1400,22 @@ export default function App() {
                       <div className="text-gray-600 italic px-2 py-1">No logs matching filter.</div>
                     ) : (
                       consoleLogs.filter(log => consoleFilter === 'all' || log.type === consoleFilter).map(log => (
-                        <div key={log.id} className={`px-2 py-1.5 rounded border-l-2 ${log.type === 'error' ? 'bg-red-900/10 text-red-400 border-red-500' : log.type === 'warn' ? 'bg-amber-900/10 text-amber-400 border-amber-500' : log.type === 'network' ? 'bg-blue-900/10 text-blue-400 border-blue-500' : 'text-gray-300 border-gray-700 hover:bg-gray-900'}`}>
-                          <span className="text-gray-600 mr-3">[{log.time}]</span>{log.message}
+                        <div key={log.id} className={`px-2 py-1.5 rounded border-l-2 flex items-start gap-2 ${log.type === 'error' ? 'bg-red-900/10 text-red-400 border-red-500' : log.type === 'warn' ? 'bg-amber-900/10 text-amber-400 border-amber-500' : log.type === 'network' ? 'bg-blue-900/10 text-blue-400 border-blue-500' : 'text-gray-300 border-gray-700 hover:bg-gray-900'}`}>
+                          <div className="flex-1 font-mono break-all"><span className="text-gray-600 mr-3">[{log.time}]</span>{log.message}</div>
+                          {log.type === 'error' && (
+                            <button onClick={() => handleAutoSolve(log.message)} className="p-1 bg-red-500/20 text-red-300 hover:bg-red-500/40 rounded shrink-0 transition-colors flex items-center gap-1" title="Ask Agent to Fix Error">
+                               <Bot className="w-3 h-3" /> Fix
+                            </button>
+                          )}
                         </div>
                       ))
                     )}
                     <div ref={consoleEndRef} />
                   </div>
+                  <form onSubmit={handleConsoleCommand} className="h-10 border-t border-gray-800 bg-gray-900 flex items-center px-3">
+                     <span className="text-indigo-400 font-bold mr-2">{'>'}</span>
+                     <input type="text" value={consoleInput} onChange={e => setConsoleInput(e.target.value)} placeholder="Enter JavaScript command to evaluate in sandbox..." className="flex-1 bg-transparent border-none text-xs font-mono text-gray-200 focus:outline-none" />
+                  </form>
                 </div>
               )}
             </div>
@@ -1103,7 +1423,98 @@ export default function App() {
         </div>
       </main>
 
-      {/* History Modal */}
+      {/* NEW: Chat Sessions / History Modal */}
+      {isSessionsModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
+            <div className="p-4 border-b border-gray-800 flex justify-between items-center">
+              <h3 className="text-lg font-semibold flex items-center gap-2"><FolderOpen className="w-5 h-5 text-indigo-400" /> Chat History</h3>
+              <button onClick={() => setIsSessionsModalOpen(false)} className="text-gray-500 hover:text-white"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-4 space-y-3 max-h-[60vh] overflow-y-auto">
+              {sessions.length === 0 ? (
+                <p className="text-center text-gray-500 text-sm py-8">No saved sessions yet.</p>
+              ) : (
+                sessions.map((session) => (
+                  <div key={session.id} onClick={() => loadSession(session.id)} className={`flex justify-between items-center p-3 rounded-xl border cursor-pointer transition-colors ${currentSessionId === session.id ? 'bg-indigo-500/10 border-indigo-500/50' : 'bg-gray-950 border-gray-800 hover:border-gray-600'}`}>
+                    <div className="overflow-hidden pr-4">
+                      <h4 className={`font-medium text-sm truncate ${currentSessionId === session.id ? 'text-indigo-300' : 'text-gray-200'}`}>{session.title}</h4>
+                      <p className="text-xs text-gray-500 mt-1">{new Date(session.updatedAt).toLocaleString()}</p>
+                    </div>
+                    <div className="flex gap-2 shrink-0">
+                      {currentSessionId === session.id && <span className="px-2 py-1 bg-indigo-500/20 text-indigo-400 rounded text-[10px] font-bold">ACTIVE</span>}
+                      <button onClick={(e) => deleteSession(session.id, e)} className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-md transition-colors" title="Delete Session"><Trash2 className="w-4 h-4" /></button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="p-4 border-t border-gray-800 bg-gray-900/50">
+              <button onClick={() => { handleNewChat(); setIsSessionsModalOpen(false); }} className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2">
+                <MessageSquarePlus className="w-4 h-4" /> Start New Chat
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* NEW: API Mocking Dashboard Modal */}
+      {isMocksOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl">
+            <div className="p-4 border-b border-gray-800 flex justify-between items-center">
+              <h3 className="text-lg font-semibold flex items-center gap-2"><Database className="w-5 h-5 text-indigo-400" /> Local API Mocking Dashboard</h3>
+              <button onClick={() => setIsMocksOpen(false)} className="text-gray-500 hover:text-white"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-6 overflow-y-auto max-h-[60vh]">
+              <p className="text-sm text-gray-400 mb-6">Define fake API endpoints here. The Omni-Sandbox will automatically intercept any `fetch()` calls matching these paths and return your mock JSON data. This allows you to build full-stack data apps with no real backend!</p>
+              
+              <div className="space-y-4">
+                 {mockEndpoints.map((mock, index) => (
+                    <div key={mock.id} className="bg-gray-950 border border-gray-800 rounded-xl p-4 relative group">
+                       <button onClick={() => { const newMocks = [...mockEndpoints]; newMocks.splice(index, 1); saveMocks(newMocks); }} className="absolute top-3 right-3 text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 className="w-4 h-4"/></button>
+                       <div className="mb-3">
+                         <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Endpoint Path</label>
+                         <input type="text" value={mock.path} onChange={e => { const newMocks = [...mockEndpoints]; newMocks[index].path = e.target.value; saveMocks(newMocks); }} placeholder="/api/users" className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-indigo-500" />
+                       </div>
+                       <div>
+                         <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">JSON Response</label>
+                         <textarea value={mock.response} onChange={e => { const newMocks = [...mockEndpoints]; newMocks[index].response = e.target.value; saveMocks(newMocks); }} placeholder='{"status": "ok"}' className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm font-mono text-gray-200 focus:outline-none focus:border-indigo-500 h-24 resize-none" />
+                       </div>
+                    </div>
+                 ))}
+              </div>
+              <button onClick={() => saveMocks([...mockEndpoints, { id: Date.now(), path: '/api/new', response: '{}' }])} className="w-full mt-4 py-3 border-2 border-dashed border-gray-700 rounded-xl text-gray-400 hover:text-indigo-400 hover:border-indigo-500/50 hover:bg-indigo-500/10 transition-colors flex items-center justify-center gap-2 text-sm font-medium">
+                + Add New Endpoint
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* NEW: Code Diff Modal */}
+      {isDiffOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-6xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+            <div className="p-4 border-b border-gray-800 flex justify-between items-center shrink-0">
+              <h3 className="text-lg font-semibold flex items-center gap-2"><GitCompare className="w-5 h-5 text-indigo-400" /> Code Differences</h3>
+              <button onClick={() => setIsDiffOpen(false)} className="text-gray-500 hover:text-white"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="flex-1 flex overflow-hidden">
+               <div className="flex-1 border-r border-gray-800 flex flex-col">
+                  <div className="bg-gray-950 p-2 text-center text-xs font-bold text-red-400 uppercase tracking-widest border-b border-gray-800">Previous Version</div>
+                  <textarea readOnly value={codeHistory[historyIndex - 1] || ''} className="flex-1 p-4 bg-[#0d1117] text-gray-300 font-mono text-xs resize-none focus:outline-none opacity-80" />
+               </div>
+               <div className="flex-1 flex flex-col">
+                  <div className="bg-gray-950 p-2 text-center text-xs font-bold text-green-400 uppercase tracking-widest border-b border-gray-800">Current Version</div>
+                  <textarea readOnly value={generatedCode} className="flex-1 p-4 bg-[#0d1117] text-gray-100 font-mono text-xs resize-none focus:outline-none" />
+               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Code Version History Modal */}
       {isHistoryOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
@@ -1136,18 +1547,40 @@ export default function App() {
         </div>
       )}
 
-      {/* Packages Modal */}
+      {/* Packages Modal & NPM Search */}
       {isPackagesOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
-            <div className="p-4 border-b border-gray-800 flex justify-between items-center"><h3 className="text-lg font-semibold flex items-center gap-2"><Package className="w-5 h-5 text-indigo-400" /> Inject Packages</h3><button onClick={() => setIsPackagesOpen(false)} className="text-gray-500 hover:text-white"><X className="w-5 h-5" /></button></div>
-            <div className="p-4 space-y-3 max-h-[60vh] overflow-y-auto">
-              {popularPackages.map((pkg, i) => (
-                <div key={i} className="flex justify-between items-center p-3 rounded-xl bg-gray-950 border border-gray-800">
-                  <div><h4 className="font-medium text-gray-200 text-sm">{pkg.name}</h4><p className="text-xs text-gray-500">{pkg.desc}</p></div>
-                  <button onClick={() => injectPackage(pkg.tag)} className="px-3 py-1.5 bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 rounded-lg text-xs font-medium transition-colors shrink-0 ml-2">Add</button>
-                </div>
-              ))}
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+            <div className="p-4 border-b border-gray-800 flex justify-between items-center shrink-0"><h3 className="text-lg font-semibold flex items-center gap-2"><Package className="w-5 h-5 text-indigo-400" /> Inject Packages</h3><button onClick={() => setIsPackagesOpen(false)} className="text-gray-500 hover:text-white"><X className="w-5 h-5" /></button></div>
+            <div className="p-4 border-b border-gray-800 bg-gray-950 shrink-0">
+               <form onSubmit={searchNPM} className="relative">
+                  <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-500" />
+                  <input type="text" value={npmSearchQuery} onChange={e => setNpmSearchQuery(e.target.value)} placeholder="Search NPM (e.g. framer-motion)..." className="w-full bg-gray-900 border border-gray-700 rounded-lg py-2 pl-9 pr-3 text-sm text-gray-200 focus:outline-none focus:border-indigo-500" />
+               </form>
+               {isSearchingNpm && <p className="text-xs text-indigo-400 mt-2 text-center">Searching...</p>}
+            </div>
+            <div className="p-4 space-y-3 overflow-y-auto flex-1">
+              {npmSearchResults.length > 0 ? (
+                 <>
+                   <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Search Results</h4>
+                   {npmSearchResults.map((pkg, i) => (
+                      <div key={i} className="flex justify-between items-center p-3 rounded-xl bg-gray-950 border border-gray-800">
+                        <div className="overflow-hidden pr-2"><h4 className="font-medium text-gray-200 text-sm truncate">{pkg.name}</h4><p className="text-xs text-gray-500 truncate">{pkg.description}</p></div>
+                        <button onClick={() => injectPackage(`<script src="${pkg.latest}"></script>`)} className="px-3 py-1.5 bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 rounded-lg text-xs font-medium transition-colors shrink-0 ml-2">Add</button>
+                      </div>
+                   ))}
+                 </>
+              ) : (
+                 <>
+                   <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Quick Add</h4>
+                   {popularPackages.map((pkg, i) => (
+                    <div key={i} className="flex justify-between items-center p-3 rounded-xl bg-gray-950 border border-gray-800">
+                      <div><h4 className="font-medium text-gray-200 text-sm">{pkg.name}</h4><p className="text-xs text-gray-500">{pkg.desc}</p></div>
+                      <button onClick={() => injectPackage(pkg.tag)} className="px-3 py-1.5 bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 rounded-lg text-xs font-medium transition-colors shrink-0 ml-2">Add</button>
+                    </div>
+                  ))}
+                 </>
+              )}
             </div>
           </div>
         </div>
@@ -1187,6 +1620,19 @@ export default function App() {
             </div>
             
             <div className="p-6 space-y-6 overflow-y-auto">
+              
+              {/* Feature Toggles */}
+              <div className="flex items-center justify-between p-4 bg-gray-950 border border-gray-800 rounded-xl">
+                 <div>
+                   <h4 className="text-sm font-medium text-gray-200">Voice Auto-Submit</h4>
+                   <p className="text-xs text-gray-500">Automatically send prompt when you stop speaking</p>
+                 </div>
+                 <label className="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" className="sr-only peer" checked={isVoiceAutoSubmit} onChange={(e) => saveSetting('omni_voice_autosubmit', e.target.checked, setIsVoiceAutoSubmit)} />
+                    <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
+                 </label>
+              </div>
+
               <div className="space-y-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-300">Active AI Provider</label>
@@ -1264,7 +1710,7 @@ export default function App() {
               <div className="pt-4 border-t border-gray-800 space-y-2">
                  <div className="flex justify-between items-center">
                    <label className="text-sm font-medium text-gray-300">System Prompt (Advanced)</label>
-                   <button onClick={() => saveSetting('omni_system_prompt', DEFAULT_SYSTEM_PROMPT, setCustomSystemPrompt)} className="text-xs text-indigo-400 hover:text-indigo-300">Reset to Default</button>
+                   <button onClick={() => saveSetting('omni_system_prompt', PERSONAS.default, setCustomSystemPrompt)} className="text-xs text-indigo-400 hover:text-indigo-300">Reset to Default</button>
                  </div>
                  <textarea value={customSystemPrompt} onChange={(e) => saveSetting('omni_system_prompt', e.target.value, setCustomSystemPrompt)} className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-xs font-mono text-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 h-32 resize-none" />
               </div>
