@@ -103,6 +103,7 @@ export default function App() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isZenMode, setIsZenMode] = useState(false);
   const [isChatVisible, setIsChatVisible] = useState(true); 
+  const [isCodeVisible, setIsCodeVisible] = useState(true); // NEW: Code visibility toggle
   const [isPreviewDark, setIsPreviewDark] = useState(false);
   const [showSnippets, setShowSnippets] = useState(false);
   const [iframeKey, setIframeKey] = useState(0); 
@@ -1147,7 +1148,7 @@ export default function App() {
           <div className="flex-1 flex flex-col xl:flex-row h-full min-h-0">
             
             {/* Live Editable Code View */}
-            <div style={{ width: (typeof window !== 'undefined' && window.innerWidth >= 1280 && !isZenMode) ? codeWidth : '100%' }} className={`flex-col border-r border-gray-800 h-full shrink-0 ${activeTab === 'code' ? 'flex' : 'hidden xl:flex'}`}>
+            <div style={{ width: (typeof window !== 'undefined' && window.innerWidth >= 1280 && !isZenMode) ? codeWidth : '100%' }} className={`flex-col border-r border-gray-800 h-full shrink-0 ${activeTab === 'code' ? 'flex' : (isCodeVisible ? 'hidden xl:flex' : '!hidden')}`}>
               <div className="h-12 bg-gray-900 border-b border-gray-800 flex justify-between items-center px-2 text-sm font-medium text-gray-400 shrink-0 overflow-x-auto whitespace-nowrap [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                 <div className="flex items-center gap-2 pl-2">
                   <button onClick={() => setIsZenMode(!isZenMode)} className="p-1 hover:text-white hover:bg-gray-800 rounded transition-colors"><PanelLeftClose className="w-4 h-4" /></button>
@@ -1221,13 +1222,16 @@ export default function App() {
               </div>
             </div>
 
-            <div onMouseDown={startCodeDrag} className="hidden xl:flex w-1 bg-transparent hover:bg-indigo-500 cursor-col-resize shrink-0 z-30 transition-colors relative -ml-[1px]" />
+            {isCodeVisible && <div onMouseDown={startCodeDrag} className="hidden xl:flex w-1 bg-transparent hover:bg-indigo-500 cursor-col-resize shrink-0 z-30 transition-colors relative -ml-[1px]" />}
 
             {/* Live Preview View */}
             <div className={isFullscreen ? 'fixed inset-0 z-50 flex flex-col bg-[#0d1117]' : `flex-1 flex-col h-full min-w-0 ${activeTab === 'preview' || (activeTab === 'chat' && window.innerWidth >= 1024) ? 'flex' : 'hidden xl:flex'}`}>
               <div className="h-12 bg-gray-900 border-b border-gray-800 flex justify-between items-center px-4 text-sm font-medium text-gray-400 shrink-0 overflow-x-auto whitespace-nowrap [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2">
+                    <button onClick={() => setIsCodeVisible(!isCodeVisible)} className="p-1.5 mr-1 hover:text-white hover:bg-gray-800 rounded-md transition-colors hidden xl:flex" title={isCodeVisible ? "Hide Code Editor" : "Show Code Editor"}>
+                      {isCodeVisible ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeftOpen className="w-4 h-4" />}
+                    </button>
                     <Play className="w-4 h-4 text-green-400" />
                     <span className="hidden sm:inline">Live Canvas</span>
                     <button onClick={openPopoutPreview} className="p-1 hover:text-indigo-400 transition-colors ml-2" title="Pop-out Multi-Monitor Preview"><ExternalLink className="w-3 h-3"/></button>
