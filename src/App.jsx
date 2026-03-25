@@ -104,7 +104,7 @@ export default function App() {
   const [chatImage, setChatImage] = useState(null);
   const [isListening, setIsListening] = useState(false);
   
-  // NEW: Targeting Context Features
+  // Targeting Context Features
   const [targetedElement, setTargetedElement] = useState(null); 
   const [isInspectorActive, setIsInspectorActive] = useState(false);
   const [selectedCodeContext, setSelectedCodeContext] = useState(''); 
@@ -664,7 +664,6 @@ export default function App() {
       };
       recognition.onend = () => {
         setIsListening(false);
-        // Voice Auto Submit Feature
         if (isVoiceAutoSubmit && finalTranscript.trim() !== '') {
           submitPrompt(finalTranscript); 
         }
@@ -718,8 +717,17 @@ export default function App() {
   };
 
   const callAIAPI = async (chatHistory, newPrompt, isFix = false, imageObj = null) => {
-    let retries = 1; 
+    // API KEY PARSING & ROTATION PREP
+    const getGeminiKeys = () => (userApiKey || apiKey).split(',').map(k => k.trim()).filter(Boolean);
+    const getLongcatKeys = () => longcatApiKey.split(',').map(k => k.trim()).filter(Boolean);
+    
+    let maxKeys = 1;
+    if (apiProvider === 'gemini') maxKeys = getGeminiKeys().length || 1;
+    if (apiProvider === 'longcat') maxKeys = getLongcatKeys().length || 1;
+    
+    let retries = Math.max(maxKeys, 1); 
     let delay = 1000;
+    
     let historyToSend = chatHistory.filter(m => m.role !== 'system');
     if (maxContext > 0 && historyToSend.length > maxContext) historyToSend = historyToSend.slice(-maxContext);
     
@@ -732,17 +740,22 @@ export default function App() {
         augmentedPrompt += `\n\n[SYSTEM CONTEXT - The user has highlighted this specific block of code in the editor. Focus your changes here]:\n\`\`\`\n${selectedCodeContext}\n\`\`\``;
     }
     
+    const initialRetries = retries;
+
     while (retries > 0) {
       try {
         const activeModelName = selectedModel === 'custom' ? customModelInput : selectedModel;
         if (!activeModelName) throw new Error("Please select or specify a model.");
 
+        const keyIndex = initialRetries - retries;
+
         if (apiProvider === 'gemini') {
-          const effectiveKey = userApiKey || apiKey;
-          if (!effectiveKey) throw new Error("No API Key found in Settings.");
+          const geminiKeys = getGeminiKeys();
+          if (geminiKeys.length === 0) throw new Error("No API Key found in Settings.");
+          const currentKey = geminiKeys[keyIndex % geminiKeys.length];
 
           const baseUrl = geminiBaseUrl || 'https://generativelanguage.googleapis.com';
-          const url = `${baseUrl.replace(/\/$/, '')}/v1beta/models/${activeModelName}:generateContent?key=${effectiveKey}`;
+          const url = `${baseUrl.replace(/\/$/, '')}/v1beta/models/${activeModelName}:generateContent?key=${currentKey}`;
           
           const contents = historyToSend.map(m => {
             const parts = [{ text: m.text }];
@@ -782,6 +795,9 @@ export default function App() {
           }
 
           if (!response.ok) { 
+            if (response.status === 429 || response.status === 403 || response.status === 400 || response.status === 402) {
+                 throw new Error(`RATE_LIMIT: Gemini API key error/limit reached. ${geminiKeys.length > 1 ? 'Rotating to next key...' : ''}`);
+            }
             throw new Error(data.error?.message || "Gemini API Error"); 
           }
           
@@ -802,8 +818,10 @@ export default function App() {
           };
           
           if (!isOllama) {
-             if (!longcatApiKey) throw new Error("No Longcat API Key found in Settings.");
-             headers['Authorization'] = `Bearer ${longcatApiKey}`;
+             const longcatKeys = getLongcatKeys();
+             if (longcatKeys.length === 0) throw new Error("No Longcat API Key found in Settings. Please add it to authenticate.");
+             const currentKey = longcatKeys[keyIndex % longcatKeys.length];
+             headers['Authorization'] = `Bearer ${currentKey}`;
           }
 
           const formattedMessages = [];
@@ -859,6 +877,10 @@ export default function App() {
             messages: formattedMessages
           };
 
+          if (!isOllama) {
+            payload.max_tokens = 4096;
+          }
+
           const attemptFetch = async (urlToTry) => {
             let response;
             try {
@@ -876,6 +898,9 @@ export default function App() {
             }
 
             if (!response.ok) {
+              if (response.status === 429 || response.status === 403 || response.status === 402 || response.status === 400) {
+                 throw new Error(`RATE_LIMIT: Proxy key error/limit reached. ${!isOllama && getLongcatKeys().length > 1 ? 'Rotating to next key...' : ''}`);
+              }
               let errorMsg = data.error?.message || data.message || `Request failed (${response.status})`;
               if (typeof errorMsg === 'object') errorMsg = JSON.stringify(errorMsg); 
               throw new Error(String(errorMsg));
@@ -888,6 +913,10 @@ export default function App() {
           try {
              return await attemptFetch(primaryUrl);
           } catch (err) {
+             if (err.message.includes('RATE_LIMIT')) {
+                  throw err; // bubble up for key rotation
+             }
+
              if (!isOllama && typeof longcatFallbackUrl !== 'undefined' && longcatFallbackUrl && longcatFallbackUrl.trim() !== '' && (err.message.includes('NETWORK_FAIL') || err.message.includes('JSON_PARSE_FAIL'))) {
                  let fallback = longcatFallbackUrl;
                  if (!fallback.includes('/chat/completions')) {
@@ -912,6 +941,11 @@ export default function App() {
         }
       } catch (error) {
         retries--;
+        if (error.message.includes('RATE_LIMIT') && maxKeys > 1) {
+            if (retries === 0) throw new Error(`❌ All ${maxKeys} provided API keys have reached their rate limits or quotas.`);
+            continue; // instantly rotate to next key
+        }
+
         if (retries === 0) throw new Error(String(error.message));
         await new Promise(r => setTimeout(r, delay));
         delay *= 2;
@@ -995,6 +1029,12 @@ export default function App() {
     } finally {
       setIsLoading(false); setAgentStatus('idle');
     }
+  };
+
+  // API Mocks Save Handler
+  const saveMocks = (mocks) => {
+    setMockEndpoints(mocks);
+    localStorage.setItem('omni_api_mocks', JSON.stringify(mocks));
   };
 
   const getSandboxDoc = () => {
@@ -1753,8 +1793,8 @@ export default function App() {
                   <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-gray-300">Custom Gemini API Key (BYOK)</label>
-                      <input type="password" value={userApiKey} onChange={(e) => saveSetting('omni_gemini_key', e.target.value, setUserApiKey)} placeholder="AIzaSy..." className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50" />
-                      <p className="text-xs text-gray-500">Stored securely locally. Overrides the default environment key.</p>
+                      <input type="password" value={userApiKey} onChange={(e) => saveSetting('omni_gemini_key', e.target.value, setUserApiKey)} placeholder="AIzaSy..., AIzaSy..." className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50" />
+                      <p className="text-xs text-gray-500">Stored securely locally. Overrides the default environment key. You can enter multiple keys separated by commas for automatic rate-limit fallback/rotation.</p>
                     </div>
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-gray-300">Custom Base URL (Optional)</label>
@@ -1767,7 +1807,8 @@ export default function App() {
                   <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-gray-300">Longcat API Key</label>
-                      <input type="password" value={longcatApiKey} onChange={(e) => saveSetting('omni_longcat_key', e.target.value, setLongcatApiKey)} placeholder="lc_..." className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50" />
+                      <input type="password" value={longcatApiKey} onChange={(e) => saveSetting('omni_longcat_key', e.target.value, setLongcatApiKey)} placeholder="lc_..., lc_..." className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50" />
+                      <p className="text-xs text-gray-500">Enter one or multiple keys separated by commas for automatic rate-limit fallback/rotation.</p>
                     </div>
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-gray-300">Primary Base URL</label>
