@@ -61,8 +61,12 @@ export default function App() {
   const [apiProvider, setApiProvider] = useState('gemini');
   const [userApiKey, setUserApiKey] = useState('');
   const [geminiBaseUrl, setGeminiBaseUrl] = useState('');
+  
+  // Longcat States safely defined
   const [longcatApiKey, setLongcatApiKey] = useState('');
   const [longcatBaseUrl, setLongcatBaseUrl] = useState('https://api.longcat.chat/openai/v1/chat/completions');
+  const [longcatFallbackUrl, setLongcatFallbackUrl] = useState(''); 
+  
   const [ollamaUrl, setOllamaUrl] = useState('http://localhost:11434/api/chat');
   const [ollamaModel, setOllamaModel] = useState('llama3');
   const [customSystemPrompt, setCustomSystemPrompt] = useState(DEFAULT_SYSTEM_PROMPT);
@@ -119,6 +123,7 @@ export default function App() {
     loadSafe('omni_gemini_url', setGeminiBaseUrl);
     loadSafe('omni_longcat_key', setLongcatApiKey);
     loadSafe('omni_longcat_url', setLongcatBaseUrl);
+    loadSafe('omni_longcat_fallback_url', setLongcatFallbackUrl); 
     loadSafe('omni_api_provider', setApiProvider);
     loadSafe('omni_ollama_url', setOllamaUrl);
     loadSafe('omni_ollama_model', setOllamaModel);
@@ -148,7 +153,6 @@ export default function App() {
         console.error("Failed to restore session", e);
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); 
 
   // --- Update Default Model when Provider Changes ---
@@ -195,8 +199,6 @@ export default function App() {
         { value: 'LongCat-Flash-Thinking-2601', label: 'LongCat Flash Thinking 2601' },
         { value: 'LongCat-Flash-Omni-2603', label: 'LongCat Flash Omni 2603' },
         { value: 'LongCat-Flash-Lite', label: 'LongCat Flash Lite' },
-        { value: 'gpt-4o', label: 'GPT-4o (via Longcat)' },
-        { value: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet (via Longcat)' },
         { value: 'custom', label: 'Custom Model...' }
       ];
     }
@@ -227,13 +229,22 @@ export default function App() {
     document.addEventListener('mousemove', onMouseMove); document.addEventListener('mouseup', onMouseUp);
   };
 
+  // Safe Console Interceptor
   useEffect(() => {
     const handleIframeMessage = (event) => {
       if (event.data?.type === 'iframe-console') {
         const { logType, message } = event.data;
-        setConsoleLogs(prev => [...prev, { id: Date.now() + Math.random(), type: logType, message: message, time: new Date().toLocaleTimeString() }]);
+        const safeMessage = typeof message === 'string' ? message : JSON.stringify(message);
+        
+        setConsoleLogs(prev => [...prev, { 
+          id: Date.now() + Math.random(), 
+          type: logType, 
+          message: safeMessage, 
+          time: new Date().toLocaleTimeString() 
+        }]);
+        
         if (logType === 'error' && isAutoSolveEnabled && agentStatus !== 'thinking' && agentStatus !== 'fixing') {
-          handleAutoSolve(message);
+          handleAutoSolve(safeMessage);
         }
       }
     };
@@ -482,7 +493,7 @@ export default function App() {
           try {
             response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
           } catch(netErr) {
-            throw new Error(`Network Error: Failed to reach Google Gemini API. Please check your internet connection or proxies. Details: ${netErr.message}`);
+            throw new Error(`Network Error: Failed to reach Google Gemini API. Details: ${netErr.message}`);
           }
           
           const textResponse = await response.text();
@@ -500,18 +511,12 @@ export default function App() {
           return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
           
         } else {
-          // --- Longcat & Ollama Logic (Bulletproof Router) ---
+          // --- LONGCAT & OLLAMA BULLETPROOF ROUTER WITH OMNI ENVIRONMENT ---
           const isOllama = apiProvider === 'ollama';
-          let fetchUrl = '';
+          let primaryUrl = isOllama ? (ollamaUrl || 'http://localhost:11434/api/chat') : (longcatBaseUrl || 'https://api.longcat.chat/openai/v1/chat/completions');
           
-          if (isOllama) {
-            fetchUrl = ollamaUrl || 'http://localhost:11434/api/chat';
-          } else {
-            // Forcefully correct the Longcat endpoint if the user just pasted the base URL
-            fetchUrl = longcatBaseUrl || 'https://api.longcat.chat/openai/v1/chat/completions';
-            if (!fetchUrl.includes('/chat/completions')) {
-              fetchUrl = fetchUrl.replace(/\/$/, '') + '/chat/completions';
-            }
+          if (!isOllama && !primaryUrl.includes('/chat/completions')) {
+            primaryUrl = primaryUrl.replace(/\/$/, '') + '/chat/completions';
           }
 
           const headers = { 
@@ -524,43 +529,118 @@ export default function App() {
              headers['Authorization'] = `Bearer ${longcatApiKey}`;
           }
 
-          const formattedMessages = [
-            { role: 'system', content: customSystemPrompt },
-            ...historyToSend.map(m => ({ role: m.role === 'model' ? 'assistant' : 'user', content: m.text }))
-          ];
+          // DYNAMIC PAYLOAD BUILDER: Prevents "JSON format error" on Omni models
+          const formattedMessages = [];
+          const isOmni = activeModelName.toLowerCase().includes('omni') || activeModelName.toLowerCase().includes('vision');
           
-          let combinedPrompt = newPrompt;
-          if (imageObj) combinedPrompt += "\n[System Note: User uploaded an image but the current provider does not support it. Rely on the text description.]";
-          if (newPrompt) formattedMessages.push({ role: 'user', content: combinedPrompt });
+          let sysPrompt = customSystemPrompt?.trim() || "";
+          
+          // Attach system prompt. Omni models strictly reject explicit system roles in many proxy setups.
+          if (sysPrompt && !isOmni) {
+            formattedMessages.push({ role: 'system', content: sysPrompt });
+            sysPrompt = "";
+          }
+          
+          historyToSend.forEach((m, idx) => {
+            let msgText = m.text?.trim() || "";
+            
+            // Safely inject the system prompt into the first user message for Omni models
+            if (sysPrompt && idx === 0) {
+                msgText = `[System Instructions: ${sysPrompt}]\n\n` + msgText;
+                sysPrompt = "";
+            }
 
-          const payload = { model: activeModelName, messages: formattedMessages, stream: false };
+            if (isOmni) {
+              // Omni STRICTLY REQUIRES an array of objects for the content field
+              const contentArray = [{ type: "text", text: msgText || "Attached context." }];
+              if (m.image) {
+                  contentArray.push({ type: "image_url", image_url: { url: m.image } });
+              }
+              formattedMessages.push({ role: m.role === 'model' ? 'assistant' : 'user', content: contentArray });
+            } else {
+              // Standard models STRICTLY REQUIRE strings
+              if (msgText) {
+                  formattedMessages.push({ role: m.role === 'model' ? 'assistant' : 'user', content: msgText });
+              }
+            }
+          });
+          
+          let finalPrompt = newPrompt?.trim() || '';
+          if (sysPrompt && formattedMessages.length === 0) {
+              finalPrompt = `[System Instructions: ${sysPrompt}]\n\n` + finalPrompt;
+          }
+          
+          if (isOmni) {
+            const contentArray = [{ type: "text", text: finalPrompt || "Analyze this." }];
+            if (imageObj) {
+                contentArray.push({ type: "image_url", image_url: { url: imageObj } });
+            }
+            formattedMessages.push({ role: 'user', content: contentArray });
+          } else {
+            if (finalPrompt) {
+                formattedMessages.push({ role: 'user', content: finalPrompt });
+            }
+          }
 
-          let response;
+          const payload = { 
+            model: activeModelName, 
+            messages: formattedMessages
+          };
+
+          const attemptFetch = async (urlToTry) => {
+            let response;
+            try {
+               response = await fetch(urlToTry, { method: 'POST', headers, body: JSON.stringify(payload) });
+            } catch(netErr) {
+               throw new Error(`NETWORK_FAIL: ${urlToTry} -> ${netErr.message}`);
+            }
+            
+            const textResponse = await response.text();
+            let data;
+            try {
+                data = JSON.parse(textResponse);
+            } catch (e) {
+                throw new Error(`JSON_PARSE_FAIL: The proxy returned an HTML Error Page instead of JSON (Status ${response.status}). \n\nRaw Response:\n${textResponse.substring(0, 300)}...`);
+            }
+
+            if (!response.ok) {
+              let errorMsg = data.error?.message || data.message || `Request failed (${response.status})`;
+              if (typeof errorMsg === 'object') errorMsg = JSON.stringify(errorMsg);
+              throw new Error(String(errorMsg));
+            }
+            
+            let aiResponseText = isOllama ? (data.message?.content || "") : (data.choices?.[0]?.message?.content || "");
+            return String(aiResponseText);
+          };
+
           try {
-             response = await fetch(fetchUrl, { method: 'POST', headers, body: JSON.stringify(payload) });
-          } catch(netErr) {
-             throw new Error(`Network Error (Failed to fetch). \n\nThe API endpoint (${fetchUrl}) is unreachable. This usually means:\n1. The Base URL is incorrect.\n2. Your browser/ad-blocker is blocking the CORS request.\n3. The proxy server is currently offline.\n\nDetails: ${netErr.message}`);
+             return await attemptFetch(primaryUrl);
+          } catch (err) {
+             if (!isOllama && typeof longcatFallbackUrl !== 'undefined' && longcatFallbackUrl && longcatFallbackUrl.trim() !== '' && (err.message.includes('NETWORK_FAIL') || err.message.includes('JSON_PARSE_FAIL'))) {
+                 let fallback = longcatFallbackUrl;
+                 if (!fallback.includes('/chat/completions')) {
+                     fallback = fallback.replace(/\/$/, '') + '/chat/completions';
+                 }
+                 try {
+                     return await attemptFetch(fallback);
+                 } catch (fallbackErr) {
+                     throw new Error(`Both Primary and Fallback URLs failed.\n\nPrimary: ${err.message}\n\nFallback: ${fallbackErr.message}`);
+                 }
+             }
+             
+             if (err.message.includes('NETWORK_FAIL')) {
+                 throw new Error(`Network Error: Unreachable endpoint. Check CORS or URL.\n\nDetails: ${err.message}`);
+             }
+             if (err.message.includes('JSON_PARSE_FAIL')) {
+                 throw new Error(`Proxy Error: The server returned HTML instead of JSON. The proxy might be down, rejecting the model name, or blocking CORS.\n\nDetails: ${err.message}`);
+             }
+             
+             throw err;
           }
-          
-          // --- JSON Format Error Safe Catcher ---
-          const textResponse = await response.text();
-          let data;
-          try {
-              data = JSON.parse(textResponse);
-          } catch (e) {
-              throw new Error(`API returned an HTML Error Page instead of JSON (Status ${response.status}). \n\nThis usually means the proxy is down, rejecting the model name, or you need to authenticate.\n\nRaw API Response:\n${textResponse.substring(0, 300)}...`);
-          }
-
-          if (!response.ok) {
-            const errorMsg = data.error?.message || data.message || `${apiProvider.toUpperCase()} Request failed (${response.status})`;
-            throw new Error(errorMsg);
-          }
-          
-          return isOllama ? (data.message?.content || "") : (data.choices?.[0]?.message?.content || "");
         }
       } catch (error) {
         retries--;
-        if (retries === 0) throw error;
+        if (retries === 0) throw new Error(String(error.message));
         await new Promise(r => setTimeout(r, delay));
         delay *= 2;
       }
@@ -648,7 +728,10 @@ export default function App() {
       <script>
         const postLog = (type, args) => {
           try {
-            const msg = Array.from(args).map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+            const msg = Array.from(args).map(a => {
+              try { return typeof a === 'object' ? JSON.stringify(a) : String(a); } 
+              catch(e) { return '[Unserializable Object]'; }
+            }).join(' ');
             window.parent.postMessage({ type: 'iframe-console', logType: type, message: msg }, '*');
           } catch(e) {}
         };
@@ -692,7 +775,7 @@ export default function App() {
     { name: 'React + ReactDOM', desc: 'UI Library (UMD Build)', tag: '<script src="https://unpkg.com/react@18/umd/react.development.js"></script>\n<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>' },
     { name: 'Three.js', desc: '3D Javascript Library', tag: '<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>' },
     { name: 'GSAP', desc: 'Professional Animation Library', tag: '<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>' },
-    { name: 'FontAwesome', Icon: 'Icon set and toolkit', tag: '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">' }
+    { name: 'FontAwesome', desc: 'Icon set and toolkit', tag: '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">' }
   ];
 
   const tailwindComponents = [
@@ -774,7 +857,7 @@ export default function App() {
                   <div className={`max-w-[85%] rounded-2xl p-4 text-sm leading-relaxed ${msg.role === 'user' ? msg.isAutoGenerated ? 'bg-gray-800 border border-amber-500/20 text-gray-300 rounded-tr-sm' : 'bg-indigo-600 text-white rounded-tr-sm shadow-md' : msg.isAutoGenerated ? 'bg-gray-800/80 border border-amber-500/20 text-gray-200 rounded-tl-sm' : 'bg-gray-800 text-gray-200 rounded-tl-sm border border-gray-700/50'}`}>
                     {msg.image && <div className="mb-3"><img src={msg.image} alt="Context" className="max-w-full h-auto max-h-48 object-cover rounded-lg border border-gray-700" /></div>}
                     <div className="whitespace-pre-wrap break-words">
-                      {msg.text.split('```').map((chunk, i) => {
+                      {String(msg.text).split('```').map((chunk, i) => {
                         if (i % 2 !== 0) {
                           if (msg.role === 'model' && (chunk.startsWith('html') || chunk.includes('<html') || chunk.includes('<div'))) {
                             return (
@@ -1135,9 +1218,13 @@ export default function App() {
                       <input type="password" value={longcatApiKey} onChange={(e) => saveSetting('omni_longcat_key', e.target.value, setLongcatApiKey)} placeholder="lc_..." className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50" />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-300">Base URL</label>
+                      <label className="text-sm font-medium text-gray-300">Primary Base URL</label>
                       <input type="text" value={longcatBaseUrl} onChange={(e) => saveSetting('omni_longcat_url', e.target.value, setLongcatBaseUrl)} className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50" />
                       <p className="text-xs text-gray-500">Default: [https://api.longcat.chat/openai/v1/chat/completions](https://api.longcat.chat/openai/v1/chat/completions)</p>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-300">Fallback Base URL (Optional)</label>
+                      <input type="text" value={longcatFallbackUrl} onChange={(e) => saveSetting('omni_longcat_fallback_url', e.target.value, setLongcatFallbackUrl)} placeholder="Secondary proxy URL..." className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50" />
                     </div>
                   </div>
                 )}
