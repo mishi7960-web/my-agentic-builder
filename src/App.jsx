@@ -11,7 +11,7 @@ import {
   ImagePlus, Mic, History, Blocks, RotateCcw, ZoomIn, ZoomOut,
   PanelLeftClose, PanelLeftOpen, DownloadCloud, Lock,
   MessageSquarePlus, FolderOpen, Database, Github, Search, GitCompare, Share,
-  MousePointerClick, Target
+  MousePointerClick, Target, AlignLeft, Save
 } from 'lucide-react';
 
 // --- Environment API Key Fallback ---
@@ -46,10 +46,14 @@ export default function App() {
   
   const [isConsoleOpen, setIsConsoleOpen] = useState(false);
   const [consoleFilter, setConsoleFilter] = useState('all'); 
-  const [consoleInput, setConsoleInput] = useState(''); // REPL Input
+  const [consoleInput, setConsoleInput] = useState(''); 
+  const [consoleHeight, setConsoleHeight] = useState(256); // Draggable console height
+  const [commandHistory, setCommandHistory] = useState([]); // Console history
+  const [commandIndex, setCommandIndex] = useState(-1);
   
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isZenMode, setIsZenMode] = useState(false);
+  const [isChatVisible, setIsChatVisible] = useState(true); // Collapsible Panels
   const [isPreviewDark, setIsPreviewDark] = useState(false);
   const [showSnippets, setShowSnippets] = useState(false);
   const [iframeKey, setIframeKey] = useState(0); 
@@ -72,6 +76,9 @@ export default function App() {
   
   const [activePersona, setActivePersona] = useState('default');
   const [customSystemPrompt, setCustomSystemPrompt] = useState(PERSONAS.default);
+  const [userSavedPersonas, setUserSavedPersonas] = useState({}); // Vault
+  const [newPersonaName, setNewPersonaName] = useState('');
+  
   const [maxContext, setMaxContext] = useState(10);
   const [sandboxEnv, setSandboxEnv] = useState('{\n  "API_URL": "https://api.example.com",\n  "MOCK_KEY": "sk_test_123"\n}');
   const [mockEndpoints, setMockEndpoints] = useState([{ id: 1, path: '/api/demo', response: '{"status": "success", "message": "Hello from Omni-Mock!"}' }]);
@@ -93,13 +100,14 @@ export default function App() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isFormatting, setIsFormatting] = useState(false);
   const [chatImage, setChatImage] = useState(null);
   const [isListening, setIsListening] = useState(false);
   
   // NEW: Targeting Context Features
-  const [targetedElement, setTargetedElement] = useState(null); // DOM Inspector Element
+  const [targetedElement, setTargetedElement] = useState(null); 
   const [isInspectorActive, setIsInspectorActive] = useState(false);
-  const [selectedCodeContext, setSelectedCodeContext] = useState(''); // Textarea selected text
+  const [selectedCodeContext, setSelectedCodeContext] = useState(''); 
   
   // State: Code, Assets & History
   const [generatedCode, setGeneratedCode] = useState(DEFAULT_CODE);
@@ -168,11 +176,12 @@ export default function App() {
     loadSafe('omni_active_persona', setActivePersona);
     loadSafe('omni_voice_autosubmit', setIsVoiceAutoSubmit);
 
-    // Load Mocks
+    // Load Mocks & Vault
     const savedMocks = localStorage.getItem('omni_api_mocks');
-    if (savedMocks) {
-      try { setMockEndpoints(JSON.parse(savedMocks)); } catch(e) {}
-    }
+    if (savedMocks) { try { setMockEndpoints(JSON.parse(savedMocks)); } catch(e) {} }
+    
+    const savedVault = localStorage.getItem('omni_persona_vault');
+    if (savedVault) { try { setUserSavedPersonas(JSON.parse(savedVault)); } catch(e) {} }
 
     const savedPromptVersion = localStorage.getItem('omni_prompt_version');
     if (savedPromptVersion !== "2.0") {
@@ -251,6 +260,17 @@ export default function App() {
     localStorage.setItem(key, val);
   };
 
+  const saveToVault = () => {
+    if (!newPersonaName.trim() || !customSystemPrompt.trim()) return;
+    const name = newPersonaName.trim();
+    const updatedVault = { ...userSavedPersonas, [name]: customSystemPrompt };
+    setUserSavedPersonas(updatedVault);
+    localStorage.setItem('omni_persona_vault', JSON.stringify(updatedVault));
+    setActivePersona(name);
+    setNewPersonaName('');
+    alert(`Saved "${name}" to your Prompt Vault!`);
+  };
+
   const getModelOptions = () => {
     if (apiProvider === 'gemini') {
       return [
@@ -301,6 +321,22 @@ export default function App() {
     document.addEventListener('mousemove', onMouseMove); document.addEventListener('mouseup', onMouseUp);
   };
 
+  const startConsoleDrag = (e) => {
+    e.preventDefault();
+    const startY = e.clientY;
+    const startHeight = consoleHeight;
+    const onMouseMove = (moveEvent) => {
+      const newHeight = startHeight - (moveEvent.clientY - startY);
+      setConsoleHeight(Math.max(100, Math.min(window.innerHeight - 200, newHeight)));
+    };
+    const onMouseUp = () => {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  };
+
   // Safe Console Interceptor, Command Exec, & DOM Inspector Interceptor
   useEffect(() => {
     const handleIframeMessage = (event) => {
@@ -320,20 +356,20 @@ export default function App() {
         }
       }
       
-      // NEW: Intercept DOM Element Clicks from Inspector Mode
+      // DOM Element Clicks from Inspector Mode
       if (event.data?.type === 'element-selected') {
         setTargetedElement({
           tag: event.data.tag,
           html: event.data.html
         });
-        setIsInspectorActive(false); // Turn off after click
+        setIsInspectorActive(false); 
       }
     };
     window.addEventListener('message', handleIframeMessage);
     return () => window.removeEventListener('message', handleIframeMessage);
   }, [isAutoSolveEnabled, agentStatus, generatedCode, messages]);
 
-  // NEW: Toggle Inspector Mode inside iframe
+  // Toggle Inspector Mode inside iframe
   useEffect(() => {
     if (iframeRef.current && iframeRef.current.contentWindow) {
       iframeRef.current.contentWindow.postMessage({ type: 'toggle-inspector', active: isInspectorActive }, '*');
@@ -346,7 +382,32 @@ export default function App() {
     
     setConsoleLogs(prev => [...prev, { id: Date.now(), type: 'all', message: `> ${consoleInput}`, time: new Date().toLocaleTimeString() }]);
     iframeRef.current.contentWindow.postMessage({ type: 'eval-cmd', code: consoleInput }, '*');
+    
+    // Manage History
+    setCommandHistory(prev => [consoleInput, ...prev]);
+    setCommandIndex(-1);
     setConsoleInput('');
+  };
+
+  const handleConsoleKeyDown = (e) => {
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (commandIndex < commandHistory.length - 1) {
+        const newIdx = commandIndex + 1;
+        setCommandIndex(newIdx);
+        setConsoleInput(commandHistory[newIdx]);
+      }
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (commandIndex > 0) {
+        const newIdx = commandIndex - 1;
+        setCommandIndex(newIdx);
+        setConsoleInput(commandHistory[newIdx]);
+      } else if (commandIndex === 0) {
+        setCommandIndex(-1);
+        setConsoleInput('');
+      }
+    }
   };
 
   const updateCode = (newCode) => {
@@ -539,6 +600,39 @@ export default function App() {
     reader.readAsDataURL(file);
   };
 
+  // Prettier Auto-Formatter Engine
+  const formatCode = async () => {
+    setIsFormatting(true);
+    try {
+      if (!window.prettier || !window.prettierPlugins) {
+        await new Promise((resolve, reject) => {
+          const script1 = document.createElement('script');
+          script1.src = "https://unpkg.com/prettier@2.8.8/standalone.js";
+          document.head.appendChild(script1);
+          script1.onload = () => {
+            const script2 = document.createElement('script');
+            script2.src = "https://unpkg.com/prettier@2.8.8/parser-html.js";
+            document.head.appendChild(script2);
+            script2.onload = resolve;
+            script2.onerror = reject;
+          };
+          script1.onerror = reject;
+        });
+      }
+      const formatted = window.prettier.format(generatedCode, {
+        parser: 'html',
+        plugins: window.prettierPlugins,
+        printWidth: 100,
+        tabWidth: 2
+      });
+      updateCode(formatted);
+    } catch (err) {
+      alert("Prettier Format Failed: " + err.message);
+    } finally {
+      setIsFormatting(false);
+    }
+  };
+
   // NPM Search Handlers
   const searchNPM = async (e) => {
     e.preventDefault();
@@ -596,7 +690,6 @@ export default function App() {
     }
   };
 
-  // NEW: Code Selection Highlighting logic
   const handleEditorSelect = (e) => {
     const start = e.target.selectionStart;
     const end = e.target.selectionEnd;
@@ -630,7 +723,7 @@ export default function App() {
     let historyToSend = chatHistory.filter(m => m.role !== 'system');
     if (maxContext > 0 && historyToSend.length > maxContext) historyToSend = historyToSend.slice(-maxContext);
     
-    // Inject Active Contexts (DOM Inspector & Selected Code) into the prompt secretly
+    // Inject Active Contexts
     let augmentedPrompt = newPrompt;
     if (targetedElement) {
         augmentedPrompt += `\n\n[SYSTEM CONTEXT - The user has pointed an inspector at this specific DOM element on the page. Focus your changes here]:\n\`\`\`html\n${targetedElement.html}\n\`\`\``;
@@ -904,12 +997,6 @@ export default function App() {
     }
   };
 
-  // API Mocks Save Handler
-  const saveMocks = (mocks) => {
-    setMockEndpoints(mocks);
-    localStorage.setItem('omni_api_mocks', JSON.stringify(mocks));
-  };
-
   const getSandboxDoc = () => {
     const injectionScript = `
       <script>
@@ -946,7 +1033,6 @@ export default function App() {
                    document.body.style.cursor = 'crosshair';
                } else {
                    document.body.style.cursor = 'default';
-                   // remove all outlines
                    document.querySelectorAll('*').forEach(el => el.style.outline = '');
                }
            }
@@ -973,7 +1059,7 @@ export default function App() {
            let htmlString = e.target.outerHTML;
            if(htmlString.length > 2000) htmlString = htmlString.substring(0, 2000) + '... [TRUNCATED]';
            window.parent.postMessage({ type: 'element-selected', tag: e.target.tagName, html: htmlString }, '*');
-        }, true); // Use capture phase to intercept
+        }, true);
 
         // Advanced Fetch Interceptor for Mocks
         const origFetch = window.fetch;
@@ -1061,7 +1147,7 @@ export default function App() {
             <Sparkles className="text-white w-6 h-6" />
           </div>
           <nav className="flex flex-col gap-4 mt-4 w-full px-2">
-            <button onClick={() => setActiveTab('chat')} className={`p-3 rounded-xl flex justify-center transition-all ${activeTab === 'chat' ? 'bg-gray-800 text-indigo-400' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'}`} title="Chat"><MessageSquare className="w-6 h-6" /></button>
+            <button onClick={() => { setActiveTab('chat'); setIsChatVisible(true); }} className={`p-3 rounded-xl flex justify-center transition-all ${activeTab === 'chat' && isChatVisible ? 'bg-gray-800 text-indigo-400' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'}`} title="Chat"><MessageSquare className="w-6 h-6" /></button>
             <button onClick={() => setIsSessionsModalOpen(true)} className="p-3 rounded-xl flex justify-center lg:hidden transition-all text-gray-500 hover:text-gray-300 hover:bg-gray-800/50" title="Chat History"><FolderOpen className="w-6 h-6" /></button>
             <button onClick={() => setActiveTab('code')} className={`p-3 rounded-xl flex justify-center lg:hidden transition-all ${activeTab === 'code' ? 'bg-gray-800 text-indigo-400' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'}`} title="Code"><Code2 className="w-6 h-6" /></button>
             <button onClick={() => setActiveTab('preview')} className={`p-3 rounded-xl flex justify-center lg:hidden transition-all ${activeTab === 'preview' ? 'bg-gray-800 text-indigo-400' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'}`} title="Preview"><Play className="w-6 h-6" /></button>
@@ -1070,6 +1156,9 @@ export default function App() {
             <button onClick={() => setIsMocksOpen(true)} className="p-3 rounded-xl flex justify-center text-gray-500 hover:text-gray-300 hover:bg-gray-800/50 transition-all" title="Local API Mocks Dashboard"><Database className="w-6 h-6" /></button>
           </nav>
           <div className="mt-auto flex flex-col gap-4 w-full px-2">
+            <button onClick={() => setIsChatVisible(!isChatVisible)} className="p-3 rounded-xl hidden lg:flex flex justify-center text-gray-500 hover:text-gray-300 hover:bg-gray-800/50 transition-all" title={isChatVisible ? "Collapse Chat" : "Expand Chat"}>
+              {isChatVisible ? <PanelLeftClose className="w-6 h-6" /> : <PanelLeftOpen className="w-6 h-6" />}
+            </button>
             <button onClick={() => setIsSessionsModalOpen(true)} className="p-3 rounded-xl hidden lg:flex flex justify-center text-gray-500 hover:text-gray-300 hover:bg-gray-800/50 transition-all" title="Chat History"><FolderOpen className="w-6 h-6" /></button>
             <button onClick={() => setIsSettingsOpen(true)} className="p-3 rounded-xl flex justify-center text-gray-500 hover:text-gray-300 hover:bg-gray-800/50 transition-all" title="Key Vault & Settings"><Settings className="w-6 h-6" /></button>
           </div>
@@ -1079,162 +1168,171 @@ export default function App() {
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col lg:flex-row h-full overflow-hidden relative">
         
-        {/* Chat Panel */}
-        <div style={{ width: (!isZenMode && typeof window !== 'undefined' && window.innerWidth >= 1024) ? chatWidth : '100%' }} className={`flex-col bg-gray-900/50 border-r border-gray-800 h-full shrink-0 transition-all duration-300 ${activeTab === 'chat' && !isZenMode ? 'flex' : 'hidden lg:flex'} ${isZenMode ? '!hidden' : ''}`}>
-          <div className="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-900/80 backdrop-blur z-10">
-            <div>
-              <h2 className="font-semibold text-lg flex items-center gap-2">
-                Omni Agent {agentStatus === 'thinking' && <span className="flex h-2 w-2 rounded-full bg-indigo-500 animate-pulse" />}{agentStatus === 'fixing' && <span className="flex h-2 w-2 rounded-full bg-amber-500 animate-pulse" />}
-              </h2>
-              <p className="text-xs text-gray-500">BYOK Unlimited Context Engine</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <button onClick={handleNewChat} className="p-1.5 text-gray-500 hover:text-indigo-400 hover:bg-indigo-400/10 rounded-lg transition-colors" title="Start New Chat"><MessageSquarePlus className="w-4 h-4" /></button>
-              <button onClick={handleClearChat} className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors" title="Delete Current Session"><Trash2 className="w-4 h-4" /></button>
-              <button onClick={() => setIsAutoSolveEnabled(!isAutoSolveEnabled)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${isAutoSolveEnabled ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' : 'bg-gray-800 text-gray-400 border-gray-700 hover:bg-gray-700'}`} title="Autonomously fix runtime errors"><Zap className="w-3.5 h-3.5" /> Auto-Solve</button>
-            </div>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-4 space-y-6 scroll-smooth">
-            {messages.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-center space-y-6 animate-in fade-in">
-                <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 flex items-center justify-center mb-2"><Sparkles className="w-8 h-8 text-indigo-400" /></div>
-                <div><h3 className="text-xl font-semibold text-gray-200">Welcome to Omni-Sandbox</h3><p className="text-sm text-gray-500 mt-2 max-w-xs mx-auto">What would you like to build today?</p></div>
-                <div className="grid grid-cols-2 gap-3 w-full max-w-sm mt-4">
-                  {templates.map((t, i) => (
-                    <button key={i} onClick={() => submitPrompt(t.prompt)} className="p-3 text-left rounded-xl border border-gray-800 bg-gray-900/50 hover:bg-gray-800 hover:border-indigo-500/50 transition-all flex flex-col gap-2 group">
-                      <span className="text-2xl group-hover:scale-110 transition-transform origin-bottom-left">{t.icon}</span><span className="text-sm font-medium text-gray-300 group-hover:text-indigo-300">{t.label}</span>
-                    </button>
-                  ))}
-                </div>
+        {/* Chat Panel (Now Collapsible) */}
+        {isChatVisible && (
+          <div style={{ width: (!isZenMode && typeof window !== 'undefined' && window.innerWidth >= 1024) ? chatWidth : '100%' }} className={`flex-col bg-gray-900/50 border-r border-gray-800 h-full shrink-0 transition-all duration-300 ${activeTab === 'chat' && !isZenMode ? 'flex' : 'hidden lg:flex'} ${isZenMode ? '!hidden' : ''}`}>
+            <div className="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-900/80 backdrop-blur z-10">
+              <div>
+                <h2 className="font-semibold text-lg flex items-center gap-2">
+                  Omni Agent {agentStatus === 'thinking' && <span className="flex h-2 w-2 rounded-full bg-indigo-500 animate-pulse" />}{agentStatus === 'fixing' && <span className="flex h-2 w-2 rounded-full bg-amber-500 animate-pulse" />}
+                </h2>
+                <p className="text-xs text-gray-500">BYOK Unlimited Context Engine</p>
               </div>
-            ) : (
-              messages.map((msg, idx) => (
-                <div key={idx} className={`flex gap-3 group ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  {msg.role === 'user' && !msg.isAutoGenerated && <button onClick={() => handleEditMessage(idx)} className="opacity-0 group-hover:opacity-100 p-1.5 hover:text-indigo-400 text-gray-500 transition-opacity self-center"><Edit2 className="w-3.5 h-3.5" /></button>}
-                  {msg.role === 'model' && <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${msg.isAutoGenerated ? 'bg-amber-500/20 text-amber-400' : 'bg-indigo-500/20 text-indigo-400'}`}><Bot className="w-5 h-5" /></div>}
-                  <div className={`max-w-[85%] rounded-2xl p-4 text-sm leading-relaxed ${msg.role === 'user' ? msg.isAutoGenerated ? 'bg-gray-800 border border-amber-500/20 text-gray-300 rounded-tr-sm' : 'bg-indigo-600 text-white rounded-tr-sm shadow-md' : msg.isAutoGenerated ? 'bg-gray-800/80 border border-amber-500/20 text-gray-200 rounded-tl-sm' : 'bg-gray-800 text-gray-200 rounded-tl-sm border border-gray-700/50'}`}>
-                    {msg.image && <div className="mb-3"><img src={msg.image} alt="Context" className="max-w-full h-auto max-h-48 object-cover rounded-lg border border-gray-700" /></div>}
-                    <div className="whitespace-pre-wrap break-words">
-                      {String(msg.text).split('```').map((chunk, i) => {
-                        if (i % 2 !== 0) {
-                          if (msg.role === 'model' && (chunk.startsWith('html') || chunk.includes('<html') || chunk.includes('<div'))) {
-                            return (
-                              <div key={i} className="mt-3 mb-2 bg-[#1e1e20] border border-[#333538] rounded-[1.25rem] p-3 flex items-center justify-between w-full min-w-[280px] max-w-sm shadow-lg">
-                                <div className="flex items-center gap-3 overflow-hidden">
-                                  <div className="text-gray-400 bg-[#2b2d31] p-2 rounded-lg shrink-0"><Code2 className="w-5 h-5" /></div>
-                                  <div className="flex flex-col text-left overflow-hidden"><span className="text-[13px] font-semibold text-gray-200 truncate tracking-wide">App Canvas</span><span className="text-[11px] text-gray-400 mt-0.5 whitespace-nowrap">{msg.timestamp ? new Date(msg.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ', ' + new Date(msg.timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : 'Just now'}</span></div>
+              <div className="flex items-center gap-2">
+                <button onClick={handleNewChat} className="p-1.5 text-gray-500 hover:text-indigo-400 hover:bg-indigo-400/10 rounded-lg transition-colors" title="Start New Chat"><MessageSquarePlus className="w-4 h-4" /></button>
+                <button onClick={handleClearChat} className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors" title="Delete Current Session"><Trash2 className="w-4 h-4" /></button>
+                <button onClick={() => setIsAutoSolveEnabled(!isAutoSolveEnabled)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${isAutoSolveEnabled ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' : 'bg-gray-800 text-gray-400 border-gray-700 hover:bg-gray-700'}`} title="Autonomously fix runtime errors"><Zap className="w-3.5 h-3.5" /> Auto-Solve</button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 space-y-6 scroll-smooth">
+              {messages.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-center space-y-6 animate-in fade-in">
+                  <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 flex items-center justify-center mb-2"><Sparkles className="w-8 h-8 text-indigo-400" /></div>
+                  <div><h3 className="text-xl font-semibold text-gray-200">Welcome to Omni-Sandbox</h3><p className="text-sm text-gray-500 mt-2 max-w-xs mx-auto">What would you like to build today?</p></div>
+                  <div className="grid grid-cols-2 gap-3 w-full max-w-sm mt-4">
+                    {templates.map((t, i) => (
+                      <button key={i} onClick={() => submitPrompt(t.prompt)} className="p-3 text-left rounded-xl border border-gray-800 bg-gray-900/50 hover:bg-gray-800 hover:border-indigo-500/50 transition-all flex flex-col gap-2 group">
+                        <span className="text-2xl group-hover:scale-110 transition-transform origin-bottom-left">{t.icon}</span><span className="text-sm font-medium text-gray-300 group-hover:text-indigo-300">{t.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                messages.map((msg, idx) => (
+                  <div key={idx} className={`flex gap-3 group ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    {msg.role === 'user' && !msg.isAutoGenerated && <button onClick={() => handleEditMessage(idx)} className="opacity-0 group-hover:opacity-100 p-1.5 hover:text-indigo-400 text-gray-500 transition-opacity self-center"><Edit2 className="w-3.5 h-3.5" /></button>}
+                    {msg.role === 'model' && <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${msg.isAutoGenerated ? 'bg-amber-500/20 text-amber-400' : 'bg-indigo-500/20 text-indigo-400'}`}><Bot className="w-5 h-5" /></div>}
+                    <div className={`max-w-[85%] rounded-2xl p-4 text-sm leading-relaxed ${msg.role === 'user' ? msg.isAutoGenerated ? 'bg-gray-800 border border-amber-500/20 text-gray-300 rounded-tr-sm' : 'bg-indigo-600 text-white rounded-tr-sm shadow-md' : msg.isAutoGenerated ? 'bg-gray-800/80 border border-amber-500/20 text-gray-200 rounded-tl-sm' : 'bg-gray-800 text-gray-200 rounded-tl-sm border border-gray-700/50'}`}>
+                      {msg.image && <div className="mb-3"><img src={msg.image} alt="Context" className="max-w-full h-auto max-h-48 object-cover rounded-lg border border-gray-700" /></div>}
+                      <div className="whitespace-pre-wrap break-words">
+                        {String(msg.text).split('```').map((chunk, i) => {
+                          if (i % 2 !== 0) {
+                            if (msg.role === 'model' && (chunk.startsWith('html') || chunk.includes('<html') || chunk.includes('<div'))) {
+                              return (
+                                <div key={i} className="mt-3 mb-2 bg-[#1e1e20] border border-[#333538] rounded-[1.25rem] p-3 flex items-center justify-between w-full min-w-[280px] max-w-sm shadow-lg">
+                                  <div className="flex items-center gap-3 overflow-hidden">
+                                    <div className="text-gray-400 bg-[#2b2d31] p-2 rounded-lg shrink-0"><Code2 className="w-5 h-5" /></div>
+                                    <div className="flex flex-col text-left overflow-hidden"><span className="text-[13px] font-semibold text-gray-200 truncate tracking-wide">App Canvas</span><span className="text-[11px] text-gray-400 mt-0.5 whitespace-nowrap">{msg.timestamp ? new Date(msg.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ', ' + new Date(msg.timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : 'Just now'}</span></div>
+                                  </div>
+                                  <div className="flex items-center shrink-0 ml-2 gap-1">
+                                    <button onClick={() => setActiveTab('code')} className="text-gray-400 hover:text-white font-medium text-xs px-3 py-1.5 transition-colors">View Code</button>
+                                    <button onClick={() => setActiveTab('preview')} className="bg-[#a8c7fa] hover:bg-[#93b8f8] text-[#062e6f] font-medium text-xs px-4 py-1.5 rounded-full transition-colors">Open</button>
+                                  </div>
                                 </div>
-                                <div className="flex items-center shrink-0 ml-2 gap-1">
-                                  <button onClick={() => setActiveTab('code')} className="text-gray-400 hover:text-white font-medium text-xs px-3 py-1.5 transition-colors">View Code</button>
-                                  <button onClick={() => setActiveTab('preview')} className="bg-[#a8c7fa] hover:bg-[#93b8f8] text-[#062e6f] font-medium text-xs px-4 py-1.5 rounded-full transition-colors">Open</button>
-                                </div>
-                              </div>
-                            );
+                              );
+                            }
+                            return <div key={i} className="mt-2 mb-2 bg-gray-950 rounded-lg p-3 overflow-x-auto text-xs font-mono text-gray-300 border border-gray-800 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">{chunk.replace(/^(html|javascript|css|js)\n/, '')}</div>;
                           }
-                          return <div key={i} className="mt-2 mb-2 bg-gray-950 rounded-lg p-3 overflow-x-auto text-xs font-mono text-gray-300 border border-gray-800 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">{chunk.replace(/^(html|javascript|css|js)\n/, '')}</div>;
-                        }
-                        return chunk.split('**').map((textChunk, j) => j % 2 !== 0 ? <strong key={j} className="text-white font-semibold">{textChunk}</strong> : textChunk);
-                      })}
+                          return chunk.split('**').map((textChunk, j) => j % 2 !== 0 ? <strong key={j} className="text-white font-semibold">{textChunk}</strong> : textChunk);
+                        })}
+                      </div>
+                    </div>
+                    {msg.role === 'user' && !msg.isAutoGenerated && <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center shrink-0"><User className="w-5 h-5 text-gray-300" /></div>}
+                  </div>
+                ))
+              )}
+              {agentStatus !== 'idle' && <div className="flex items-center gap-3 text-sm text-gray-500"><RefreshCw className="w-4 h-4 animate-spin text-indigo-400" /><span>{agentStatus === 'thinking' ? 'Writing code...' : 'Autonomously fixing errors...'}</span></div>}
+              <div ref={chatEndRef} />
+            </div>
+
+            <div className="p-4 bg-gray-900 border-t border-gray-800 z-10 flex flex-col gap-2">
+              
+              {/* Context Modifiers UI */}
+              {(targetedElement || selectedCodeContext) && (
+                <div className="flex flex-wrap gap-2 mb-1 px-1">
+                   {targetedElement && (
+                     <div className="flex items-center gap-1.5 bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 px-3 py-1.5 rounded-lg text-xs font-medium max-w-[200px]">
+                        <Target className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">Element: &lt;{targetedElement.tag.toLowerCase()}&gt;</span>
+                        <button onClick={() => setTargetedElement(null)} className="ml-auto hover:text-white"><X className="w-3.5 h-3.5"/></button>
+                     </div>
+                   )}
+                   {selectedCodeContext && (
+                     <div className="flex items-center gap-1.5 bg-blue-500/20 border border-blue-500/30 text-blue-300 px-3 py-1.5 rounded-lg text-xs font-medium max-w-[200px]">
+                        <Code2 className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">Code Selected ({selectedCodeContext.split('\n').length} lines)</span>
+                        <button onClick={() => setSelectedCodeContext('')} className="ml-auto hover:text-white"><X className="w-3.5 h-3.5"/></button>
+                     </div>
+                   )}
+                </div>
+              )}
+
+              <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+                <div className="flex items-center gap-2 bg-gray-950 border border-gray-800 rounded-lg px-3 py-1.5 shadow-sm max-w-full sm:max-w-fit">
+                  <Bot className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                  <select value={selectedModel} onChange={(e) => saveSetting('omni_selected_model', e.target.value, setSelectedModel)} className="bg-transparent text-xs font-medium text-gray-300 focus:outline-none cursor-pointer appearance-none outline-none pr-4">
+                    {getModelOptions().map(opt => <option key={opt.value} value={opt.value} className="bg-gray-900 text-gray-300">{opt.label}</option>)}
+                  </select>
+                  <ChevronRight className="w-3 h-3 text-gray-600 shrink-0 rotate-90 -ml-2" />
+                </div>
+                
+                <div className="flex items-center gap-2 bg-gray-950 border border-gray-800 rounded-lg px-3 py-1.5 shadow-sm max-w-full sm:max-w-fit">
+                  <User className="w-3.5 h-3.5 text-pink-400 shrink-0" />
+                  <select value={activePersona} onChange={(e) => { saveSetting('omni_active_persona', e.target.value, setActivePersona); setCustomSystemPrompt(PERSONAS[e.target.value] || userSavedPersonas[e.target.value]); }} className="bg-transparent text-xs font-medium text-gray-300 focus:outline-none cursor-pointer appearance-none outline-none pr-4">
+                    <optgroup label="System Defaults">
+                      <option value="default" className="bg-gray-900 text-gray-300">Default Agent</option>
+                      <option value="tailwind" className="bg-gray-900 text-gray-300">Tailwind Pro</option>
+                      <option value="gamedev" className="bg-gray-900 text-gray-300">Game Developer</option>
+                      <option value="datascientist" className="bg-gray-900 text-gray-300">Data Scientist</option>
+                    </optgroup>
+                    {Object.keys(userSavedPersonas).length > 0 && (
+                      <optgroup label="Your Vault">
+                        {Object.keys(userSavedPersonas).map(name => <option key={name} value={name} className="bg-gray-900 text-indigo-300">{name}</option>)}
+                      </optgroup>
+                    )}
+                  </select>
+                  <ChevronRight className="w-3 h-3 text-gray-600 shrink-0 rotate-90 -ml-2" />
+                </div>
+
+                {selectedModel === 'custom' && (
+                  <input type="text" value={customModelInput} onChange={(e) => saveSetting('omni_custom_model_input', e.target.value, setCustomModelInput)} placeholder="e.g., gemini-exp-1234" className="bg-gray-950 border border-gray-800 rounded-lg px-3 py-1.5 text-xs text-gray-100 focus:outline-none focus:border-indigo-500 w-full sm:w-48 shadow-sm" />
+                )}
+              </div>
+              
+              <form onSubmit={handleSendMessage} className="relative mt-1">
+                {chatImage && (
+                  <div className="absolute bottom-full mb-2 left-0 p-2 bg-gray-800 rounded-xl border border-gray-700 shadow-xl flex items-center gap-2 animate-in fade-in">
+                    <img src={chatImage} alt="Upload preview" className="h-16 w-16 object-cover rounded-lg border border-gray-600" />
+                    <button type="button" onClick={() => setChatImage(null)} className="p-1 bg-red-500/20 text-red-400 hover:bg-red-500/40 rounded-md transition-colors"><X className="w-4 h-4"/></button>
+                  </div>
+                )}
+                {showSnippets && (
+                  <div className="absolute bottom-full mb-3 left-0 w-72 bg-gray-800 border border-gray-700 rounded-xl shadow-2xl p-2 z-20 animate-in fade-in slide-in-from-bottom-2">
+                    <div className="text-xs text-gray-400 mb-2 px-2 font-semibold uppercase tracking-wider">Quick Prompts</div>
+                    <div className="space-y-1">
+                      {quickSnippets.map((s, i) => <button key={i} type="button" onClick={() => {setInput(s); setShowSnippets(false);}} className="text-left w-full p-2.5 text-xs text-gray-300 hover:bg-indigo-500/20 hover:text-indigo-300 rounded-lg transition-colors truncate">{s}</button>)}
                     </div>
                   </div>
-                  {msg.role === 'user' && !msg.isAutoGenerated && <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center shrink-0"><User className="w-5 h-5 text-gray-300" /></div>}
+                )}
+                
+                <div className="absolute left-2 top-2 bottom-2 flex items-center gap-0.5">
+                   <button type="button" onClick={() => document.getElementById('chat-image-upload').click()} className="p-1.5 text-gray-500 hover:text-indigo-400 transition-colors rounded-lg" title="Upload Image Context"><ImagePlus className="w-4 h-4" /></button>
+                   <button type="button" onClick={toggleListen} className={`p-1.5 transition-colors rounded-lg ${isListening ? 'text-red-400 bg-red-500/10 animate-pulse' : 'text-gray-500 hover:text-indigo-400'}`} title="Voice Dictation"><Mic className="w-4 h-4" /></button>
+                   <input type="file" id="chat-image-upload" accept="image/*" className="hidden" onChange={handleChatImageUpload} />
                 </div>
-              ))
-            )}
-            {agentStatus !== 'idle' && <div className="flex items-center gap-3 text-sm text-gray-500"><RefreshCw className="w-4 h-4 animate-spin text-indigo-400" /><span>{agentStatus === 'thinking' ? 'Writing code...' : 'Autonomously fixing errors...'}</span></div>}
-            <div ref={chatEndRef} />
-          </div>
 
-          <div className="p-4 bg-gray-900 border-t border-gray-800 z-10 flex flex-col gap-2">
-            
-            {/* Context Modifiers UI */}
-            {(targetedElement || selectedCodeContext) && (
-              <div className="flex flex-wrap gap-2 mb-1 px-1">
-                 {targetedElement && (
-                   <div className="flex items-center gap-1.5 bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 px-3 py-1.5 rounded-lg text-xs font-medium max-w-[200px]">
-                      <Target className="w-3.5 h-3.5 shrink-0" />
-                      <span className="truncate">Element: &lt;{targetedElement.tag.toLowerCase()}&gt;</span>
-                      <button onClick={() => setTargetedElement(null)} className="ml-auto hover:text-white"><X className="w-3.5 h-3.5"/></button>
-                   </div>
-                 )}
-                 {selectedCodeContext && (
-                   <div className="flex items-center gap-1.5 bg-blue-500/20 border border-blue-500/30 text-blue-300 px-3 py-1.5 rounded-lg text-xs font-medium max-w-[200px]">
-                      <Code2 className="w-3.5 h-3.5 shrink-0" />
-                      <span className="truncate">Code Selected ({selectedCodeContext.split('\n').length} lines)</span>
-                      <button onClick={() => setSelectedCodeContext('')} className="ml-auto hover:text-white"><X className="w-3.5 h-3.5"/></button>
-                   </div>
-                 )}
-              </div>
-            )}
-
-            <div className="flex flex-wrap items-center justify-between gap-2 px-1">
-              <div className="flex items-center gap-2 bg-gray-950 border border-gray-800 rounded-lg px-3 py-1.5 shadow-sm max-w-full sm:max-w-fit">
-                <Bot className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-                <select value={selectedModel} onChange={(e) => saveSetting('omni_selected_model', e.target.value, setSelectedModel)} className="bg-transparent text-xs font-medium text-gray-300 focus:outline-none cursor-pointer appearance-none outline-none pr-4">
-                  {getModelOptions().map(opt => <option key={opt.value} value={opt.value} className="bg-gray-900 text-gray-300">{opt.label}</option>)}
-                </select>
-                <ChevronRight className="w-3 h-3 text-gray-600 shrink-0 rotate-90 -ml-2" />
-              </div>
-              
-              <div className="flex items-center gap-2 bg-gray-950 border border-gray-800 rounded-lg px-3 py-1.5 shadow-sm max-w-full sm:max-w-fit">
-                <User className="w-3.5 h-3.5 text-pink-400 shrink-0" />
-                <select value={activePersona} onChange={(e) => { saveSetting('omni_active_persona', e.target.value, setActivePersona); setCustomSystemPrompt(PERSONAS[e.target.value]); }} className="bg-transparent text-xs font-medium text-gray-300 focus:outline-none cursor-pointer appearance-none outline-none pr-4">
-                  <option value="default" className="bg-gray-900 text-gray-300">Default Agent</option>
-                  <option value="tailwind" className="bg-gray-900 text-gray-300">Tailwind Pro</option>
-                  <option value="gamedev" className="bg-gray-900 text-gray-300">Game Developer</option>
-                  <option value="datascientist" className="bg-gray-900 text-gray-300">Data Scientist</option>
-                </select>
-                <ChevronRight className="w-3 h-3 text-gray-600 shrink-0 rotate-90 -ml-2" />
-              </div>
-
-              {selectedModel === 'custom' && (
-                <input type="text" value={customModelInput} onChange={(e) => saveSetting('omni_custom_model_input', e.target.value, setCustomModelInput)} placeholder="e.g., gemini-exp-1234" className="bg-gray-950 border border-gray-800 rounded-lg px-3 py-1.5 text-xs text-gray-100 focus:outline-none focus:border-indigo-500 w-full sm:w-48 shadow-sm" />
-              )}
+                <textarea
+                  value={input} onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(e); } }}
+                  placeholder="Describe what to build..."
+                  className="w-full bg-gray-950 border border-gray-800 rounded-xl py-3 pl-[4.5rem] pr-12 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 resize-none h-[60px] max-h-[200px]"
+                  disabled={isLoading}
+                />
+                
+                <div className="absolute right-2 top-2 bottom-2 flex items-center gap-1">
+                  <button type="button" onClick={() => setShowSnippets(!showSnippets)} className={`p-1.5 transition-colors rounded-lg ${showSnippets ? 'text-indigo-400 bg-indigo-500/10' : 'text-gray-500 hover:text-indigo-400'}`} title="Prompt Snippets"><Bookmark className="w-4 h-4" /></button>
+                  <button type="submit" disabled={!input.trim() || isLoading} className="aspect-square h-full rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-800 disabled:text-gray-600 flex items-center justify-center transition-colors"><ChevronRight className="w-5 h-5" /></button>
+                </div>
+              </form>
             </div>
-            
-            <form onSubmit={handleSendMessage} className="relative mt-1">
-              {chatImage && (
-                <div className="absolute bottom-full mb-2 left-0 p-2 bg-gray-800 rounded-xl border border-gray-700 shadow-xl flex items-center gap-2 animate-in fade-in">
-                  <img src={chatImage} alt="Upload preview" className="h-16 w-16 object-cover rounded-lg border border-gray-600" />
-                  <button type="button" onClick={() => setChatImage(null)} className="p-1 bg-red-500/20 text-red-400 hover:bg-red-500/40 rounded-md transition-colors"><X className="w-4 h-4"/></button>
-                </div>
-              )}
-              {showSnippets && (
-                <div className="absolute bottom-full mb-3 left-0 w-72 bg-gray-800 border border-gray-700 rounded-xl shadow-2xl p-2 z-20 animate-in fade-in slide-in-from-bottom-2">
-                  <div className="text-xs text-gray-400 mb-2 px-2 font-semibold uppercase tracking-wider">Quick Prompts</div>
-                  <div className="space-y-1">
-                    {quickSnippets.map((s, i) => <button key={i} type="button" onClick={() => {setInput(s); setShowSnippets(false);}} className="text-left w-full p-2.5 text-xs text-gray-300 hover:bg-indigo-500/20 hover:text-indigo-300 rounded-lg transition-colors truncate">{s}</button>)}
-                  </div>
-                </div>
-              )}
-              
-              <div className="absolute left-2 top-2 bottom-2 flex items-center gap-0.5">
-                 <button type="button" onClick={() => document.getElementById('chat-image-upload').click()} className="p-1.5 text-gray-500 hover:text-indigo-400 transition-colors rounded-lg" title="Upload Image Context"><ImagePlus className="w-4 h-4" /></button>
-                 <button type="button" onClick={toggleListen} className={`p-1.5 transition-colors rounded-lg ${isListening ? 'text-red-400 bg-red-500/10 animate-pulse' : 'text-gray-500 hover:text-indigo-400'}`} title="Voice Dictation"><Mic className="w-4 h-4" /></button>
-                 <input type="file" id="chat-image-upload" accept="image/*" className="hidden" onChange={handleChatImageUpload} />
-              </div>
-
-              <textarea
-                value={input} onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(e); } }}
-                placeholder="Describe what to build..."
-                className="w-full bg-gray-950 border border-gray-800 rounded-xl py-3 pl-[4.5rem] pr-12 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 resize-none h-[60px] max-h-[200px]"
-                disabled={isLoading}
-              />
-              
-              <div className="absolute right-2 top-2 bottom-2 flex items-center gap-1">
-                <button type="button" onClick={() => setShowSnippets(!showSnippets)} className={`p-1.5 transition-colors rounded-lg ${showSnippets ? 'text-indigo-400 bg-indigo-500/10' : 'text-gray-500 hover:text-indigo-400'}`} title="Prompt Snippets"><Bookmark className="w-4 h-4" /></button>
-                <button type="submit" disabled={!input.trim() || isLoading} className="aspect-square h-full rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-800 disabled:text-gray-600 flex items-center justify-center transition-colors"><ChevronRight className="w-5 h-5" /></button>
-              </div>
-            </form>
           </div>
-        </div>
+        )}
 
-        {!isZenMode && <div onMouseDown={startChatDrag} className="hidden lg:flex w-1 bg-transparent hover:bg-indigo-500 cursor-col-resize shrink-0 z-30 transition-colors relative -ml-[1px]" />}
+        {!isZenMode && isChatVisible && <div onMouseDown={startChatDrag} className="hidden lg:flex w-1 bg-transparent hover:bg-indigo-500 cursor-col-resize shrink-0 z-30 transition-colors relative -ml-[1px]" />}
 
         {/* Workspace Area */}
-        <div className={`flex-1 flex-col h-full bg-[#0d1117] ${activeTab !== 'chat' || isZenMode ? 'flex' : 'hidden lg:flex'}`}>
+        <div className={`flex-1 flex-col h-full bg-[#0d1117] ${(!isChatVisible || activeTab !== 'chat' || isZenMode) ? 'flex' : 'hidden lg:flex'}`}>
           <div className="flex-1 flex flex-col xl:flex-row h-full min-h-0">
             
             {/* Live Editable Code View (With Syntax Highlighting) */}
@@ -1250,7 +1348,11 @@ export default function App() {
                   <button onClick={() => setIsPackagesOpen(true)} className="p-1.5 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-md transition-colors flex items-center gap-1" title="Inject CDNs"><Package className="w-4 h-4" /> <span className="text-xs hidden xl:inline">Packages</span></button>
                   <button onClick={() => setIsComponentsOpen(true)} className="p-1.5 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-md transition-colors flex items-center gap-1" title="Tailwind Blocks"><Blocks className="w-4 h-4" /> <span className="text-xs hidden xl:inline">Blocks</span></button>
                   <div className="w-px h-4 bg-gray-700 mx-1"></div>
+                  
+                  <button onClick={formatCode} disabled={isFormatting} className="p-1.5 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-md transition-colors flex items-center gap-1 disabled:opacity-50" title="Auto-Format with Prettier"><AlignLeft className="w-4 h-4" /></button>
                   <button onClick={() => setIsDiffOpen(true)} disabled={codeHistory.length < 2} className="p-1.5 hover:text-cyan-400 hover:bg-cyan-500/10 rounded-md transition-colors flex items-center gap-1 disabled:opacity-50" title="Compare Code Diff"><GitCompare className="w-4 h-4" /></button>
+                  <div className="w-px h-4 bg-gray-700 mx-1"></div>
+
                   <button onClick={() => handleAgentAction('bootstrap')} disabled={isLoading} className="p-1.5 hover:text-green-400 hover:bg-green-500/10 rounded-md transition-colors flex items-center gap-1 disabled:opacity-50" title="Agent: Bootstrap Canvas"><Rocket className="w-4 h-4" /></button>
                   <button onClick={() => handleAgentAction('auto-improve')} disabled={isLoading} className="p-1.5 hover:text-purple-400 hover:bg-purple-500/10 rounded-md transition-colors flex items-center gap-1 disabled:opacity-50" title="Agent: Review & Improve UI"><Eye className="w-4 h-4" /></button>
                   <button onClick={() => handleAgentAction('explain')} disabled={isLoading} className="p-1.5 hover:text-blue-400 hover:bg-blue-500/10 rounded-md transition-colors flex items-center gap-1 disabled:opacity-50" title="Agent: Explain Code"><Lightbulb className="w-4 h-4" /></button>
@@ -1261,6 +1363,7 @@ export default function App() {
                   <button onClick={handleRedo} disabled={historyIndex === codeHistory.length - 1} className="p-1.5 hover:text-white hover:bg-gray-800 rounded-md transition-colors disabled:opacity-30 mr-1" title="Redo"><Redo className="w-4 h-4" /></button>
                   <button onClick={() => setIsHistoryOpen(true)} className="p-1.5 hover:text-white hover:bg-gray-800 rounded-md transition-colors" title="Version History"><History className="w-4 h-4" /></button>
                   <div className="w-px h-4 bg-gray-700 mx-1"></div>
+                  <button onClick={exportToCodePen} className="p-1.5 hover:text-white hover:bg-gray-800 rounded-md transition-colors" title="Export to CodePen"><Share2 className="w-4 h-4" /></button>
                   <button onClick={handleCopyCode} className="p-1.5 hover:text-white hover:bg-gray-800 rounded-md transition-colors" title="Copy"><Copy className="w-4 h-4" /></button>
                   <button onClick={() => exportToZip('vite')} className="p-1.5 hover:text-white hover:bg-gray-800 rounded-md transition-colors" title="Export as Vite/React App"><FileArchive className="w-4 h-4" /></button>
                 </div>
@@ -1276,7 +1379,7 @@ export default function App() {
                   ref={editorRef}
                   value={generatedCode}
                   onChange={(e) => updateCode(e.target.value)}
-                  onSelect={handleEditorSelect} // NEW: Selection Capturing
+                  onSelect={handleEditorSelect} 
                   onKeyDown={handleEditorKeyDown}
                   onScroll={handleEditorScroll}
                   spellCheck="false"
@@ -1307,7 +1410,7 @@ export default function App() {
                 </div>
 
                 <div className="flex gap-2 items-center">
-                   {/* NEW DOM Inspector Toggle */}
+                   {/* DOM Inspector Toggle */}
                    <button onClick={() => setIsInspectorActive(!isInspectorActive)} className={`p-1.5 rounded-md transition-colors ${isInspectorActive ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/50' : 'hover:text-indigo-400 hover:bg-indigo-500/10'}`} title="Point & Prompt DOM Inspector"><MousePointerClick className="w-4 h-4" /></button>
                    <div className="w-px h-4 bg-gray-700 mx-1"></div>
 
@@ -1382,8 +1485,11 @@ export default function App() {
               </div>
 
               {isConsoleOpen && (
-                <div className="h-64 bg-gray-950 border-t border-gray-800 flex flex-col shrink-0">
-                  <div className="h-10 bg-gray-900 border-b border-gray-800 flex justify-between items-center px-3 text-xs font-mono text-gray-400">
+                <div className="bg-gray-950 border-t border-gray-800 flex flex-col shrink-0 relative" style={{ height: consoleHeight }}>
+                  {/* Console Drag Handle */}
+                  <div onMouseDown={startConsoleDrag} className="absolute top-0 left-0 right-0 h-1.5 cursor-row-resize hover:bg-indigo-500 z-10 transition-colors" />
+                  
+                  <div className="h-10 bg-gray-900 border-b border-gray-800 flex justify-between items-center px-3 text-xs font-mono text-gray-400 mt-1">
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-gray-300">Console</span>
                       <div className="w-px h-3 bg-gray-700 mx-1"></div>
@@ -1412,9 +1518,9 @@ export default function App() {
                     )}
                     <div ref={consoleEndRef} />
                   </div>
-                  <form onSubmit={handleConsoleCommand} className="h-10 border-t border-gray-800 bg-gray-900 flex items-center px-3">
+                  <form onSubmit={handleConsoleCommand} className="h-10 border-t border-gray-800 bg-gray-900 flex items-center px-3 shrink-0">
                      <span className="text-indigo-400 font-bold mr-2">{'>'}</span>
-                     <input type="text" value={consoleInput} onChange={e => setConsoleInput(e.target.value)} placeholder="Enter JavaScript command to evaluate in sandbox..." className="flex-1 bg-transparent border-none text-xs font-mono text-gray-200 focus:outline-none" />
+                     <input type="text" value={consoleInput} onChange={e => setConsoleInput(e.target.value)} onKeyDown={handleConsoleKeyDown} placeholder="Enter JavaScript command to evaluate in sandbox..." className="flex-1 bg-transparent border-none text-xs font-mono text-gray-200 focus:outline-none" />
                   </form>
                 </div>
               )}
@@ -1706,13 +1812,18 @@ export default function App() {
                  <input type="range" min="0" max="40" step="2" value={maxContext} onChange={(e) => saveSetting('omni_max_context', parseInt(e.target.value), setMaxContext)} className="w-full accent-indigo-500" />
               </div>
 
-              {/* Advanced System Prompt */}
-              <div className="pt-4 border-t border-gray-800 space-y-2">
+              {/* Prompt Engineering Vault */}
+              <div className="pt-4 border-t border-gray-800 space-y-3">
                  <div className="flex justify-between items-center">
-                   <label className="text-sm font-medium text-gray-300">System Prompt (Advanced)</label>
-                   <button onClick={() => saveSetting('omni_system_prompt', PERSONAS.default, setCustomSystemPrompt)} className="text-xs text-indigo-400 hover:text-indigo-300">Reset to Default</button>
+                   <label className="text-sm font-medium text-gray-300">System Prompt (Persona Vault)</label>
+                   <button onClick={() => saveSetting('omni_system_prompt', PERSONAS.default, setCustomSystemPrompt)} className="text-xs text-indigo-400 hover:text-indigo-300">Reset Default</button>
                  </div>
-                 <textarea value={customSystemPrompt} onChange={(e) => saveSetting('omni_system_prompt', e.target.value, setCustomSystemPrompt)} className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-xs font-mono text-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 h-32 resize-none" />
+                 <textarea value={customSystemPrompt} onChange={(e) => setCustomSystemPrompt(e.target.value)} className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-xs font-mono text-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 h-32 resize-none" />
+                 
+                 <div className="flex gap-2">
+                   <input type="text" value={newPersonaName} onChange={e => setNewPersonaName(e.target.value)} placeholder="Name your Persona..." className="flex-1 bg-gray-950 border border-gray-800 rounded-lg px-3 py-1.5 text-xs text-gray-200 focus:outline-none focus:border-indigo-500" />
+                   <button onClick={saveToVault} disabled={!newPersonaName.trim()} className="px-3 py-1.5 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-lg text-xs font-medium hover:bg-indigo-500/20 disabled:opacity-50 transition-colors flex items-center gap-1"><Save className="w-3.5 h-3.5"/> Save</button>
+                 </div>
               </div>
 
             </div>
