@@ -11,7 +11,7 @@ import {
   ImagePlus, Mic, History, Blocks, RotateCcw, ZoomIn, ZoomOut,
   PanelLeftClose, PanelLeftOpen, DownloadCloud, Lock,
   MessageSquarePlus, FolderOpen, Database, Github, Search, GitCompare, Share,
-  MousePointerClick, Target, AlignLeft, Save
+  MousePointerClick, Target, AlignLeft, Save, Users, CloudLightning, Activity, GitBranch, Layers
 } from 'lucide-react';
 
 // --- Environment API Key Fallback ---
@@ -24,6 +24,13 @@ const PERSONAS = {
   gamedev: `You are Omni-Agent, a senior WebGL and Canvas HTML5 Game Developer.\n\nYOUR DIRECTIVE: Build highly performant, 60FPS browser games.\n\nRULES:\n1. Output exactly ONE \`\`\`html block containing the game.\n2. Prioritize requestAnimationFrame loops, efficient rendering, clean physics math, and state management.\n3. Add comments explaining the game loop and logic.\n4. Ensure keyboard and mouse/touch controls work perfectly. Provide a start and game over screen. No placeholders.`,
   datascientist: `You are Omni-Agent, a Data Visualization Expert.\n\nYOUR DIRECTIVE: Build gorgeous, interactive data dashboards and charts.\n\nRULES:\n1. Output exactly ONE \`\`\`html block.\n2. Utilize CDN libraries like Chart.js, D3.js, or Recharts.\n3. Generate realistic mock data to populate the charts.\n4. Ensure tooltips, legends, and responsive resizing work flawlessly. Prioritize a clean, analytical UI design.`
 };
+
+const MULTI_AGENT_PROMPT = `You are the Omni Development Team consisting of three personas: The Architect, The Developer, and The QA Tester. 
+When responding, structure your thought process internally as:
+1. [ARCHITECT]: Plan the structure and UI/UX.
+2. [DEVELOPER]: Write the flawless, unified HTML/CSS/JS code block.
+3. [QA TESTER]: Mentally verify responsive design, error handling, and aesthetics.
+Return EXACTLY ONE \`\`\`html code block containing the final, verified application.`;
 
 const DEFAULT_CODE = `<!-- Your generated code will appear here -->\n<div class="p-8 text-center font-sans">\n  <h1 class="text-3xl font-bold text-gray-800">Hello, App Canvas!</h1>\n  <p class="text-gray-500 mt-2">Describe what you want to build in the chat.</p>\n</div>`;
 
@@ -38,27 +45,27 @@ export default function App() {
   const [isSessionsModalOpen, setIsSessionsModalOpen] = useState(false); 
   const [isMocksOpen, setIsMocksOpen] = useState(false); 
   const [isDiffOpen, setIsDiffOpen] = useState(false); 
+  const [isAuditOpen, setIsAuditOpen] = useState(false);
   
   const [viewport, setViewport] = useState('desktop'); 
   const [isLandscape, setIsLandscape] = useState(false);
   const [previewZoom, setPreviewZoom] = useState(100);
-  const [fluidWidth, setFluidWidth] = useState(100); // 100%
+  const [fluidWidth, setFluidWidth] = useState(100); 
   
   const [isConsoleOpen, setIsConsoleOpen] = useState(false);
   const [consoleFilter, setConsoleFilter] = useState('all'); 
   const [consoleInput, setConsoleInput] = useState(''); 
-  const [consoleHeight, setConsoleHeight] = useState(256); // Draggable console height
-  const [commandHistory, setCommandHistory] = useState([]); // Console history
+  const [consoleHeight, setConsoleHeight] = useState(256); 
+  const [commandHistory, setCommandHistory] = useState([]); 
   const [commandIndex, setCommandIndex] = useState(-1);
   
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isZenMode, setIsZenMode] = useState(false);
-  const [isChatVisible, setIsChatVisible] = useState(true); // Collapsible Panels
+  const [isChatVisible, setIsChatVisible] = useState(true); 
   const [isPreviewDark, setIsPreviewDark] = useState(false);
   const [showSnippets, setShowSnippets] = useState(false);
   const [iframeKey, setIframeKey] = useState(0); 
 
-  // Resizable Panels State
   const [chatWidth, setChatWidth] = useState(400);
   const [codeWidth, setCodeWidth] = useState(500);
   
@@ -76,13 +83,14 @@ export default function App() {
   
   const [activePersona, setActivePersona] = useState('default');
   const [customSystemPrompt, setCustomSystemPrompt] = useState(PERSONAS.default);
-  const [userSavedPersonas, setUserSavedPersonas] = useState({}); // Vault
+  const [userSavedPersonas, setUserSavedPersonas] = useState({}); 
   const [newPersonaName, setNewPersonaName] = useState('');
   
   const [maxContext, setMaxContext] = useState(10);
   const [sandboxEnv, setSandboxEnv] = useState('{\n  "API_URL": "https://api.example.com",\n  "MOCK_KEY": "sk_test_123"\n}');
   const [mockEndpoints, setMockEndpoints] = useState([{ id: 1, path: '/api/demo', response: '{"status": "success", "message": "Hello from Omni-Mock!"}' }]);
   const [isVoiceAutoSubmit, setIsVoiceAutoSubmit] = useState(false);
+  const [isMultiAgent, setIsMultiAgent] = useState(false); // Multi-Agent Toggle
 
   // Dynamic Model Selection
   const [selectedModel, setSelectedModel] = useState('gemini-2.5-flash-preview-09-2025');
@@ -109,11 +117,13 @@ export default function App() {
   const [isInspectorActive, setIsInspectorActive] = useState(false);
   const [selectedCodeContext, setSelectedCodeContext] = useState(''); 
   
-  // State: Code, Assets & History
+  // State: Code, Assets, History, Branching, Audits
   const [generatedCode, setGeneratedCode] = useState(DEFAULT_CODE);
   const [codeHistory, setCodeHistory] = useState([DEFAULT_CODE]);
   const [historyIndex, setHistoryIndex] = useState(0);
+  const [branches, setBranches] = useState([]); // Git-style Branches
   const [assets, setAssets] = useState([]); 
+  const [auditResult, setAuditResult] = useState(null); // Lighthouse Audit
   
   const [isAutoSolveEnabled, setIsAutoSolveEnabled] = useState(false);
   const [agentStatus, setAgentStatus] = useState('idle');
@@ -176,12 +186,15 @@ export default function App() {
     loadSafe('omni_active_persona', setActivePersona);
     loadSafe('omni_voice_autosubmit', setIsVoiceAutoSubmit);
 
-    // Load Mocks & Vault
+    // Load Mocks & Vault & Branches
     const savedMocks = localStorage.getItem('omni_api_mocks');
     if (savedMocks) { try { setMockEndpoints(JSON.parse(savedMocks)); } catch(e) {} }
     
     const savedVault = localStorage.getItem('omni_persona_vault');
     if (savedVault) { try { setUserSavedPersonas(JSON.parse(savedVault)); } catch(e) {} }
+    
+    const savedBranches = localStorage.getItem('omni_branches');
+    if (savedBranches) { try { setBranches(JSON.parse(savedBranches)); } catch(e) {} }
 
     const savedPromptVersion = localStorage.getItem('omni_prompt_version');
     if (savedPromptVersion !== "2.0") {
@@ -269,6 +282,14 @@ export default function App() {
     setActivePersona(name);
     setNewPersonaName('');
     alert(`Saved "${name}" to your Prompt Vault!`);
+  };
+  
+  const saveBranch = (codeObj, name) => {
+    const newBranch = { id: Date.now(), name: name || `Branch ${branches.length + 1}`, code: codeObj, date: new Date().toLocaleString() };
+    const updatedBranches = [newBranch, ...branches];
+    setBranches(updatedBranches);
+    localStorage.setItem('omni_branches', JSON.stringify(updatedBranches));
+    alert("Saved code state to Branches.");
   };
 
   const getModelOptions = () => {
@@ -427,9 +448,12 @@ export default function App() {
     if (historyIndex < codeHistory.length - 1) { setHistoryIndex(historyIndex + 1); setGeneratedCode(codeHistory[historyIndex + 1]); }
   };
 
-  const restoreHistory = (idx) => {
-    setHistoryIndex(idx);
-    setGeneratedCode(codeHistory[idx]);
+  const restoreHistory = (codeString) => {
+    setGeneratedCode(codeString);
+    const newHistory = codeHistory.slice(0, historyIndex + 1);
+    newHistory.push(codeString);
+    setCodeHistory(newHistory);
+    setHistoryIndex(newHistory.length - 1);
     setIsHistoryOpen(false);
     setIsDiffOpen(false);
   };
@@ -445,6 +469,41 @@ export default function App() {
     const url = `${window.location.origin}${window.location.pathname}#code=${encoded}`;
     navigator.clipboard.writeText(url);
     alert("Shareable Snapshot Link copied to clipboard!");
+  };
+  
+  const deployToStackBlitz = () => {
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = 'https://stackblitz.com/run';
+    form.target = '_blank';
+    
+    const addInput = (name, value) => {
+      const input = document.createElement('input');
+      input.type = 'hidden'; input.name = name; input.value = value;
+      form.appendChild(input);
+    };
+    
+    addInput('project[title]', 'Omni-Sandbox Cloud Export');
+    addInput('project[description]', 'Generated by Omni-Sandbox');
+    addInput('project[template]', 'html');
+    addInput('project[files][index.html]', generatedCode);
+    
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
+  };
+
+  const performLighthouseAudit = () => {
+    let score = 100;
+    let issues = [];
+    if (!generatedCode.includes('<html lang=')) { score -= 10; issues.push("Missing 'lang' attribute in <html> tag."); }
+    if (!generatedCode.includes('<meta name="viewport"')) { score -= 20; issues.push("Missing responsive viewport <meta> tag."); }
+    if (!generatedCode.includes('<title>')) { score -= 10; issues.push("Missing <title> tag for SEO."); }
+    if (generatedCode.includes('<img') && !generatedCode.includes('alt=')) { score -= 15; issues.push("Images are missing 'alt' attributes (Accessibility)."); }
+    if (!generatedCode.includes('<main>') && !generatedCode.includes('<nav>') && !generatedCode.includes('<header>')) { score -= 5; issues.push("Lacks HTML5 semantic landmarks."); }
+    
+    setAuditResult({ score: Math.max(0, score), issues });
+    setIsAuditOpen(true);
   };
 
   const handleDownloadCode = () => {
@@ -716,6 +775,16 @@ export default function App() {
     return match ? match[1] : text;
   };
 
+  const executeSimulatedAgentStatus = async (initialDelay = 1000) => {
+    if (!isMultiAgent) return;
+    setAgentStatus('architect');
+    await new Promise(r => setTimeout(r, initialDelay + 1500));
+    setAgentStatus('developer');
+    await new Promise(r => setTimeout(r, 2000));
+    setAgentStatus('qa');
+    await new Promise(r => setTimeout(r, 1000));
+  };
+
   const callAIAPI = async (chatHistory, newPrompt, isFix = false, imageObj = null) => {
     // API KEY PARSING & ROTATION PREP
     const getGeminiKeys = () => (userApiKey || apiKey).split(',').map(k => k.trim()).filter(Boolean);
@@ -741,6 +810,10 @@ export default function App() {
     }
     
     const initialRetries = retries;
+    const finalSystemPrompt = isMultiAgent ? MULTI_AGENT_PROMPT : customSystemPrompt;
+
+    // Simulate Agentic UI if Multi-Agent mode is on
+    executeSimulatedAgentStatus();
 
     while (retries > 0) {
       try {
@@ -777,7 +850,7 @@ export default function App() {
             contents.push({ role: 'user', parts });
           }
 
-          const payload = { contents, systemInstruction: { parts: [{ text: customSystemPrompt }] } };
+          const payload = { contents, systemInstruction: { parts: [{ text: finalSystemPrompt }] } };
           
           let response;
           try {
@@ -827,7 +900,7 @@ export default function App() {
           const formattedMessages = [];
           const isOmni = activeModelName.toLowerCase().includes('omni') || activeModelName.toLowerCase().includes('vision');
           
-          let sysPrompt = customSystemPrompt?.trim() || "";
+          let sysPrompt = finalSystemPrompt?.trim() || "";
           
           if (sysPrompt && !isOmni) {
             formattedMessages.push({ role: 'system', content: sysPrompt });
@@ -1031,6 +1104,17 @@ export default function App() {
     }
   };
 
+  const getAgentStatusText = () => {
+    switch(agentStatus) {
+      case 'thinking': return 'Writing code...';
+      case 'fixing': return 'Autonomously fixing errors...';
+      case 'architect': return 'Architect planning architecture...';
+      case 'developer': return 'Developer writing code...';
+      case 'qa': return 'QA Tester verifying output...';
+      default: return 'Idle';
+    }
+  };
+
   // API Mocks Save Handler
   const saveMocks = (mocks) => {
     setMockEndpoints(mocks);
@@ -1214,11 +1298,14 @@ export default function App() {
             <div className="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-900/80 backdrop-blur z-10">
               <div>
                 <h2 className="font-semibold text-lg flex items-center gap-2">
-                  Omni Agent {agentStatus === 'thinking' && <span className="flex h-2 w-2 rounded-full bg-indigo-500 animate-pulse" />}{agentStatus === 'fixing' && <span className="flex h-2 w-2 rounded-full bg-amber-500 animate-pulse" />}
+                  {isMultiAgent ? 'Omni Team' : 'Omni Agent'} 
+                  {agentStatus !== 'idle' && <span className={`flex h-2 w-2 rounded-full ${agentStatus === 'fixing' ? 'bg-amber-500' : 'bg-indigo-500'} animate-pulse`} />}
                 </h2>
                 <p className="text-xs text-gray-500">BYOK Unlimited Context Engine</p>
               </div>
               <div className="flex items-center gap-2">
+                <button onClick={() => setIsMultiAgent(!isMultiAgent)} className={`p-1.5 rounded-lg transition-colors border ${isMultiAgent ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30' : 'bg-gray-800 text-gray-400 border-gray-700 hover:bg-gray-700'}`} title="Multi-Agent Mode (Architect -> Dev -> QA)"><Users className="w-4 h-4" /></button>
+                <div className="w-px h-4 bg-gray-800 mx-1"></div>
                 <button onClick={handleNewChat} className="p-1.5 text-gray-500 hover:text-indigo-400 hover:bg-indigo-400/10 rounded-lg transition-colors" title="Start New Chat"><MessageSquarePlus className="w-4 h-4" /></button>
                 <button onClick={handleClearChat} className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors" title="Delete Current Session"><Trash2 className="w-4 h-4" /></button>
                 <button onClick={() => setIsAutoSolveEnabled(!isAutoSolveEnabled)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${isAutoSolveEnabled ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' : 'bg-gray-800 text-gray-400 border-gray-700 hover:bg-gray-700'}`} title="Autonomously fix runtime errors"><Zap className="w-3.5 h-3.5" /> Auto-Solve</button>
@@ -1272,7 +1359,12 @@ export default function App() {
                   </div>
                 ))
               )}
-              {agentStatus !== 'idle' && <div className="flex items-center gap-3 text-sm text-gray-500"><RefreshCw className="w-4 h-4 animate-spin text-indigo-400" /><span>{agentStatus === 'thinking' ? 'Writing code...' : 'Autonomously fixing errors...'}</span></div>}
+              {agentStatus !== 'idle' && (
+                 <div className="flex items-center gap-3 text-sm text-gray-500">
+                    <RefreshCw className="w-4 h-4 animate-spin text-indigo-400" />
+                    <span>{getAgentStatusText()}</span>
+                 </div>
+              )}
               <div ref={chatEndRef} />
             </div>
 
@@ -1348,6 +1440,14 @@ export default function App() {
                 
                 <div className="absolute left-2 top-2 bottom-2 flex items-center gap-0.5">
                    <button type="button" onClick={() => document.getElementById('chat-image-upload').click()} className="p-1.5 text-gray-500 hover:text-indigo-400 transition-colors rounded-lg" title="Upload Image Context"><ImagePlus className="w-4 h-4" /></button>
+                   {apiProvider !== 'ollama' && (
+                      <button type="button" onClick={() => {
+                        const omniModel = apiProvider === 'gemini' ? 'gemini-2.5-flash-preview-09-2025' : 'LongCat-Flash-Omni-2603';
+                        setSelectedModel(omniModel);
+                        setInput("Convert this UI mockup into pixel-perfect Tailwind CSS and HTML. Ensure it is fully responsive and visually identical.");
+                        document.getElementById('chat-image-upload').click();
+                      }} className="p-1.5 text-gray-500 hover:text-indigo-400 transition-colors rounded-lg" title="Mockup-to-Code Fast Lane"><Layers className="w-4 h-4" /></button>
+                   )}
                    <button type="button" onClick={toggleListen} className={`p-1.5 transition-colors rounded-lg ${isListening ? 'text-red-400 bg-red-500/10 animate-pulse' : 'text-gray-500 hover:text-indigo-400'}`} title="Voice Dictation"><Mic className="w-4 h-4" /></button>
                    <input type="file" id="chat-image-upload" accept="image/*" className="hidden" onChange={handleChatImageUpload} />
                 </div>
@@ -1356,7 +1456,7 @@ export default function App() {
                   value={input} onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(e); } }}
                   placeholder="Describe what to build..."
-                  className="w-full bg-gray-950 border border-gray-800 rounded-xl py-3 pl-[4.5rem] pr-12 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 resize-none h-[60px] max-h-[200px]"
+                  className="w-full bg-gray-950 border border-gray-800 rounded-xl py-3 pl-[6.5rem] pr-12 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 resize-none h-[60px] max-h-[200px]"
                   disabled={isLoading}
                 />
                 
@@ -1401,7 +1501,7 @@ export default function App() {
                   <div className="w-px h-4 bg-gray-700 mx-1"></div>
                   <button onClick={handleUndo} disabled={historyIndex === 0} className="p-1.5 hover:text-white hover:bg-gray-800 rounded-md transition-colors disabled:opacity-30" title="Undo"><Undo className="w-4 h-4" /></button>
                   <button onClick={handleRedo} disabled={historyIndex === codeHistory.length - 1} className="p-1.5 hover:text-white hover:bg-gray-800 rounded-md transition-colors disabled:opacity-30 mr-1" title="Redo"><Redo className="w-4 h-4" /></button>
-                  <button onClick={() => setIsHistoryOpen(true)} className="p-1.5 hover:text-white hover:bg-gray-800 rounded-md transition-colors" title="Version History"><History className="w-4 h-4" /></button>
+                  <button onClick={() => setIsHistoryOpen(true)} className="p-1.5 hover:text-white hover:bg-gray-800 rounded-md transition-colors" title="Version History & Branches"><History className="w-4 h-4" /></button>
                   <div className="w-px h-4 bg-gray-700 mx-1"></div>
                   <button onClick={exportToCodePen} className="p-1.5 hover:text-white hover:bg-gray-800 rounded-md transition-colors" title="Export to CodePen"><Share2 className="w-4 h-4" /></button>
                   <button onClick={handleCopyCode} className="p-1.5 hover:text-white hover:bg-gray-800 rounded-md transition-colors" title="Copy"><Copy className="w-4 h-4" /></button>
@@ -1450,7 +1550,10 @@ export default function App() {
                 </div>
 
                 <div className="flex gap-2 items-center">
-                   {/* DOM Inspector Toggle */}
+                   <button onClick={performLighthouseAudit} className="p-1.5 rounded-md transition-colors hover:text-indigo-400 hover:bg-indigo-500/10" title="Run Lighthouse/QA Audit"><Activity className="w-4 h-4" /></button>
+                   <button onClick={deployToStackBlitz} className="p-1.5 rounded-md transition-colors hover:text-yellow-400 hover:bg-yellow-500/10" title="Deploy to WebContainers"><CloudLightning className="w-4 h-4" /></button>
+                   <div className="w-px h-4 bg-gray-700 mx-1"></div>
+                   
                    <button onClick={() => setIsInspectorActive(!isInspectorActive)} className={`p-1.5 rounded-md transition-colors ${isInspectorActive ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/50' : 'hover:text-indigo-400 hover:bg-indigo-500/10'}`} title="Point & Prompt DOM Inspector"><MousePointerClick className="w-4 h-4" /></button>
                    <div className="w-px h-4 bg-gray-700 mx-1"></div>
 
@@ -1478,50 +1581,86 @@ export default function App() {
                 </div>
               </div>
               
-              <div 
-                className={`flex-1 bg-[#090b0f] relative flex justify-center overflow-auto items-start ${viewport !== 'desktop' ? 'pt-2 sm:pt-8' : ''}`}
-                style={{ backgroundImage: 'url("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMiIgY3k9IjIiIHI9IjEiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4wNikiLz48L3N2Zz4=")' }}
-              >
-                <div 
-                  className={`bg-white transition-all duration-300 ease-in-out relative origin-top flex flex-col ${
-                    viewport !== 'desktop' || fluidWidth < 100
-                      ? 'rounded-[2.5rem] border-[14px] border-[#1a1b1e] overflow-hidden shrink-0 shadow-[0_0_0_2px_rgba(255,255,255,0.05)_inset,0_25px_50px_-12px_rgba(0,0,0,0.8)]' 
-                      : 'w-full h-full overflow-hidden border-t border-l border-gray-700/50 rounded-tl-xl shadow-2xl mr-[-1px]'
-                  }`}
-                  style={viewport !== 'desktop' ? { 
-                    width: viewport === 'mobile' ? (isLandscape ? 812 : 375) : (isLandscape ? 1024 : 768), 
-                    height: viewport === 'mobile' ? (isLandscape ? 375 : 812) : (isLandscape ? 768 : 1024),
-                    transform: `scale(${previewZoom / 100})`
-                  } : { 
-                    width: fluidWidth < 100 ? `${fluidWidth}%` : '100%',
-                    height: fluidWidth < 100 ? '90%' : '100%',
-                    marginTop: fluidWidth < 100 ? '2%' : '0',
-                    transform: `scale(${previewZoom / 100})`, 
-                    transformOrigin: 'top center' 
-                  }}
-                >
-                  {(viewport === 'desktop' && fluidWidth === 100) && (
-                    <div className="h-10 bg-gray-50 border-b border-gray-200 flex items-center px-4 gap-4 shrink-0 w-full z-10 select-none">
-                      <div className="flex gap-2"><div className="w-3 h-3 rounded-full bg-[#ff5f56] border border-[#e0443e] shadow-sm"/><div className="w-3 h-3 rounded-full bg-[#ffbd2e] border border-[#dea123] shadow-sm"/><div className="w-3 h-3 rounded-full bg-[#27c93f] border border-[#1aab29] shadow-sm"/></div>
-                      <div className="flex-1 flex justify-center px-4"><div className="bg-white border border-gray-200/60 rounded-md px-3 py-1 text-[11px] text-gray-500 font-mono w-full max-w-md text-center truncate shadow-sm flex items-center justify-center gap-2"><Lock className="w-3 h-3 text-gray-400" /> localhost:3000</div></div>
-                      <div className="w-[52px]"></div>
-                    </div>
-                  )}
-                  {viewport !== 'desktop' && !isLandscape && (
-                    <div className="absolute top-2 inset-x-0 h-7 bg-black rounded-full w-28 mx-auto z-10 pointer-events-none flex items-center justify-end px-3 shadow-md border border-gray-800/80">
-                      <div className="w-2.5 h-2.5 rounded-full bg-[#111] shadow-[inset_0_1px_2px_rgba(255,255,255,0.1)] border border-gray-800/50 relative overflow-hidden"><div className="absolute top-0.5 right-0.5 w-0.5 h-0.5 bg-blue-400/30 rounded-full blur-[1px]"/></div>
-                    </div>
-                  )}
-                  {viewport !== 'desktop' && isLandscape && (
-                    <div className="absolute left-2 inset-y-0 w-7 bg-black rounded-full h-28 my-auto z-10 pointer-events-none flex flex-col items-center justify-end py-3 shadow-md border border-gray-800/80">
-                      <div className="w-2.5 h-2.5 rounded-full bg-[#111] shadow-[inset_0_1px_2px_rgba(255,255,255,0.1)] border border-gray-800/50 relative overflow-hidden"><div className="absolute bottom-0.5 right-0.5 w-0.5 h-0.5 bg-blue-400/30 rounded-full blur-[1px]"/></div>
-                    </div>
-                  )}
-                  
-                  <div className={`flex-1 relative bg-white w-full h-full ${isInspectorActive ? 'pointer-events-auto' : ''}`}>
-                    <iframe key={iframeKey} ref={iframeRef} title="Preview" className="absolute inset-0 w-full h-full border-none bg-transparent z-0" sandbox="allow-scripts allow-forms allow-popups allow-modals allow-same-origin" srcDoc={getSandboxDoc()} />
-                  </div>
-                </div>
+              <div className="flex-1 flex overflow-hidden">
+                 <div 
+                   className={`flex-1 bg-[#090b0f] relative flex justify-center overflow-auto items-start ${viewport !== 'desktop' ? 'pt-2 sm:pt-8' : ''}`}
+                   style={{ backgroundImage: 'url("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMiIgY3k9IjIiIHI9IjEiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4wNikiLz48L3N2Zz4=")' }}
+                 >
+                   <div 
+                     className={`bg-white transition-all duration-300 ease-in-out relative origin-top flex flex-col ${
+                       viewport !== 'desktop' || fluidWidth < 100
+                         ? 'rounded-[2.5rem] border-[14px] border-[#1a1b1e] overflow-hidden shrink-0 shadow-[0_0_0_2px_rgba(255,255,255,0.05)_inset,0_25px_50px_-12px_rgba(0,0,0,0.8)]' 
+                         : 'w-full h-full overflow-hidden border-t border-l border-gray-700/50 rounded-tl-xl shadow-2xl mr-[-1px]'
+                     }`}
+                     style={viewport !== 'desktop' ? { 
+                       width: viewport === 'mobile' ? (isLandscape ? 812 : 375) : (isLandscape ? 1024 : 768), 
+                       height: viewport === 'mobile' ? (isLandscape ? 375 : 812) : (isLandscape ? 768 : 1024),
+                       transform: `scale(${previewZoom / 100})`
+                     } : { 
+                       width: fluidWidth < 100 ? `${fluidWidth}%` : '100%',
+                       height: fluidWidth < 100 ? '90%' : '100%',
+                       marginTop: fluidWidth < 100 ? '2%' : '0',
+                       transform: `scale(${previewZoom / 100})`, 
+                       transformOrigin: 'top center' 
+                     }}
+                   >
+                     {(viewport === 'desktop' && fluidWidth === 100) && (
+                       <div className="h-10 bg-gray-50 border-b border-gray-200 flex items-center px-4 gap-4 shrink-0 w-full z-10 select-none">
+                         <div className="flex gap-2"><div className="w-3 h-3 rounded-full bg-[#ff5f56] border border-[#e0443e] shadow-sm"/><div className="w-3 h-3 rounded-full bg-[#ffbd2e] border border-[#dea123] shadow-sm"/><div className="w-3 h-3 rounded-full bg-[#27c93f] border border-[#1aab29] shadow-sm"/></div>
+                         <div className="flex-1 flex justify-center px-4"><div className="bg-white border border-gray-200/60 rounded-md px-3 py-1 text-[11px] text-gray-500 font-mono w-full max-w-md text-center truncate shadow-sm flex items-center justify-center gap-2"><Lock className="w-3 h-3 text-gray-400" /> localhost:3000</div></div>
+                         <div className="w-[52px]"></div>
+                       </div>
+                     )}
+                     {viewport !== 'desktop' && !isLandscape && (
+                       <div className="absolute top-2 inset-x-0 h-7 bg-black rounded-full w-28 mx-auto z-10 pointer-events-none flex items-center justify-end px-3 shadow-md border border-gray-800/80">
+                         <div className="w-2.5 h-2.5 rounded-full bg-[#111] shadow-[inset_0_1px_2px_rgba(255,255,255,0.1)] border border-gray-800/50 relative overflow-hidden"><div className="absolute top-0.5 right-0.5 w-0.5 h-0.5 bg-blue-400/30 rounded-full blur-[1px]"/></div>
+                       </div>
+                     )}
+                     {viewport !== 'desktop' && isLandscape && (
+                       <div className="absolute left-2 inset-y-0 w-7 bg-black rounded-full h-28 my-auto z-10 pointer-events-none flex flex-col items-center justify-end py-3 shadow-md border border-gray-800/80">
+                         <div className="w-2.5 h-2.5 rounded-full bg-[#111] shadow-[inset_0_1px_2px_rgba(255,255,255,0.1)] border border-gray-800/50 relative overflow-hidden"><div className="absolute bottom-0.5 right-0.5 w-0.5 h-0.5 bg-blue-400/30 rounded-full blur-[1px]"/></div>
+                       </div>
+                     )}
+                     
+                     <div className={`flex-1 relative bg-white w-full h-full ${isInspectorActive ? 'pointer-events-auto' : ''}`}>
+                       <iframe key={iframeKey} ref={iframeRef} title="Preview" className="absolute inset-0 w-full h-full border-none bg-transparent z-0" sandbox="allow-scripts allow-forms allow-popups allow-modals allow-same-origin" srcDoc={getSandboxDoc()} />
+                     </div>
+                   </div>
+                 </div>
+                 
+                 {/* Target Element Sidebar Panel */}
+                 {targetedElement && (
+                   <div className="w-72 bg-gray-900 border-l border-gray-800 flex flex-col shrink-0 overflow-y-auto animate-in slide-in-from-right-2">
+                      <div className="p-3 border-b border-gray-800 flex justify-between items-center bg-gray-950">
+                         <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-400 flex items-center gap-1.5"><Target className="w-3.5 h-3.5"/> DOM Target</h3>
+                         <button onClick={() => setTargetedElement(null)} className="text-gray-500 hover:text-white"><X className="w-4 h-4"/></button>
+                      </div>
+                      <div className="p-4 space-y-4">
+                         <div>
+                            <p className="text-xs text-gray-500 mb-1">Tag</p>
+                            <div className="px-2 py-1 bg-gray-950 rounded text-indigo-300 font-mono text-xs border border-gray-800 inline-block">&lt;{targetedElement.tag.toLowerCase()}&gt;</div>
+                         </div>
+                         <div>
+                            <p className="text-xs text-gray-500 mb-1">Raw Source</p>
+                            <textarea readOnly value={targetedElement.html} className="w-full h-40 bg-[#0d1117] border border-gray-800 rounded p-2 text-gray-300 font-mono text-[10px] resize-none focus:outline-none" />
+                         </div>
+                         <div className="space-y-2 pt-2 border-t border-gray-800">
+                            <button onClick={() => {
+                               setInput("Modify this element: Make it ");
+                               document.querySelector('textarea[placeholder="Describe what to build..."]')?.focus();
+                            }} className="w-full py-2 bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 border border-indigo-500/30 rounded-lg text-xs font-medium transition-colors">
+                               Edit with AI
+                            </button>
+                            <button onClick={() => {
+                               navigator.clipboard.writeText(targetedElement.html);
+                               alert("Component HTML copied to clipboard!");
+                            }} className="w-full py-2 bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs font-medium transition-colors flex justify-center items-center gap-1.5">
+                               <Copy className="w-3 h-3"/> Extract Component
+                            </button>
+                         </div>
+                      </div>
+                   </div>
+                 )}
               </div>
 
               {isConsoleOpen && (
@@ -1660,18 +1799,99 @@ export default function App() {
         </div>
       )}
 
-      {/* Code Version History Modal */}
+      {/* Code Version History & Branches Modal */}
       {isHistoryOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+            <div className="p-4 border-b border-gray-800 flex justify-between items-center shrink-0">
+              <h3 className="text-lg font-semibold flex items-center gap-2"><History className="w-5 h-5 text-indigo-400" /> Version Control</h3>
+              <button onClick={() => setIsHistoryOpen(false)} className="text-gray-500 hover:text-white"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="flex-1 flex overflow-hidden">
+               {/* Branches Section */}
+               <div className="w-1/2 border-r border-gray-800 flex flex-col">
+                  <div className="p-3 bg-gray-950 border-b border-gray-800 text-xs font-bold uppercase tracking-widest text-indigo-400 flex items-center gap-2"><GitBranch className="w-4 h-4"/> Saved Branches</div>
+                  <div className="p-4 space-y-3 overflow-y-auto flex-1">
+                     {branches.length === 0 && <p className="text-xs text-gray-500 text-center py-4">No branches saved. Save a version to pin it here.</p>}
+                     {branches.map(branch => (
+                        <div key={branch.id} className="p-3 rounded-xl bg-gray-950 border border-gray-800 flex justify-between items-center">
+                           <div>
+                              <div className="text-sm font-bold text-indigo-300">{branch.name}</div>
+                              <div className="text-xs text-gray-500 mt-1">{branch.date}</div>
+                           </div>
+                           <div className="flex gap-1">
+                             <button onClick={() => restoreHistory(branch.code)} className="px-3 py-1.5 bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 rounded-lg text-xs font-medium transition-colors">Checkout</button>
+                             <button onClick={() => {
+                               const newB = branches.filter(b => b.id !== branch.id);
+                               setBranches(newB);
+                               localStorage.setItem('omni_branches', JSON.stringify(newB));
+                             }} className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-md transition-colors"><Trash2 className="w-4 h-4"/></button>
+                           </div>
+                        </div>
+                     ))}
+                  </div>
+               </div>
+               {/* Auto-History Section */}
+               <div className="w-1/2 flex flex-col">
+                  <div className="p-3 bg-gray-950 border-b border-gray-800 text-xs font-bold uppercase tracking-widest text-gray-400 flex items-center gap-2"><History className="w-4 h-4"/> Auto-History</div>
+                  <div className="p-4 space-y-3 overflow-y-auto flex-1">
+                    {codeHistory.map((codeStr, i) => (
+                      <div key={i} className={`flex justify-between items-center p-3 rounded-xl border ${historyIndex === i ? 'bg-indigo-500/10 border-indigo-500/50' : 'bg-gray-950 border-gray-800'}`}>
+                        <div>
+                          <h4 className={`font-medium text-sm ${historyIndex === i ? 'text-indigo-300' : 'text-gray-200'}`}>Version {i + 1}</h4>
+                          <p className="text-xs text-gray-500">{historyIndex === i ? 'Currently Active' : 'Auto-Saved State'}</p>
+                        </div>
+                        <div className="flex gap-1 shrink-0 ml-2">
+                           <button onClick={() => {
+                             const bName = prompt("Enter Branch Name:");
+                             if(bName) saveBranch(codeStr, bName);
+                           }} className="p-1.5 text-gray-500 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-md transition-colors" title="Save as Branch"><GitBranch className="w-4 h-4"/></button>
+                           <button onClick={() => restoreHistory(codeStr)} disabled={historyIndex === i} className="px-3 py-1.5 bg-gray-800 text-gray-300 hover:bg-gray-700 disabled:opacity-30 rounded-lg text-xs font-medium transition-colors">Restore</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* NEW: Lighthouse Audit Modal */}
+      {isAuditOpen && auditResult && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
-            <div className="p-4 border-b border-gray-800 flex justify-between items-center"><h3 className="text-lg font-semibold flex items-center gap-2"><History className="w-5 h-5 text-indigo-400" /> Version History</h3><button onClick={() => setIsHistoryOpen(false)} className="text-gray-500 hover:text-white"><X className="w-5 h-5" /></button></div>
-            <div className="p-4 space-y-3 max-h-[60vh] overflow-y-auto">
-              {codeHistory.map((_, i) => (
-                <div key={i} className={`flex justify-between items-center p-3 rounded-xl border ${historyIndex === i ? 'bg-indigo-500/10 border-indigo-500/50' : 'bg-gray-950 border-gray-800'}`}>
-                  <div><h4 className={`font-medium text-sm ${historyIndex === i ? 'text-indigo-300' : 'text-gray-200'}`}>Version {i + 1}</h4><p className="text-xs text-gray-500">{historyIndex === i ? 'Currently Active' : 'Auto-Saved State'}</p></div>
-                  <button onClick={() => restoreHistory(i)} disabled={historyIndex === i} className="px-3 py-1.5 bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 disabled:opacity-30 rounded-lg text-xs font-medium transition-colors shrink-0 ml-2">Restore</button>
-                </div>
-              ))}
+            <div className="p-4 border-b border-gray-800 flex justify-between items-center">
+              <h3 className="text-lg font-semibold flex items-center gap-2"><Activity className="w-5 h-5 text-indigo-400" /> Canvas Audit Report</h3>
+              <button onClick={() => setIsAuditOpen(false)} className="text-gray-500 hover:text-white"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-6 flex flex-col items-center">
+               <div className={`w-24 h-24 rounded-full border-4 flex items-center justify-center text-3xl font-bold mb-4 ${auditResult.score >= 90 ? 'border-green-500 text-green-400' : auditResult.score >= 50 ? 'border-yellow-500 text-yellow-400' : 'border-red-500 text-red-400'}`}>
+                  {auditResult.score}
+               </div>
+               <h4 className="text-gray-200 font-bold mb-4">Performance & Best Practices</h4>
+               
+               <div className="w-full space-y-2">
+                  {auditResult.issues.length === 0 ? (
+                     <div className="p-3 bg-green-500/10 border border-green-500/30 text-green-400 text-sm rounded-xl flex items-center gap-2"><Check className="w-4 h-4"/> Perfect! No major issues found.</div>
+                  ) : (
+                     auditResult.issues.map((issue, i) => (
+                        <div key={i} className="p-3 bg-red-500/10 border border-red-500/30 text-red-400 text-sm rounded-xl flex items-start gap-2">
+                           <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                           <span>{issue}</span>
+                        </div>
+                     ))
+                  )}
+               </div>
+               
+               {auditResult.issues.length > 0 && (
+                  <button onClick={() => {
+                     setIsAuditOpen(false);
+                     handleAutoSolve(`Lighthouse Audit Failed with the following issues:\n${auditResult.issues.join('\n')}\n\nPlease apply fixes for all these issues.`);
+                  }} className="w-full mt-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors flex justify-center items-center gap-2">
+                     <Bot className="w-4 h-4" /> Agent, Fix All Issues
+                  </button>
+               )}
             </div>
           </div>
         </div>
