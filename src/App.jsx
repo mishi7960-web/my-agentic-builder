@@ -10,7 +10,7 @@ import {
   Save, Users, CloudLightning, Activity, GitBranch, Layers, Figma, BookOpen, TestTube, Gauge, 
   HardDriveDownload, HardDriveUpload, ShieldCheck, Workflow, Video, Wand, SplitSquareHorizontal, 
   Accessibility, Split, Music, ServerCrash, Globe, Regex, Box, Component, ArrowUpCircle, GitPullRequest, AppWindow,
-  Ghost, Flame
+  Ghost, Flame, Volume2, VolumeX
 } from 'lucide-react';
 
 // --- Environment API Key Fallback ---
@@ -33,6 +33,13 @@ When responding, structure your thought process internally as:
 2. [DEVELOPER]: Write the flawless, unified HTML/CSS/JS code block. Ensure it is complete with NO placeholders.
 3. [QA TESTER]: Mentally verify responsive design, error handling, and aesthetics. Check that NO existing features were broken.
 Return EXACTLY ONE ${T_BACKTICKS}html code block containing the final, verified application.`;
+
+const VOICE_PERSONA = `You are Omni, an advanced, conversational AI voice assistant (powered by Google Gemini). 
+YOUR DIRECTIVE: 
+1. Be friendly, helpful, and concise. You are speaking out loud to the user.
+2. If the user asks you to build or modify code, briefly acknowledge the request in 1-2 sentences, and then output EXACTLY ONE ${T_BACKTICKS}html code block containing the complete HTML file.
+3. NEVER truncate the code. Preserve existing logic.
+4. Keep the conversational part of your response short so the text-to-speech doesn't talk forever.`;
 
 const DEFAULT_CODE = `<!-- Your generated code will appear here -->\n<div class="p-8 text-center font-sans">\n  <h1 class="text-3xl font-bold text-gray-800">Hello, App Canvas!</h1>\n  <p class="text-gray-500 mt-2">Describe what you want to build in the chat.</p>\n</div>`;
 
@@ -63,11 +70,40 @@ const AGENT_ACTIONS = [
 const sanitizeUrl = (urlStr) => {
   if (!urlStr) return '';
   const markdownRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
-  if (markdownRegex.test(urlStr)) {
-    return urlStr.replace(markdownRegex, '$2').trim();
-  }
+  if (markdownRegex.test(urlStr)) return urlStr.replace(markdownRegex, '$2').trim();
   return urlStr.trim();
 };
+
+const popularPackages = [
+  { name: 'Tailwind CSS', desc: 'Utility-first CSS framework', tag: '<script src="https://cdn.tailwindcss.com"></script>' },
+  { name: 'React + ReactDOM', desc: 'UI Library (UMD Build)', tag: '<script src="https://unpkg.com/react@18/umd/react.development.js"></script>\n<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>' },
+  { name: 'Three.js', desc: '3D Javascript Library', tag: '<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>' },
+  { name: 'GSAP', desc: 'Professional Animation Library', tag: '<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>' },
+  { name: 'FontAwesome', desc: 'Icon set', tag: '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">' },
+  { name: 'Firebase SDK', desc: 'Google BaaS', tag: '<script type="module">import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";</script>' },
+  { name: 'Supabase SDK', desc: 'Open Source BaaS', tag: '<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>' },
+  { name: 'Pyodide (Python)', desc: 'Python in Browser', tag: '<script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>' },
+  { name: 'sql.js (SQLite)', desc: 'Browser DB', tag: '<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>' }
+];
+
+const tailwindComponents = [
+  { name: 'Hero Section', code: `<section class="bg-white dark:bg-gray-900">\n  <div class="py-8 px-4 mx-auto max-w-screen-xl text-center lg:py-16">\n    <h1 class="mb-4 text-4xl font-extrabold tracking-tight leading-none text-gray-900 md:text-5xl lg:text-6xl dark:text-white">We invest in the world’s potential</h1>\n    <p class="mb-8 text-lg font-normal text-gray-500 lg:text-xl sm:px-16 lg:px-48 dark:text-gray-400">Here at Flowbite we focus on markets where technology, innovation, and capital can unlock long-term value and drive economic growth.</p>\n  </div>\n</section>` },
+  { name: 'Simple Navbar', code: `<nav class="bg-white border-gray-200 dark:bg-gray-900 shadow-sm">\n  <div class="max-w-screen-xl flex flex-wrap items-center justify-between mx-auto p-4">\n    <a href="#" class="flex items-center space-x-3 rtl:space-x-reverse">\n      <span class="self-center text-2xl font-semibold whitespace-nowrap dark:text-white">AppCanvas</span>\n    </a>\n    <div class="hidden w-full md:block md:w-auto" id="navbar-default">\n      <ul class="font-medium flex flex-col p-4 md:p-0 mt-4 border border-gray-100 rounded-lg bg-gray-50 md:flex-row md:space-x-8 rtl:space-x-reverse md:mt-0 md:border-0 md:bg-white dark:bg-gray-800 md:dark:bg-gray-900 dark:border-gray-700">\n        <li><a href="#" class="block py-2 px-3 text-white bg-blue-700 rounded md:bg-transparent md:text-blue-700 md:p-0 dark:text-white md:dark:text-blue-500" aria-current="page">Home</a></li>\n        <li><a href="#" class="block py-2 px-3 text-gray-900 rounded hover:bg-gray-100 md:hover:bg-transparent md:border-0 md:hover:text-blue-700 md:p-0 dark:text-white md:dark:hover:text-blue-500 dark:hover:bg-gray-700 dark:hover:text-white md:dark:hover:bg-transparent">About</a></li>\n      </ul>\n    </div>\n  </div>\n</nav>` },
+  { name: 'Action Button', code: `<button type="button" class="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 me-2 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 focus:outline-none dark:focus:ring-blue-800">Primary Button</button>` }
+];
+
+const quickSnippets = [
+  "Build a classic Pong game using HTML Canvas.",
+  "Set up a Three.js scene with a rotating 3D cube.",
+  "Design a modern, glassmorphism login form using Tailwind."
+];
+
+const templates = [
+  { icon: '🌦️', label: 'Weather Dashboard', prompt: 'Build a beautiful glassmorphism Weather Dashboard. Add a pulsing loading state.' },
+  { icon: '🐍', label: 'Neon Snake Game', prompt: 'Create a retro Snake Game using HTML Canvas. Add neon glow effects to the snake.' },
+  { icon: '📋', label: 'Kanban Board', prompt: 'Build a responsive Kanban board UI (like Trello) with draggable columns.' },
+  { icon: '📊', label: 'Financial Dashboard', prompt: 'Design an analytical Financial Dashboard with mock charts using Chart.js' }
+];
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('chat');
@@ -93,6 +129,10 @@ export default function App() {
   const [is3DMode, setIs3DMode] = useState(false);
   const [isGhostMode, setIsGhostMode] = useState(false);
   
+  // Voice Assistant States
+  const [isVoiceAssistantMode, setIsVoiceAssistantMode] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+
   const [isConsoleOpen, setIsConsoleOpen] = useState(false);
   const [consoleFilter, setConsoleFilter] = useState('all'); 
   const [consoleInput, setConsoleInput] = useState(''); 
@@ -177,6 +217,13 @@ export default function App() {
   const highlightRef = useRef(null);
 
   const estimateTokens = () => Math.floor(messages.map(m => m.text).join(' ').length / 4);
+
+  // Initialize Speech Synthesis Voices
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      window.speechSynthesis.getVoices();
+    }
+  }, []);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && window.location.hash.startsWith('#code=')) {
@@ -552,16 +599,53 @@ export default function App() {
     } catch(err) { alert("NPM Search Failed: " + err.message); } finally { setIsSearchingNpm(false); }
   };
 
+  // --- Voice Assistant Feature (TTS & STT) ---
+  const speakText = (text) => {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    setIsSpeaking(true);
+    
+    let cleanText = text.replace(/```[\s\S]*?```/g, ' I have generated the code. ');
+    cleanText = cleanText.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+    cleanText = cleanText.replace(/[*_#`]/g, '');
+    
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    const voices = window.speechSynthesis.getVoices();
+    const preferredVoice = voices.find(v => v.name.includes('Google UK English Female') || v.name.includes('Google US English') || v.name.includes('Female'));
+    if (preferredVoice) utterance.voice = preferredVoice;
+    
+    utterance.onend = () => setIsSpeaking(false);
+    utterance.onerror = () => setIsSpeaking(false);
+    
+    window.speechSynthesis.speak(utterance);
+  };
+
   const toggleListen = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) return alert("Speech recognition is not supported in your browser.");
-    if (isListening) { setIsListening(false); } 
-    else {
-      const recognition = new SpeechRecognition(); recognition.continuous = false; recognition.interimResults = true;
+    
+    if (isListening) { 
+      setIsListening(false); 
+    } else {
+      const recognition = new SpeechRecognition(); 
+      recognition.continuous = false; 
+      recognition.interimResults = true;
       let finalTranscript = '';
-      recognition.onresult = (event) => { finalTranscript = Array.from(event.results).map(res => res[0].transcript).join(''); setInput(prev => prev.trim() + ' ' + finalTranscript); };
-      recognition.onend = () => { setIsListening(false); if (isVoiceAutoSubmit && finalTranscript.trim() !== '') { submitPrompt(finalTranscript); } };
-      recognition.start(); setIsListening(true);
+      
+      recognition.onresult = (event) => { 
+        finalTranscript = Array.from(event.results).map(res => res[0].transcript).join(''); 
+        setInput(prev => prev.trim() + ' ' + finalTranscript); 
+      };
+      
+      recognition.onend = () => { 
+        setIsListening(false); 
+        if ((isVoiceAutoSubmit || isVoiceAssistantMode) && finalTranscript.trim() !== '') { 
+          submitPrompt(finalTranscript, null, isVoiceAssistantMode); 
+        } 
+      };
+      
+      recognition.start(); 
+      setIsListening(true);
     }
   };
 
@@ -603,13 +687,16 @@ export default function App() {
     setAgentStatus('qa'); await new Promise(r => setTimeout(r, 1000));
   };
 
-  const callAIAPI = async (chatHistory, newPrompt, isFix = false, imageObj = null, currentCodeContext = null) => {
+  const callAIAPI = async (chatHistory, newPrompt, isFix = false, imageObj = null, currentCodeContext = null, forceGemini = false) => {
     const getGeminiKeys = () => (userApiKey || apiKey).split(',').map(k => k.trim()).filter(Boolean);
     const getLongcatKeys = () => longcatApiKey.split(',').map(k => k.trim()).filter(Boolean);
     
+    const activeProvider = forceGemini ? 'gemini' : apiProvider;
+    const activeModelName = forceGemini ? 'gemini-2.5-flash-preview-09-2025' : (selectedModel === 'custom' ? customModelInput : selectedModel);
+    
     let maxKeys = 1;
-    if (apiProvider === 'gemini') maxKeys = getGeminiKeys().length || 1;
-    if (apiProvider === 'longcat') maxKeys = getLongcatKeys().length || 1;
+    if (activeProvider === 'gemini') maxKeys = getGeminiKeys().length || 1;
+    if (activeProvider === 'longcat') maxKeys = getLongcatKeys().length || 1;
     
     let retries = Math.max(maxKeys, 1); 
     let delay = 1000;
@@ -625,19 +712,19 @@ export default function App() {
     if (selectedCodeContext) augmentedPrompt += `\n\n[SYSTEM CONTEXT - The user has highlighted this specific block of code in the editor. Focus your changes here]:\n${T_BACKTICKS}\n${selectedCodeContext}\n${T_BACKTICKS}`;
     
     const initialRetries = retries;
-    const finalSystemPrompt = isMultiAgent ? MULTI_AGENT_PROMPT : customSystemPrompt;
+    let finalSystemPrompt = isMultiAgent ? MULTI_AGENT_PROMPT : customSystemPrompt;
+    if (forceGemini) finalSystemPrompt = VOICE_PERSONA;
 
     executeSimulatedAgentStatus();
 
     while (retries > 0) {
       try {
-        const activeModelName = selectedModel === 'custom' ? customModelInput : selectedModel;
         if (!activeModelName) throw new Error("Please select or specify a model.");
         const keyIndex = initialRetries - retries;
 
-        if (apiProvider === 'gemini') {
+        if (activeProvider === 'gemini') {
           const geminiKeys = getGeminiKeys();
-          if (geminiKeys.length === 0) throw new Error("No API Key found in Settings.");
+          if (geminiKeys.length === 0) throw new Error("No Gemini API Key found. A Gemini key is required to use the Voice Assistant.");
           const currentKey = geminiKeys[keyIndex % geminiKeys.length];
           const baseUrl = sanitizeUrl(geminiBaseUrl) || 'https://generativelanguage.googleapis.com';
           const url = `${baseUrl.replace(/\/$/, '')}/v1beta/models/${activeModelName}:generateContent?key=${currentKey}`;
@@ -673,7 +760,7 @@ export default function App() {
           
         } else {
           // LONGCAT/OLLAMA
-          const isOllama = apiProvider === 'ollama';
+          const isOllama = activeProvider === 'ollama';
           let primaryUrl = isOllama ? (ollamaUrl || 'http://localhost:11434/api/chat') : (longcatBaseUrl || 'https://api.longcat.chat/openai/v1/chat/completions');
           
           primaryUrl = sanitizeUrl(primaryUrl);
@@ -749,17 +836,20 @@ export default function App() {
     }
   };
 
-  const submitPrompt = async (text, activeImage = null) => {
+  const submitPrompt = async (text, activeImage = null, isVoice = false) => {
     if (!text.trim() || isLoading) return;
     setInput(''); setShowSnippets(false); setChatImage(null); setTargetedElement(null); setSelectedCodeContext(''); 
     setMessages(prev => [...prev, { role: 'user', text: text, image: activeImage, timestamp: new Date().toISOString() }]);
     setIsLoading(true); setAgentStatus('thinking');
 
     try {
-      const responseText = await callAIAPI(messages, text, false, activeImage, generatedCode);
+      const responseText = await callAIAPI(messages, text, false, activeImage, generatedCode, isVoice);
       const code = extractCode(responseText);
       setMessages(prev => [...prev, { role: 'model', text: responseText, timestamp: new Date().toISOString() }]);
       if (code && (code.includes('<html') || code.includes('<div') || code.includes('<body'))) updateCode(code);
+      
+      if (isVoice) speakText(responseText);
+      
     } catch (error) {
       setMessages(prev => [...prev, { role: 'model', text: `❌ **Error:** ${error.message}` }]);
     } finally {
@@ -767,7 +857,7 @@ export default function App() {
     }
   };
 
-  const handleSendMessage = (e) => { e?.preventDefault(); submitPrompt(input.trim(), chatImage); };
+  const handleSendMessage = (e) => { e?.preventDefault(); submitPrompt(input.trim(), chatImage, isVoiceAssistantMode); };
 
   const handleAutoSolve = async (errorMessage) => {
     setAgentStatus('fixing'); setIsLoading(true);
@@ -892,45 +982,6 @@ export default function App() {
     return doc;
   };
 
-  const injectComponent = (htmlSnippet) => {
-    let newCode = generatedCode;
-    if (newCode.includes('</body>')) newCode = newCode.replace('</body>', `\n${htmlSnippet}\n</body>`);
-    else newCode += `\n${htmlSnippet}`;
-    updateCode(newCode); setIsComponentsOpen(false);
-  };
-
-  const injectPackage = (tag) => {
-    let newCode = generatedCode;
-    if (newCode.includes('</head>')) newCode = newCode.replace('</head>', `  ${tag}\n</head>`);
-    else newCode = `${tag}\n${newCode}`;
-    updateCode(newCode); setIsPackagesOpen(false);
-  };
-
-  const popularPackages = [
-    { name: 'Tailwind CSS', desc: 'Utility-first CSS framework', tag: '<script src="https://cdn.tailwindcss.com"></script>' },
-    { name: 'React + ReactDOM', desc: 'UI Library (UMD Build)', tag: '<script src="https://unpkg.com/react@18/umd/react.development.js"></script>\n<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>' },
-    { name: 'Three.js', desc: '3D Javascript Library', tag: '<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>' },
-    { name: 'GSAP', desc: 'Professional Animation Library', tag: '<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>' },
-    { name: 'FontAwesome', desc: 'Icon set', tag: '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">' },
-    { name: 'Firebase SDK', desc: 'Google BaaS', tag: '<script type="module">import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";</script>' },
-    { name: 'Supabase SDK', desc: 'Open Source BaaS', tag: '<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>' },
-    { name: 'Pyodide (Python)', desc: 'Python in Browser', tag: '<script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>' },
-    { name: 'sql.js (SQLite)', desc: 'Browser DB', tag: '<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>' }
-  ];
-
-  const tailwindComponents = [
-    { name: 'Hero Section', code: `<section class="bg-white dark:bg-gray-900">\n  <div class="py-8 px-4 mx-auto max-w-screen-xl text-center lg:py-16">\n    <h1 class="mb-4 text-4xl font-extrabold tracking-tight leading-none text-gray-900 md:text-5xl lg:text-6xl dark:text-white">We invest in the world’s potential</h1>\n    <p class="mb-8 text-lg font-normal text-gray-500 lg:text-xl sm:px-16 lg:px-48 dark:text-gray-400">Here at Flowbite we focus on markets where technology, innovation, and capital can unlock long-term value and drive economic growth.</p>\n  </div>\n</section>` },
-    { name: 'Simple Navbar', code: `<nav class="bg-white border-gray-200 dark:bg-gray-900 shadow-sm">\n  <div class="max-w-screen-xl flex flex-wrap items-center justify-between mx-auto p-4">\n    <a href="#" class="flex items-center space-x-3 rtl:space-x-reverse">\n      <span class="self-center text-2xl font-semibold whitespace-nowrap dark:text-white">AppCanvas</span>\n    </a>\n    <div class="hidden w-full md:block md:w-auto" id="navbar-default">\n      <ul class="font-medium flex flex-col p-4 md:p-0 mt-4 border border-gray-100 rounded-lg bg-gray-50 md:flex-row md:space-x-8 rtl:space-x-reverse md:mt-0 md:border-0 md:bg-white dark:bg-gray-800 md:dark:bg-gray-900 dark:border-gray-700">\n        <li><a href="#" class="block py-2 px-3 text-white bg-blue-700 rounded md:bg-transparent md:text-blue-700 md:p-0 dark:text-white md:dark:text-blue-500" aria-current="page">Home</a></li>\n        <li><a href="#" class="block py-2 px-3 text-gray-900 rounded hover:bg-gray-100 md:hover:bg-transparent md:border-0 md:hover:text-blue-700 md:p-0 dark:text-white md:dark:hover:text-blue-500 dark:hover:bg-gray-700 dark:hover:text-white md:dark:hover:bg-transparent">About</a></li>\n      </ul>\n    </div>\n  </div>\n</nav>` },
-    { name: 'Action Button', code: `<button type="button" class="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 me-2 mb-2 dark:bg-blue-600 dark:hover:bg-blue-700 focus:outline-none dark:focus:ring-blue-800">Primary Button</button>` }
-  ];
-
-  const templates = [
-    { icon: '🌦️', label: 'Weather Dashboard', prompt: 'Build a beautiful glassmorphism Weather Dashboard. Add a pulsing loading state.' },
-    { icon: '🐍', label: 'Neon Snake Game', prompt: 'Create a retro Snake Game using HTML Canvas. Add neon glow effects to the snake.' },
-    { icon: '📋', label: 'Kanban Board', prompt: 'Build a responsive Kanban board UI (like Trello) with draggable columns.' },
-    { icon: '📊', label: 'Financial Dashboard', prompt: 'Design an analytical Financial Dashboard with mock charts using Chart.js' }
-  ];
-
   return (
     <div className="flex h-screen bg-gray-950 text-gray-100 font-sans overflow-hidden">
       
@@ -963,9 +1014,9 @@ export default function App() {
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col lg:flex-row h-full overflow-hidden relative">
         
-        {/* Chat Panel (Now Collapsible) */}
+        {/* Chat Panel */}
         {isChatVisible && (
-          <div style={{ width: (!isZenMode && typeof window !== 'undefined' && window.innerWidth >= 1024) ? chatWidth : '100%' }} className={`flex-col bg-gray-900/50 border-r border-gray-800 h-full shrink-0 transition-all duration-300 ${activeTab === 'chat' && !isZenMode ? 'flex' : 'hidden lg:flex'} ${isZenMode ? '!hidden' : ''}`}>
+          <div style={{ width: (!isZenMode && typeof window !== 'undefined' && window.innerWidth >= 1024) ? chatWidth : '100%' }} className={`flex-col bg-gray-900/50 border-r border-gray-800 h-full shrink-0 transition-all duration-300 ${activeTab === 'chat' && !isZenMode ? 'flex' : 'hidden lg:flex'} ${isZenMode ? '!hidden' : ''} relative`}>
             <div className="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-900/80 backdrop-blur z-10">
               <div>
                 <h2 className="font-semibold text-lg flex items-center gap-2">
@@ -983,6 +1034,15 @@ export default function App() {
               </div>
             </div>
 
+            {/* Speaking Stop Overlay */}
+            {isSpeaking && (
+              <div className="absolute top-20 right-4 z-50">
+                <button onClick={() => { window.speechSynthesis.cancel(); setIsSpeaking(false); }} className="bg-red-500/20 border border-red-500/50 text-red-400 px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2 shadow-lg animate-in fade-in slide-in-from-top-4">
+                   <VolumeX className="w-4 h-4" /> Stop Speaking
+                </button>
+              </div>
+            )}
+
             <div className="flex-1 overflow-y-auto p-4 space-y-6 scroll-smooth">
               {messages.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-center space-y-6 animate-in fade-in">
@@ -990,7 +1050,7 @@ export default function App() {
                   <div><h3 className="text-xl font-semibold text-gray-200">Welcome to Omni-Sandbox</h3><p className="text-sm text-gray-500 mt-2 max-w-xs mx-auto">What would you like to build today?</p></div>
                   <div className="grid grid-cols-2 gap-3 w-full max-w-sm mt-4">
                     {templates.map((t, i) => (
-                      <button key={i} onClick={() => submitPrompt(t.prompt)} className="p-3 text-left rounded-xl border border-gray-800 bg-gray-900/50 hover:bg-gray-800 hover:border-indigo-500/50 transition-all flex flex-col gap-2 group">
+                      <button key={i} onClick={() => submitPrompt(t.prompt, null, isVoiceAssistantMode)} className="p-3 text-left rounded-xl border border-gray-800 bg-gray-900/50 hover:bg-gray-800 hover:border-indigo-500/50 transition-all flex flex-col gap-2 group">
                         <span className="text-2xl group-hover:scale-110 transition-transform origin-bottom-left">{t.icon}</span><span className="text-sm font-medium text-gray-300 group-hover:text-indigo-300">{t.label}</span>
                       </button>
                     ))}
@@ -1108,33 +1168,36 @@ export default function App() {
                   </div>
                 )}
                 
-                <div className="absolute left-2 top-2 bottom-2 flex items-center gap-0.5 z-10">
-                   <button type="button" onClick={() => document.getElementById('chat-image-upload').click()} className="p-1.5 text-gray-500 hover:text-indigo-400 transition-colors rounded-lg" title="Upload Image Context"><ImagePlus className="w-4 h-4" /></button>
+                <div className="absolute left-2 top-2 bottom-2 flex items-center gap-1 z-10">
+                   <button type="button" onClick={() => document.getElementById('chat-image-upload').click()} className="p-1.5 text-gray-500 hover:text-indigo-400 hover:bg-gray-800 transition-colors rounded-lg" title="Upload Image Context"><ImagePlus className="w-4 h-4" /></button>
                    {apiProvider !== 'ollama' && (
                       <button type="button" onClick={() => {
                         const figmaUrl = prompt("Enter Figma Link:");
                         if(figmaUrl) setInput(prev => prev + `\n[Figma Reference: ${figmaUrl}]`);
-                      }} className="p-1.5 text-gray-500 hover:text-indigo-400 transition-colors rounded-lg" title="Import Figma URL"><Figma className="w-4 h-4" /></button>
+                      }} className="p-1.5 text-gray-500 hover:text-indigo-400 hover:bg-gray-800 transition-colors rounded-lg" title="Import Figma URL"><Figma className="w-4 h-4" /></button>
                    )}
-                   <button type="button" onClick={() => {
-                       alert("AI Image Generator Prompt Added! The AI will output an <img> tag with a placeholder URL that you can replace.");
-                       setInput(prev => prev + `\n[Command: Generate a stunning, highly detailed image asset for this project and insert it via an <img> tag.]`);
-                   }} className="p-1.5 text-gray-500 hover:text-indigo-400 transition-colors rounded-lg" title="AI Image Generator"><Wand className="w-4 h-4" /></button>
-                   <button type="button" onClick={toggleListen} className={`p-1.5 transition-colors rounded-lg ${isListening ? 'text-red-400 bg-red-500/10 animate-pulse' : 'text-gray-500 hover:text-indigo-400'}`} title="Voice Dictation"><Mic className="w-4 h-4" /></button>
+                   <div className="w-px h-5 bg-gray-700 mx-0.5"></div>
+                   <button type="button" onClick={() => setIsVoiceAssistantMode(!isVoiceAssistantMode)} className={`p-1.5 transition-colors rounded-lg flex items-center gap-1.5 ${isVoiceAssistantMode ? 'bg-blue-500/20 text-blue-400 border border-blue-500/50 shadow-[0_0_10px_rgba(59,130,246,0.2)]' : 'text-gray-500 hover:text-blue-400 hover:bg-gray-800'}`} title="Toggle Omni Voice Assistant (Uses Gemini API & TTS)">
+                     <Volume2 className="w-4 h-4" />
+                     {isVoiceAssistantMode && <span className="text-[10px] font-bold uppercase tracking-wider pr-1">Voice</span>}
+                   </button>
+                   <button type="button" onClick={toggleListen} className={`p-1.5 transition-colors rounded-lg ${isListening ? 'text-red-400 bg-red-500/10 animate-pulse border border-red-500/30' : 'text-gray-500 hover:text-red-400 hover:bg-gray-800'}`} title="Voice Dictation">
+                     <Mic className="w-4 h-4" />
+                   </button>
                    <input type="file" id="chat-image-upload" accept="image/*" className="hidden" onChange={handleChatImageUpload} />
                 </div>
 
                 <textarea
                   value={input} onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(e); } }}
-                  placeholder="Describe what to build..."
-                  className="w-full bg-gray-950 border border-gray-800 rounded-xl py-3 pl-[8rem] pr-12 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 resize-none h-[60px] max-h-[200px]"
+                  placeholder={isVoiceAssistantMode ? "Voice Assistant Mode is ON (Talk to me!)..." : "Describe what to build..."}
+                  className={`w-full bg-gray-950 border rounded-xl py-3 pl-[11.5rem] pr-12 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:ring-2 resize-none h-[60px] max-h-[200px] ${isVoiceAssistantMode ? 'border-blue-500/50 focus:ring-blue-500/50' : 'border-gray-800 focus:ring-indigo-500/50'}`}
                   disabled={isLoading}
                 />
                 
                 <div className="absolute right-2 top-2 bottom-2 flex items-center gap-1">
                   <button type="button" onClick={() => setShowSnippets(!showSnippets)} className={`p-1.5 transition-colors rounded-lg ${showSnippets ? 'text-indigo-400 bg-indigo-500/10' : 'text-gray-500 hover:text-indigo-400'}`} title="Prompt Snippets"><Bookmark className="w-4 h-4" /></button>
-                  <button type="submit" disabled={!input.trim() || isLoading} className="aspect-square h-full rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-800 disabled:text-gray-600 flex items-center justify-center transition-colors"><ChevronRight className="w-5 h-5" /></button>
+                  <button type="submit" disabled={!input.trim() || isLoading} className={`aspect-square h-full rounded-lg flex items-center justify-center transition-colors disabled:bg-gray-800 disabled:text-gray-600 ${isVoiceAssistantMode ? 'bg-blue-600 hover:bg-blue-500' : 'bg-indigo-600 hover:bg-indigo-500'}`}><ChevronRight className="w-5 h-5" /></button>
                 </div>
               </form>
             </div>
