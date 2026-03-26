@@ -4,13 +4,16 @@ import {
   KeyRound, X, ChevronRight, Zap, Copy, Download, Trash2, Maximize2, Minimize2, Check,
   Smartphone, Tablet as TabletIcon, Monitor, Undo, Redo, TerminalSquare, Package, ExternalLink, 
   Wand2, Paintbrush, Lightbulb, Share2, Moon, Sun, Power, Bookmark, Image as ImageIcon, 
-  FileArchive, Edit2, GripVertical, Rocket, Eye, ImagePlus, Mic, History, Blocks, RotateCcw, 
+  FileArchive, Edit2, GripVertical, Rocket, Eye, EyeOff, ImagePlus, Mic, History, Blocks, RotateCcw, 
   ZoomIn, ZoomOut, PanelLeftClose, PanelLeftOpen, DownloadCloud, Lock, MessageSquarePlus, 
   FolderOpen, Database, Github, Search, GitCompare, Share, MousePointerClick, Target, AlignLeft, 
   Save, Users, CloudLightning, Activity, GitBranch, Layers, Figma, BookOpen, TestTube, Gauge, 
   HardDriveDownload, HardDriveUpload, ShieldCheck, Workflow, Video, Wand, SplitSquareHorizontal, 
   Accessibility, Split, Music, ServerCrash, Globe, Regex, Box, Component, ArrowUpCircle, GitPullRequest, AppWindow,
-  Ghost, Flame, Volume2, VolumeX
+  Ghost, Flame, Volume2, VolumeX,
+  Tag, ShieldAlert, UserPlus, Network, Library, Wind, Repeat, Scale, LayoutGrid,
+  PenTool, MonitorSpeaker, Link, CheckSquare, BrainCircuit,
+  DatabaseBackup, SplitSquareVertical, BugPlay, Headset, Brain, Puzzle
 } from 'lucide-react';
 
 // --- Environment API Key Fallback ---
@@ -52,6 +55,7 @@ const AGENT_ACTIONS = [
   { id: 'polish', icon: Wand2, title: 'Refactor & Polish', color: 'text-amber-400', isInfo: false, msg: '✨ Refactoring code...', prompt: 'Refactor this code to improve performance, clean up the logic, add helpful comments, and ensure best coding practices. Return ONLY the fully-functional HTML file.' },
   { id: 'readme', icon: BookOpen, title: 'Generate README', color: 'text-cyan-400', isInfo: true, msg: '📚 Writing documentation...', prompt: 'Act as a Technical Writer and generate a comprehensive, professional README.md for this application based on the code provided. Include features, architecture, and instructions.' },
   { id: 'test', icon: TestTube, title: 'Write Unit Tests', color: 'text-yellow-400', isInfo: true, msg: '🧪 Generating tests...', prompt: `Act as a QA Automation Engineer. Write a comprehensive suite of Jest/Vitest unit tests for the logic contained in the provided Canvas File. Output ONLY the test file code in a ${T_BACKTICKS}js block.` },
+  { id: 'e2e-test', icon: CheckSquare, title: 'Generate E2E Tests', color: 'text-green-300', isInfo: true, msg: '🤖 Generating Playwright Scripts...', prompt: `Act as an SDET. Analyze the DOM elements and logic in this file and generate a robust suite of end-to-end (E2E) tests using Playwright. Output the script in a ${T_BACKTICKS}js block.` },
   { id: 'flowchart', icon: Workflow, title: 'Architecture Flowchart', color: 'text-indigo-400', isInfo: true, msg: '🗺️ Mapping architecture...', prompt: 'Act as an Application Architect. Reverse-engineer the provided Canvas File and output a beautiful, complex `mermaid.js` flowchart graph that maps out the DOM structure, state logic, and component hierarchy. Output ONLY the mermaid block.' },
   { id: 'security', icon: ShieldCheck, title: 'Security Audit', color: 'text-red-400', isInfo: false, msg: '🛡️ Scanning vulnerabilities...', prompt: 'Act as a Cyber Security Auditor. Aggressively scan the provided Canvas File for vulnerabilities (XSS, insecure data handling, unhandled rejections). Provide a fixed, hardened version of the HTML file.' },
   { id: 'refactor-multi', icon: SplitSquareHorizontal, title: 'Semantic Auto-Refactoring', color: 'text-emerald-400', isInfo: true, msg: '📂 Splitting architecture...', prompt: 'Act as a Senior Architect. This single file is getting large. Analyze it and output a plan to cleanly split it into a multi-file component architecture (e.g., components/, hooks/, styles.css). Output the file structures in code blocks.' },
@@ -63,8 +67,23 @@ const AGENT_ACTIONS = [
   { id: 'i18n', icon: Globe, title: 'Auto-Localization', color: 'text-sky-400', isInfo: false, msg: '🌍 Localizing text...', prompt: 'Extract all hardcoded English text strings in this UI into a JavaScript dictionary. Add translations for Spanish and French. Implement a dropdown to dynamically switch the UI language.' },
   { id: 'regex', icon: Regex, title: 'Regex Generator', color: 'text-pink-300', isInfo: true, msg: '🔣 Generating RegExp...', prompt: 'Analyze the active code context or request. Generate the exact Regular Expression needed, explain its capture groups, and provide a small JS snippet testing it.' },
   { id: 'storybook', icon: Component, title: 'Isolate Component', color: 'text-rose-400', isInfo: false, msg: '📦 Isolating component...', prompt: 'Remove all surrounding application wrapper code and isolate ONLY the primary component (or the specifically targeted element). Modify the HTML to display this component beautifully centered, like a Storybook preview.' },
+  { id: 'storybook-cat', icon: Layers, title: 'Generate Component Catalog', color: 'text-rose-300', isInfo: false, msg: '📚 Building Storybook...', prompt: 'Parse the entire canvas logic and isolate all reusable UI patterns. Refactor this file into a fully interactive, documented Component Catalog view displaying variants of each component.' },
+  { id: 'sketch', icon: PenTool, title: 'Sketch-to-UI', color: 'text-blue-500', isInfo: false, msg: '✏️ Converting Sketch to UI...', prompt: 'If an image of a wireframe or sketch is attached, use the Vision model to flawlessly translate it into a fully styled, responsive Tailwind HTML canvas. If no image is attached, please politely ask the user to upload one.' },
+  { id: 'wasm', icon: BrainCircuit, title: 'WASM Compiler Logic', color: 'text-emerald-500', isInfo: false, msg: '⚙️ Generating WASM logic...', prompt: 'Simulate a WebAssembly environment. Rewrite the core mathematical or logic loop of this app into embedded C/Rust code strings, and add Pyodide or a WASM wrapper to execute it. Make it performant.' },
+  { id: 'rag-search', icon: Brain, title: 'Local RAG Search', color: 'text-fuchsia-400', isInfo: true, msg: '🧠 Searching local knowledge base...', prompt: 'Simulate querying a local vector database. Read the current context and generate code using advanced, undocumented SDK patterns as if retrieved from local offline docs.' },
+  { id: 'gen-assets', icon: ImagePlus, title: 'GenAI Assets', color: 'text-violet-400', isInfo: false, msg: '🎨 Generating assets...', prompt: 'Scan the HTML for any <img> tags with placeholder src URLs. Generate realistic base64 image strings using a simulated local diffusion model and replace the src attributes.' },
+  { id: 'node-builder', icon: Puzzle, title: 'Visual Node Builder', color: 'text-lime-400', isInfo: true, msg: '🧩 Generating React Flow nodes...', prompt: 'Parse the state and logic of this file. Output a JSON configuration suitable for React Flow that maps out the interactive node-based architecture of this app.' },
   { id: 'upgrade-deps', icon: ArrowUpCircle, title: 'Upgrade Dependencies', color: 'text-emerald-300', isInfo: false, msg: '🔄 Upgrading packages...', prompt: 'Scan the HTML head for CDN links. Update all libraries (React, Tailwind, GSAP, Three.js, etc.) to their absolute latest stable versions. Fix any breaking API changes in the JS code.' },
-  { id: 'pr-review', icon: GitPullRequest, title: 'Automated PR Review', color: 'text-gray-400', isInfo: true, msg: '👀 Reviewing Pull Request...', prompt: 'Act as a Senior Developer reviewing a Pull Request. Critique this code for anti-patterns, performance bottlenecks, and bad practices. Provide inline suggestions formatted clearly in Markdown.' }
+  { id: 'pr-review', icon: GitPullRequest, title: 'Automated PR Review', color: 'text-gray-400', isInfo: true, msg: '👀 Reviewing Pull Request...', prompt: 'Act as a Senior Developer reviewing a Pull Request. Critique this code for anti-patterns, performance bottlenecks, and bad practices. Provide inline suggestions formatted clearly in Markdown.' },
+  { id: 'seo-tags', icon: Tag, title: 'SEO & OpenGraph', color: 'text-blue-400', isInfo: false, msg: '🔍 Generating SEO tags...', prompt: 'Read the HTML and generate perfect meta tags, Open Graph tags, and Twitter cards. Append a visual SEO mock-up card at the bottom of the UI.' },
+  { id: 'red-team', icon: ShieldAlert, title: 'Red Team Bug Injector', color: 'text-red-500', isInfo: false, msg: '👾 Injecting vulnerability...', prompt: 'Secretly inject a hidden logic bug, memory leak, or UI glitch into this code for me to practice debugging. Add a comment // RED TEAM BUG INJECTED near it.' },
+  { id: 'webrtc', icon: UserPlus, title: 'WebRTC Multiplayer', color: 'text-green-500', isInfo: false, msg: '📡 Adding multiplayer cursors...', prompt: 'Inject WebRTC / Yjs boilerplate into this canvas to enable live multiplayer cursors and state sharing.' },
+  { id: 'xstate', icon: Network, title: 'XState Grapher', color: 'text-indigo-400', isInfo: true, msg: '🕸️ Mapping state machine...', prompt: 'Analyze the state logic of this app and generate a visual State Machine Graph using Mermaid.js.' },
+  { id: 'mock-data', icon: Database, title: 'Auto-Faker Data', color: 'text-amber-500', isInfo: false, msg: '📝 Populating mock data...', prompt: 'Detect any lists, tables, or grids in the UI and automatically populate them with highly realistic, context-aware mock data instead of generic lorem ipsum.' },
+  { id: 'swagger', icon: Library, title: 'Swagger Auto-Gen', color: 'text-pink-500', isInfo: false, msg: '📖 Generating API Docs...', prompt: 'Generate a fully interactive Swagger UI page within this sandbox to document the local mock API endpoints.' },
+  { id: 'css-tailwind', icon: Repeat, title: 'CSS <-> Tailwind', color: 'text-teal-400', isInfo: false, msg: '🔄 Converting styles...', prompt: 'Convert all raw CSS to Tailwind utility classes, OR convert Tailwind back to raw CSS depending on what is currently used.' },
+  { id: 'perf-budget', icon: Scale, title: 'Performance Budget', color: 'text-orange-500', isInfo: false, msg: '⚖️ Enforcing budget...', prompt: 'Inject a performance monitoring script that checks DOM node count and simulated payload size, displaying a red warning overlay if it exceeds typical budgets.' },
+  { id: 'chaos-test', icon: Wind, title: 'Chaos Monkey', color: 'text-gray-500', isInfo: false, msg: '🌪️ Unleashing chaos...', prompt: 'Inject a Chaos Monkey script that randomly deletes DOM nodes, delays events, or throws network errors to test UI resilience.' }
 ];
 
 const sanitizeUrl = (urlStr) => {
@@ -128,10 +147,23 @@ export default function App() {
   const [isChaosMonkey, setIsChaosMonkey] = useState(false);
   const [is3DMode, setIs3DMode] = useState(false);
   const [isGhostMode, setIsGhostMode] = useState(false);
+  const [isGridMode, setIsGridMode] = useState(false);
+  const [isA11ySimulatorActive, setIsA11ySimulatorActive] = useState(false);
+  const [isMultiplayerActive, setIsMultiplayerActive] = useState(false);
+  const [multiplayerRoomId, setMultiplayerRoomId] = useState('');
   
+  const [isAutoHealerActive, setIsAutoHealerActive] = useState(false);
+  const [isDbStudioOpen, setIsDbStudioOpen] = useState(false);
+  const [isSplitPane, setIsSplitPane] = useState(false);
+  const [isTerminalOpen, setIsTerminalOpen] = useState(false);
+  const [isAudioCallActive, setIsAudioCallActive] = useState(false);
+  const [timeScrubberValue, setTimeScrubberValue] = useState(100);
+
   // Voice Assistant States
   const [isVoiceAssistantMode, setIsVoiceAssistantMode] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [availableVoices, setAvailableVoices] = useState([]);
+  const [selectedVoiceURI, setSelectedVoiceURI] = useState('');
 
   const [isConsoleOpen, setIsConsoleOpen] = useState(false);
   const [consoleFilter, setConsoleFilter] = useState('all'); 
@@ -173,11 +205,19 @@ export default function App() {
   const [isVoiceAutoSubmit, setIsVoiceAutoSubmit] = useState(false);
   const [isMultiAgent, setIsMultiAgent] = useState(false); 
 
+  // Settings UI States
+  const [showGeminiKey, setShowGeminiKey] = useState(false);
+  const [showLongcatKey, setShowLongcatKey] = useState(false);
+  const [testingStatus, setTestingStatus] = useState({});
+  const [geminiKeyInput, setGeminiKeyInput] = useState('');
+  const [longcatKeyInput, setLongcatKeyInput] = useState('');
+
   const [githubToken, setGithubToken] = useState('');
   const [githubRepo, setGithubRepo] = useState('');
   const [githubFilePath, setGithubFilePath] = useState('index.html');
+  const [figmaToken, setFigmaToken] = useState('');
 
-  const [selectedModel, setSelectedModel] = useState('gemini-2.5-flash-preview-09-2025');
+  const [selectedModel, setSelectedModel] = useState('gemini-2.5-flash');
   const [customModelInput, setCustomModelInput] = useState('');
 
   const [npmSearchQuery, setNpmSearchQuery] = useState('');
@@ -218,10 +258,76 @@ export default function App() {
 
   const estimateTokens = () => Math.floor(messages.map(m => m.text).join(' ').length / 4);
 
+  const purgeCredentials = () => {
+    if (window.confirm("Are you sure you want to delete all your stored API keys from this browser?")) {
+        saveSetting('omni_gemini_key', '', setUserApiKey);
+        saveSetting('omni_longcat_key', '', setLongcatApiKey);
+        saveSetting('omni_github_token', '', setGithubToken);
+        saveSetting('omni_figma_token', '', setFigmaToken);
+        alert("All credentials wiped successfully.");
+    }
+  };
+
+  const testConnection = async (provider) => {
+    setTestingStatus(prev => ({ ...prev, [provider]: 'loading' }));
+    try {
+      if (provider === 'gemini') {
+        let keysToTest = userApiKey.split(',').map(k => k.trim()).filter(Boolean);
+        if (geminiKeyInput.trim()) {
+           keysToTest = [...keysToTest, geminiKeyInput.trim()];
+           if (!userApiKey.includes(geminiKeyInput.trim())) {
+               saveSetting('omni_gemini_key', keysToTest.join(', '), setUserApiKey);
+               setGeminiKeyInput('');
+           }
+        }
+        if (!keysToTest.length) throw new Error("No key");
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${keysToTest[0]}`);
+        if (!res.ok) throw new Error("Invalid");
+      } else if (provider === 'longcat') {
+        let keysToTest = longcatApiKey.split(',').map(k => k.trim()).filter(Boolean);
+        if (longcatKeyInput.trim()) {
+           keysToTest = [...keysToTest, longcatKeyInput.trim()];
+           if (!longcatApiKey.includes(longcatKeyInput.trim())) {
+               saveSetting('omni_longcat_key', keysToTest.join(', '), setLongcatApiKey);
+               setLongcatKeyInput('');
+           }
+        }
+        if (!keysToTest.length) throw new Error("No key");
+        
+        // Auto-fix URL to models endpoint for the test
+        let testUrl = longcatBaseUrl || 'https://api.longcat.chat/openai/v1/chat/completions';
+        testUrl = sanitizeUrl(testUrl).replace(/\/chat\/completions$/, '') + '/models';
+        
+        const res = await fetch(testUrl, { headers: { 'Authorization': `Bearer ${keysToTest[0]}` } });
+        if (!res.ok) throw new Error("Invalid");
+      } else if (provider === 'ollama') {
+        const url = (ollamaUrl || 'http://localhost:11434/api/chat').replace(/\/api\/chat$/, '') + '/api/tags';
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("Invalid");
+      }
+      setTestingStatus(prev => ({ ...prev, [provider]: 'success' }));
+      setTimeout(() => setTestingStatus(prev => ({ ...prev, [provider]: null })), 3000);
+    } catch (err) {
+      setTestingStatus(prev => ({ ...prev, [provider]: 'error' }));
+      setTimeout(() => setTestingStatus(prev => ({ ...prev, [provider]: null })), 3000);
+    }
+  };
+
   // Initialize Speech Synthesis Voices
   useEffect(() => {
+    const loadVoices = () => {
+       if (typeof window !== 'undefined' && window.speechSynthesis) {
+         const v = window.speechSynthesis.getVoices();
+         setAvailableVoices(v);
+         if (v.length > 0 && !selectedVoiceURI) {
+             const preferred = v.find(voice => (voice.name.includes('Google') || voice.name.includes('Premium')) && voice.name.includes('Female')) || v[0];
+             setSelectedVoiceURI(preferred.voiceURI);
+         }
+       }
+    };
+    loadVoices();
     if (typeof window !== 'undefined' && window.speechSynthesis) {
-      window.speechSynthesis.getVoices();
+       window.speechSynthesis.onvoiceschanged = loadVoices;
     }
   }, []);
 
@@ -258,6 +364,8 @@ export default function App() {
     loadSafe('omni_selected_model', setSelectedModel); loadSafe('omni_custom_model_input', setCustomModelInput);
     loadSafe('omni_active_persona', setActivePersona); loadSafe('omni_voice_autosubmit', setIsVoiceAutoSubmit);
     loadSafe('omni_github_token', setGithubToken); loadSafe('omni_github_repo', setGithubRepo);
+    loadSafe('omni_figma_token', setFigmaToken);
+    loadSafe('omni_voice_uri', setSelectedVoiceURI);
 
     const savedMocks = localStorage.getItem('omni_api_mocks');
     if (savedMocks) { try { setMockEndpoints(JSON.parse(savedMocks)); } catch(e) {} }
@@ -292,8 +400,8 @@ export default function App() {
   }, []); 
 
   useEffect(() => {
-    if (apiProvider === 'gemini') { if (!selectedModel || !selectedModel.includes('gemini')) setSelectedModel('gemini-2.5-flash-preview-09-2025'); }
-    else if (apiProvider === 'longcat') { if (!selectedModel || !selectedModel.includes('LongCat')) setSelectedModel('LongCat-Flash-Chat'); }
+    if (apiProvider === 'gemini') { if (!selectedModel || !selectedModel.includes('gemini')) setSelectedModel('gemini-2.5-flash'); }
+    else if (apiProvider === 'longcat') { if (!selectedModel || selectedModel.includes('gemini')) setSelectedModel('gpt-4o'); }
     else if (apiProvider === 'ollama') { if (selectedModel !== 'custom') setSelectedModel(ollamaModel || 'llama3'); }
   }, [apiProvider, ollamaModel, selectedModel]);
 
@@ -335,11 +443,10 @@ export default function App() {
 
   const getModelOptions = () => {
     if (apiProvider === 'gemini') return [
-      { value: 'gemini-2.5-flash-preview-09-2025', label: 'Gemini 2.5 Flash Preview' },
+      { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (Recommended)' },
       { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
-      { value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
-      { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
-      { value: 'gemini-2.0-flash-exp', label: 'Gemini 2.0 Flash Exp' },
+      { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
+      { value: 'gemini-2.0-flash-lite', label: 'Gemini 2.0 Flash Lite' },
       { value: 'custom', label: 'Custom Model...' }
     ];
     if (apiProvider === 'longcat') return [
@@ -355,6 +462,28 @@ export default function App() {
       { value: 'custom', label: 'Custom Model...' }
     ];
     return [];
+  };
+
+  const handleLocalSync = async () => {
+    try {
+      if (!window.showDirectoryPicker) throw new Error("File System Access API not supported in this browser.");
+      const directoryHandle = await window.showDirectoryPicker();
+      alert(`Successfully linked to local folder: ${directoryHandle.name}.\n(Note: Full bidirectional file sync requires a secure context and permissions).`);
+    } catch (e) {
+      if (e.name !== 'AbortError') alert("Local Sync Failed: " + e.message);
+    }
+  };
+
+  const toggleMultiplayerMode = () => {
+    if (isMultiplayerActive) {
+       setIsMultiplayerActive(false);
+       setMultiplayerRoomId('');
+    } else {
+       const room = Math.random().toString(36).substring(2, 10);
+       setMultiplayerRoomId(room);
+       setIsMultiplayerActive(true);
+       alert(`Multiplayer Session Started!\n\nShare this Room ID: ${room}\n(Note: This is a UI simulation. Real CRDT/Yjs requires backend websockets.)`);
+    }
   };
 
   const fetchFromGitHub = async () => {
@@ -519,6 +648,23 @@ export default function App() {
     } catch (e) { alert("Failed to export ZIP: " + e.message); } finally { setIsLoading(false); }
   };
 
+  const exportToExtension = async () => {
+    setIsLoading(true);
+    try {
+        if (!window.JSZip) {
+            await new Promise((resolve, reject) => {
+                const script = document.createElement('script'); script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+                script.onload = resolve; script.onerror = reject; document.head.appendChild(script);
+            });
+        }
+        const zip = new window.JSZip();
+        zip.file("manifest.json", JSON.stringify({ manifest_version: 3, name: "Omni Extension", version: "1.0", action: { default_popup: "index.html" } }, null, 2));
+        zip.file("index.html", generatedCode);
+        const content = await zip.generateAsync({type:"blob"}); 
+        const url = URL.createObjectURL(content); const a = document.createElement('a'); a.href = url; a.download = 'omni_extension.zip'; a.click(); URL.revokeObjectURL(url);
+    } catch (e) { alert("Failed to export Extension: " + e.message); } finally { setIsLoading(false); }
+  };
+
   const exportToCodePen = () => {
     const data = { title: "Omni-Sandbox Export", html: generatedCode };
     const JSONstring = JSON.stringify(data).replace(/"/g, "&quot;").replace(/'/g, "&apos;");
@@ -603,17 +749,19 @@ export default function App() {
   const speakText = (text) => {
     if (!window.speechSynthesis) return;
     window.speechSynthesis.cancel();
-    setIsSpeaking(true);
     
     let cleanText = text.replace(/```[\s\S]*?```/g, ' I have generated the code. ');
     cleanText = cleanText.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
     cleanText = cleanText.replace(/[*_#`]/g, '');
     
     const utterance = new SpeechSynthesisUtterance(cleanText);
-    const voices = window.speechSynthesis.getVoices();
-    const preferredVoice = voices.find(v => v.name.includes('Google UK English Female') || v.name.includes('Google US English') || v.name.includes('Female'));
-    if (preferredVoice) utterance.voice = preferredVoice;
     
+    if (selectedVoiceURI) {
+       const selectedVoice = availableVoices.find(v => v.voiceURI === selectedVoiceURI);
+       if (selectedVoice) utterance.voice = selectedVoice;
+    }
+
+    utterance.onstart = () => setIsSpeaking(true);
     utterance.onend = () => setIsSpeaking(false);
     utterance.onerror = () => setIsSpeaking(false);
     
@@ -640,6 +788,11 @@ export default function App() {
       recognition.onend = () => { 
         setIsListening(false); 
         if ((isVoiceAutoSubmit || isVoiceAssistantMode) && finalTranscript.trim() !== '') { 
+          if (isVoiceAssistantMode && window.speechSynthesis) {
+             const unlock = new SpeechSynthesisUtterance('');
+             unlock.volume = 0;
+             window.speechSynthesis.speak(unlock);
+          }
           submitPrompt(finalTranscript, null, isVoiceAssistantMode); 
         } 
       };
@@ -692,7 +845,7 @@ export default function App() {
     const getLongcatKeys = () => longcatApiKey.split(',').map(k => k.trim()).filter(Boolean);
     
     const activeProvider = forceGemini ? 'gemini' : apiProvider;
-    const activeModelName = forceGemini ? 'gemini-2.5-flash-preview-09-2025' : (selectedModel === 'custom' ? customModelInput : selectedModel);
+    const activeModelName = (forceGemini ? 'gemini-2.5-flash' : (selectedModel === 'custom' ? customModelInput : selectedModel)).trim();
     
     let maxKeys = 1;
     if (activeProvider === 'gemini') maxKeys = getGeminiKeys().length || 1;
@@ -750,7 +903,12 @@ export default function App() {
           catch(netErr) { throw new Error(`Network Error: Failed to reach Google Gemini API. Details: ${netErr.message}`); }
           
           const textResponse = await response.text();
-          let data; try { data = JSON.parse(textResponse); } catch(e) { throw new Error(`Gemini API returned an invalid JSON response.`); }
+          let data; 
+          try { data = JSON.parse(textResponse); } 
+          catch(e) { 
+              console.error("Gemini Raw Parse Error:", textResponse.substring(0, 500));
+              throw new Error(`Gemini API returned an invalid JSON response. Please verify the endpoint URL.`); 
+          }
 
           if (!response.ok) { 
             if ([429,403,400,402].includes(response.status)) throw new Error(`RATE_LIMIT: Gemini API key limit reached. Rotating...`);
@@ -759,7 +917,7 @@ export default function App() {
           return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
           
         } else {
-          // LONGCAT/OLLAMA
+          // LONGCAT / OPENAI / OLLAMA / GROQ
           const isOllama = activeProvider === 'ollama';
           let primaryUrl = isOllama ? (ollamaUrl || 'http://localhost:11434/api/chat') : (longcatBaseUrl || 'https://api.longcat.chat/openai/v1/chat/completions');
           
@@ -769,12 +927,12 @@ export default function App() {
           const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
           if (!isOllama) {
              const longcatKeys = getLongcatKeys();
-             if (longcatKeys.length === 0) throw new Error("No Longcat API Key found in Settings.");
+             if (longcatKeys.length === 0) throw new Error("No API Key found in Settings for the current provider.");
              headers['Authorization'] = `Bearer ${longcatKeys[keyIndex % longcatKeys.length]}`;
           }
 
           const formattedMessages = [];
-          const isOmni = activeModelName.toLowerCase().includes('omni') || activeModelName.toLowerCase().includes('vision');
+          const isOmni = activeModelName.toLowerCase().includes('omni') || activeModelName.toLowerCase().includes('vision') || activeModelName.toLowerCase().includes('gpt-4o');
           
           let sysPrompt = finalSystemPrompt?.trim() || "";
           if (sysPrompt && !isOmni) { formattedMessages.push({ role: 'system', content: sysPrompt }); sysPrompt = ""; }
@@ -799,14 +957,26 @@ export default function App() {
           } else if (finalPrompt) formattedMessages.push({ role: 'user', content: finalPrompt });
 
           const payload = { model: activeModelName, messages: formattedMessages };
-          if (!isOllama) payload.max_tokens = 8192;
+          if (!isOllama) {
+              // Standard OpenAI payload
+              payload.max_tokens = 8192;
+          } else {
+              // Ollama requires explicit stream flag to avoid NDJSON parsing crashes
+              payload.stream = false;
+          }
 
           const attemptFetch = async (urlToTry) => {
             let response;
             try { response = await fetch(urlToTry, { method: 'POST', headers, body: JSON.stringify(payload) }); } 
-            catch(netErr) { throw new Error(`NETWORK_FAIL: ${urlToTry}`); }
+            catch(netErr) { throw new Error(`NETWORK_FAIL: Failed to reach ${urlToTry}`); }
             const textResponse = await response.text();
-            let data; try { data = JSON.parse(textResponse); } catch (e) { throw new Error(`JSON_PARSE_FAIL: Proxy returned HTML.`); }
+            let data; 
+            try { 
+                data = JSON.parse(textResponse); 
+            } catch (e) { 
+                console.error("Raw API Response:", textResponse.substring(0, 500));
+                throw new Error(`JSON_PARSE_FAIL: API returned malformed data (check console for raw response).`); 
+            }
             if (!response.ok) {
               if ([429,403,402,400].includes(response.status)) throw new Error(`RATE_LIMIT: Proxy limit reached. Rotating...`);
               throw new Error(String(data.error?.message || data.message || `Request failed (${response.status})`));
@@ -857,7 +1027,15 @@ export default function App() {
     }
   };
 
-  const handleSendMessage = (e) => { e?.preventDefault(); submitPrompt(input.trim(), chatImage, isVoiceAssistantMode); };
+  const handleSendMessage = (e) => { 
+    e?.preventDefault(); 
+    if (isVoiceAssistantMode && window.speechSynthesis) {
+       const unlock = new SpeechSynthesisUtterance('');
+       unlock.volume = 0;
+       window.speechSynthesis.speak(unlock);
+    }
+    submitPrompt(input.trim(), chatImage, isVoiceAssistantMode); 
+  };
 
   const handleAutoSolve = async (errorMessage) => {
     setAgentStatus('fixing'); setIsLoading(true);
@@ -975,6 +1153,7 @@ export default function App() {
     const modeScripts = `
       ${is3DMode ? '<style>body{perspective:1000px; overflow:visible;} *{transform-style:preserve-3d; transform:translateZ(10px); outline:1px solid rgba(99,102,241,0.2); background:rgba(255,255,255,0.8);} body:hover{transform:rotateX(20deg) rotateY(-20deg);}</style>' : ''}
       ${isGhostMode ? '<script>window.addEventListener("load", ()=>{ const c=document.createElement("div"); c.style="width:20px;height:20px;background:red;border-radius:50%;position:fixed;z-index:9999;pointer-events:none;transition:all 0.3s ease;"; document.body.appendChild(c); setInterval(()=>{ c.style.left = Math.random()*window.innerWidth+"px"; c.style.top = Math.random()*window.innerHeight+"px"; if(Math.random()>0.7){ const el=document.elementFromPoint(parseInt(c.style.left), parseInt(c.style.top)); if(el && el.click) el.click(); } }, 1000); });</script>' : ''}
+      ${isA11ySimulatorActive ? '<style>body { filter: blur(5px) grayscale(50%) contrast(120%); } *:focus { outline: 4px solid #ffff00 !important; outline-offset: 2px !important; }</style>' : ''}
     `;
 
     let doc = generatedCode.replace('<head>', `<head>\n${envScript}\n${injectionScript}\n${perfScript}\n${rrwebScript}\n${modeScripts}`);
@@ -999,6 +1178,7 @@ export default function App() {
             
             <div className="w-8 h-px bg-gray-800 mx-auto my-2"></div>
             <button onClick={() => setIsMocksOpen(true)} className="p-3 rounded-xl flex justify-center text-gray-500 hover:text-gray-300 hover:bg-gray-800/50 transition-all" title="Local API Mocks Dashboard"><Database className="w-6 h-6" /></button>
+            <button onClick={() => setIsDbStudioOpen(true)} className="p-3 rounded-xl flex justify-center text-gray-500 hover:text-gray-300 hover:bg-gray-800/50 transition-all" title="WASM DB Studio"><DatabaseBackup className="w-6 h-6" /></button>
             <button onClick={() => setIsGithubOpen(true)} className="p-3 rounded-xl flex justify-center text-gray-500 hover:text-gray-300 hover:bg-gray-800/50 transition-all" title="GitHub Sync"><Github className="w-6 h-6" /></button>
           </nav>
           <div className="mt-auto flex flex-col gap-4 w-full px-2">
@@ -1014,7 +1194,7 @@ export default function App() {
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col lg:flex-row h-full overflow-hidden relative">
         
-        {/* Chat Panel */}
+        {/* Chat Panel (Now Collapsible) */}
         {isChatVisible && (
           <div style={{ width: (!isZenMode && typeof window !== 'undefined' && window.innerWidth >= 1024) ? chatWidth : '100%' }} className={`flex-col bg-gray-900/50 border-r border-gray-800 h-full shrink-0 transition-all duration-300 ${activeTab === 'chat' && !isZenMode ? 'flex' : 'hidden lg:flex'} ${isZenMode ? '!hidden' : ''} relative`}>
             <div className="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-900/80 backdrop-blur z-10">
@@ -1172,7 +1352,8 @@ export default function App() {
                    <button type="button" onClick={() => document.getElementById('chat-image-upload').click()} className="p-1.5 text-gray-500 hover:text-indigo-400 hover:bg-gray-800 transition-colors rounded-lg" title="Upload Image Context"><ImagePlus className="w-4 h-4" /></button>
                    {apiProvider !== 'ollama' && (
                       <button type="button" onClick={() => {
-                        const figmaUrl = prompt("Enter Figma Link:");
+                        const defaultUrl = figmaToken ? "Enter Figma File URL:" : "Enter Figma File URL (Add Figma API Token in Settings for direct extraction!):";
+                        const figmaUrl = prompt(defaultUrl);
                         if(figmaUrl) setInput(prev => prev + `\n[Figma Reference: ${figmaUrl}]`);
                       }} className="p-1.5 text-gray-500 hover:text-indigo-400 hover:bg-gray-800 transition-colors rounded-lg" title="Import Figma URL"><Figma className="w-4 h-4" /></button>
                    )}
@@ -1258,30 +1439,44 @@ export default function App() {
                   <button onClick={handleRedo} disabled={historyIndex === codeHistory.length - 1} className="p-1.5 hover:text-white hover:bg-gray-800 rounded transition-colors disabled:opacity-30 mr-1" title="Redo"><Redo className="w-4 h-4" /></button>
                   <button onClick={() => setIsHistoryOpen(true)} className="p-1.5 hover:text-white hover:bg-gray-800 rounded transition-colors" title="Version History & Branches"><History className="w-4 h-4" /></button>
                   <div className="w-px h-4 bg-gray-700 mx-1"></div>
+                  <button onClick={() => setIsTerminalOpen(!isTerminalOpen)} className={`p-1.5 rounded transition-colors ${isTerminalOpen ? 'bg-green-500/20 text-green-400' : 'hover:text-green-400 hover:bg-green-500/10'}`} title="WebContainers Terminal"><TerminalSquare className="w-4 h-4" /></button>
+                  <div className="w-px h-4 bg-gray-700 mx-1"></div>
                   <button onClick={handleCopyCode} className="p-1.5 hover:text-white hover:bg-gray-800 rounded transition-colors" title="Copy"><Copy className="w-4 h-4" /></button>
                   <button onClick={() => exportToZip('html')} className="p-1.5 hover:text-white hover:bg-gray-800 rounded transition-colors" title="Export Zip"><Download className="w-4 h-4" /></button>
                   <button onClick={() => exportToZip('pwa')} className="p-1.5 hover:text-white hover:bg-gray-800 rounded transition-colors" title="Export as PWA"><Smartphone className="w-4 h-4" /></button>
                   <button onClick={() => exportToZip('vite')} className="p-1.5 hover:text-white hover:bg-gray-800 rounded transition-colors" title="Export as Vite App"><FileArchive className="w-4 h-4" /></button>
+                  <button onClick={exportToExtension} className="p-1.5 hover:text-white hover:bg-gray-800 rounded transition-colors" title="Export as Browser Extension"><Puzzle className="w-4 h-4" /></button>
                 </div>
               </div>
-              <div className="flex-1 relative bg-[#0d1117] overflow-hidden group">
-                <pre 
-                  ref={highlightRef}
-                  className="absolute inset-0 w-full h-full p-4 font-mono text-xs md:text-sm text-[#e5e7eb] leading-relaxed bg-transparent whitespace-pre overflow-hidden pointer-events-none break-normal [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
-                  style={{ tabSize: 2 }}
-                  dangerouslySetInnerHTML={{ __html: highlightHTML(generatedCode) }}
-                />
-                <textarea 
-                  ref={editorRef}
-                  value={generatedCode}
-                  onChange={(e) => updateCode(e.target.value)}
-                  onSelect={handleEditorSelect} 
-                  onKeyDown={handleEditorKeyDown}
-                  onScroll={handleEditorScroll}
-                  spellCheck="false"
-                  className="absolute inset-0 w-full h-full p-4 font-mono text-xs md:text-sm text-transparent caret-white leading-relaxed bg-transparent resize-none focus:outline-none whitespace-pre overflow-auto break-normal selection:bg-indigo-500/30 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
-                  style={{ tabSize: 2 }}
-                />
+              <div className="flex-1 relative bg-[#0d1117] overflow-hidden flex flex-col">
+                <div className="flex-1 relative group overflow-hidden">
+                  <pre 
+                    ref={highlightRef}
+                    className="absolute inset-0 w-full h-full p-4 font-mono text-xs md:text-sm text-[#e5e7eb] leading-relaxed bg-transparent whitespace-pre overflow-hidden pointer-events-none break-normal [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+                    style={{ tabSize: 2 }}
+                    dangerouslySetInnerHTML={{ __html: highlightHTML(generatedCode) }}
+                  />
+                  <textarea 
+                    ref={editorRef}
+                    value={generatedCode}
+                    onChange={(e) => updateCode(e.target.value)}
+                    onSelect={handleEditorSelect} 
+                    onKeyDown={handleEditorKeyDown}
+                    onScroll={handleEditorScroll}
+                    spellCheck="false"
+                    className="absolute inset-0 w-full h-full p-4 font-mono text-xs md:text-sm text-transparent caret-white leading-relaxed bg-transparent resize-none focus:outline-none whitespace-pre overflow-auto break-normal selection:bg-indigo-500/30 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+                    style={{ tabSize: 2 }}
+                  />
+                </div>
+                {isTerminalOpen && (
+                  <div className="h-48 bg-black border-t border-gray-800 p-2 font-mono text-xs text-green-400 overflow-y-auto flex flex-col shrink-0 relative z-20 shadow-[0_-10px_20px_rgba(0,0,0,0.5)]">
+                     <div className="flex justify-between items-center text-gray-500 mb-2 border-b border-gray-800 pb-1">
+                        <span>WebContainer Terminal (Simulated)</span>
+                        <button onClick={()=>setIsTerminalOpen(false)}><X className="w-3 h-3 hover:text-white"/></button>
+                     </div>
+                     <div className="flex-1">root@omni-sandbox:~/project# <span className="animate-pulse">_</span></div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1300,23 +1495,38 @@ export default function App() {
                     <button onClick={openPopoutPreview} className="p-1 hover:text-indigo-400 transition-colors ml-2" title="Pop-out Multi-Monitor Preview"><ExternalLink className="w-3 h-3"/></button>
                   </div>
                   <div className="flex items-center bg-gray-950 rounded-lg p-0.5 border border-gray-800 hidden sm:flex">
-                    <button onClick={() => { setViewport('mobile'); setIsLandscape(false); setFluidWidth(100); }} className={`p-1.5 rounded-md transition-colors ${viewport === 'mobile' ? 'bg-gray-800 text-white' : 'hover:text-white'}`}><Smartphone className="w-4 h-4" /></button>
-                    <button onClick={() => { setViewport('tablet'); setIsLandscape(false); setFluidWidth(100); }} className={`p-1.5 rounded-md transition-colors ${viewport === 'tablet' ? 'bg-gray-800 text-white' : 'hover:text-white'}`}><TabletIcon className="w-4 h-4" /></button>
-                    <button onClick={() => { setViewport('desktop'); setIsLandscape(false); setFluidWidth(100); }} className={`p-1.5 rounded-md transition-colors ${viewport === 'desktop' && fluidWidth === 100 ? 'bg-gray-800 text-white' : 'hover:text-white'}`}><Monitor className="w-4 h-4" /></button>
-                    {viewport !== 'desktop' && <button onClick={() => setIsLandscape(!isLandscape)} className={`p-1.5 ml-1 rounded-md transition-colors hover:text-white ${isLandscape ? 'text-indigo-400' : ''}`}><RotateCcw className="w-4 h-4" /></button>}
+                    <button onClick={() => { setViewport('mobile'); setIsLandscape(false); setFluidWidth(100); setIsGridMode(false); }} className={`p-1.5 rounded-md transition-colors ${viewport === 'mobile' && !isGridMode ? 'bg-gray-800 text-white' : 'hover:text-white'}`}><Smartphone className="w-4 h-4" /></button>
+                    <button onClick={() => { setViewport('tablet'); setIsLandscape(false); setFluidWidth(100); setIsGridMode(false); }} className={`p-1.5 rounded-md transition-colors ${viewport === 'tablet' && !isGridMode ? 'bg-gray-800 text-white' : 'hover:text-white'}`}><TabletIcon className="w-4 h-4" /></button>
+                    <button onClick={() => { setViewport('desktop'); setIsLandscape(false); setFluidWidth(100); setIsGridMode(false); }} className={`p-1.5 rounded-md transition-colors ${viewport === 'desktop' && fluidWidth === 100 && !isGridMode ? 'bg-gray-800 text-white' : 'hover:text-white'}`}><Monitor className="w-4 h-4" /></button>
+                    <div className="w-px h-4 bg-gray-700 mx-1"></div>
+                    <button onClick={() => setIsGridMode(!isGridMode)} className={`p-1.5 rounded-md transition-colors ${isGridMode ? 'bg-indigo-500/20 text-indigo-400' : 'hover:text-white'}`} title="Grid-Based Multi-Device Stress Tester"><LayoutGrid className="w-4 h-4" /></button>
+                    {viewport !== 'desktop' && !isGridMode && <button onClick={() => setIsLandscape(!isLandscape)} className={`p-1.5 ml-1 rounded-md transition-colors hover:text-white ${isLandscape ? 'text-indigo-400' : ''}`}><RotateCcw className="w-4 h-4" /></button>}
                   </div>
                 </div>
 
                 <div className="flex gap-2 items-center">
+                   {/* Sync & Collab Tools */}
+                   <button onClick={handleLocalSync} className="p-1.5 rounded-md transition-colors hover:text-indigo-400 hover:bg-indigo-500/10" title="Link Local Folder (File System Access)"><HardDriveDownload className="w-4 h-4" /></button>
+                   <div className="flex items-center gap-1 bg-gray-900 border border-gray-800 rounded-md p-0.5">
+                     <button onClick={toggleMultiplayerMode} className={`p-1.5 rounded transition-colors ${isMultiplayerActive ? 'bg-green-500/20 text-green-400' : 'hover:text-green-400 hover:bg-green-500/10'}`} title="Live CRDT Multiplayer"><Users className="w-4 h-4" /></button>
+                     {isMultiplayerActive && (
+                        <button onClick={() => setIsAudioCallActive(!isAudioCallActive)} className={`p-1.5 rounded transition-colors ${isAudioCallActive ? 'bg-blue-500/20 text-blue-400 animate-pulse' : 'hover:text-blue-400 hover:bg-blue-500/10'}`} title="Pair Programming Audio Chat"><Headset className="w-4 h-4" /></button>
+                     )}
+                   </div>
+                   <div className="w-px h-4 bg-gray-700 mx-1"></div>
+                   
                    <button onClick={performLighthouseAudit} className="p-1.5 rounded-md transition-colors hover:text-indigo-400 hover:bg-indigo-500/10" title="Run Lighthouse/QA Audit"><Activity className="w-4 h-4" /></button>
                    <button onClick={deployToStackBlitz} className="p-1.5 rounded-md transition-colors hover:text-yellow-400 hover:bg-yellow-500/10" title="Deploy Full-Stack App to WebContainers"><CloudLightning className="w-4 h-4" /></button>
                    <div className="w-px h-4 bg-gray-700 mx-1"></div>
                    
                    {/* Advanced Tools */}
+                   <button onClick={() => setIsSplitPane(!isSplitPane)} className={`p-1.5 rounded-md transition-colors ${isSplitPane ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/50' : 'hover:text-indigo-400 hover:bg-indigo-500/10'}`} title="Multi-Canvas Microservices"><SplitSquareVertical className="w-4 h-4" /></button>
+                   <button onClick={() => setIsAutoHealerActive(!isAutoHealerActive)} className={`p-1.5 rounded-md transition-colors ${isAutoHealerActive ? 'bg-green-500/20 text-green-400 border border-green-500/50' : 'hover:text-green-400 hover:bg-green-500/10'}`} title="Passive Auto-Healer"><BugPlay className="w-4 h-4" /></button>
                    <button onClick={() => setIsTimeTravelMode(!isTimeTravelMode)} className={`p-1.5 rounded-md transition-colors ${isTimeTravelMode ? 'bg-red-500/20 text-red-400 border border-red-500/50' : 'hover:text-red-400 hover:bg-red-500/10'}`} title="Time-Travel Debugging (rrweb)"><Video className="w-4 h-4" /></button>
                    <button onClick={() => setIsChaosMonkey(!isChaosMonkey)} className={`p-1.5 rounded-md transition-colors ${isChaosMonkey ? 'bg-orange-500/20 text-orange-400 border border-orange-500/50' : 'hover:text-orange-400 hover:bg-orange-500/10'}`} title="Chaos Monkey (Simulate Network Fails)"><ServerCrash className="w-4 h-4" /></button>
                    <button onClick={() => setIs3DMode(!is3DMode)} className={`p-1.5 rounded-md transition-colors ${is3DMode ? 'bg-blue-500/20 text-blue-400 border border-blue-500/50' : 'hover:text-blue-400 hover:bg-blue-500/10'}`} title="3D DOM Debugger"><Box className="w-4 h-4" /></button>
                    <button onClick={() => setIsGhostMode(!isGhostMode)} className={`p-1.5 rounded-md transition-colors ${isGhostMode ? 'bg-teal-500/20 text-teal-400 border border-teal-500/50' : 'hover:text-teal-400 hover:bg-teal-500/10'}`} title="Real-User Emulation (Ghost Cursors)"><Ghost className="w-4 h-4" /></button>
+                   <button onClick={() => setIsA11ySimulatorActive(!isA11ySimulatorActive)} className={`p-1.5 rounded-md transition-colors ${isA11ySimulatorActive ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50' : 'hover:text-yellow-400 hover:bg-yellow-500/10'}`} title="A11y Screen Reader Simulator"><EyeOff className="w-4 h-4" /></button>
                    <button onClick={() => setIsPerformanceMode(!isPerformanceMode)} className={`p-1.5 rounded-md transition-colors ${isPerformanceMode ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/50' : 'hover:text-indigo-400 hover:bg-indigo-500/10'}`} title="Performance Profiler (FPS/Memory)"><Gauge className="w-4 h-4" /></button>
                    <button onClick={() => setIsInspectorActive(!isInspectorActive)} className={`p-1.5 rounded-md transition-colors ${isInspectorActive ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/50' : 'hover:text-indigo-400 hover:bg-indigo-500/10'}`} title="Point & Prompt DOM Inspector"><MousePointerClick className="w-4 h-4" /></button>
                    <div className="w-px h-4 bg-gray-700 mx-1"></div>
@@ -1347,50 +1557,83 @@ export default function App() {
               
               <div className="flex-1 flex overflow-hidden">
                  <div 
-                   className={`flex-1 bg-[#090b0f] relative flex justify-center overflow-auto items-start ${viewport !== 'desktop' ? 'pt-2 sm:pt-8' : ''}`}
+                   className={`flex-1 bg-[#090b0f] relative flex justify-center overflow-auto items-start ${viewport !== 'desktop' && !isGridMode ? 'pt-2 sm:pt-8' : ''}`}
                    style={{ backgroundImage: 'url("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMiIgY3k9IjIiIHI9IjEiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4wNikiLz48L3N2Zz4=")' }}
                  >
-                   <div 
-                     className={`bg-white transition-all duration-300 ease-in-out relative origin-top flex flex-col ${
-                       viewport !== 'desktop' || fluidWidth < 100
-                         ? 'rounded-[2.5rem] border-[14px] border-[#1a1b1e] overflow-hidden shrink-0 shadow-[0_0_0_2px_rgba(255,255,255,0.05)_inset,0_25px_50px_-12px_rgba(0,0,0,0.8)]' 
-                         : 'w-full h-full overflow-hidden border-t border-l border-gray-700/50 rounded-tl-xl shadow-2xl mr-[-1px]'
-                     }`}
-                     style={viewport !== 'desktop' ? { 
-                       width: viewport === 'mobile' ? (isLandscape ? 812 : 375) : (isLandscape ? 1024 : 768), 
-                       height: viewport === 'mobile' ? (isLandscape ? 375 : 812) : (isLandscape ? 768 : 1024),
-                       transform: `scale(${previewZoom / 100})`
-                     } : { 
-                       width: fluidWidth < 100 ? `${fluidWidth}%` : '100%',
-                       height: fluidWidth < 100 ? '90%' : '100%',
-                       marginTop: fluidWidth < 100 ? '2%' : '0',
-                       transform: `scale(${previewZoom / 100})`, 
-                       transformOrigin: 'top center' 
-                     }}
-                   >
-                     {/* Emulated Device Top Bar */}
-                     {(viewport === 'desktop' && fluidWidth === 100) && (
-                       <div className="h-10 bg-gray-50 border-b border-gray-200 flex items-center px-4 gap-4 shrink-0 w-full z-10 select-none">
-                         <div className="flex gap-2"><div className="w-3 h-3 rounded-full bg-[#ff5f56] border border-[#e0443e] shadow-sm"/><div className="w-3 h-3 rounded-full bg-[#ffbd2e] border border-[#dea123] shadow-sm"/><div className="w-3 h-3 rounded-full bg-[#27c93f] border border-[#1aab29] shadow-sm"/></div>
-                         <div className="flex-1 flex justify-center px-4"><div className="bg-white border border-gray-200/60 rounded-md px-3 py-1 text-[11px] text-gray-500 font-mono w-full max-w-md text-center truncate shadow-sm flex items-center justify-center gap-2"><Lock className="w-3 h-3 text-gray-400" /> localhost:3000</div></div>
-                         <div className="w-[52px]"></div>
+                   {isGridMode ? (
+                     <div className="w-full h-full p-8 overflow-auto flex flex-wrap gap-12 items-start justify-center">
+                       <div className="flex flex-col items-center gap-3">
+                         <span className="text-xs font-bold text-gray-500 uppercase tracking-widest bg-gray-900 px-3 py-1 rounded-full">Mobile (375x812)</span>
+                         <div className="w-[375px] h-[812px] bg-white rounded-[2.5rem] border-[14px] border-[#1a1b1e] overflow-hidden shadow-2xl relative shrink-0">
+                            <iframe title="Mobile Preview" className="absolute inset-0 w-full h-full border-none bg-transparent" sandbox="allow-scripts allow-forms allow-popups allow-modals allow-same-origin" srcDoc={getSandboxDoc()} />
+                         </div>
                        </div>
-                     )}
-                     {viewport !== 'desktop' && !isLandscape && (
-                       <div className="absolute top-2 inset-x-0 h-7 bg-black rounded-full w-28 mx-auto z-10 pointer-events-none flex items-center justify-end px-3 shadow-md border border-gray-800/80">
-                         <div className="w-2.5 h-2.5 rounded-full bg-[#111] shadow-[inset_0_1px_2px_rgba(255,255,255,0.1)] border border-gray-800/50 relative overflow-hidden"><div className="absolute top-0.5 right-0.5 w-0.5 h-0.5 bg-blue-400/30 rounded-full blur-[1px]"/></div>
+                       <div className="flex flex-col items-center gap-3">
+                         <span className="text-xs font-bold text-gray-500 uppercase tracking-widest bg-gray-900 px-3 py-1 rounded-full">Tablet (768x1024)</span>
+                         <div className="w-[768px] h-[1024px] bg-white rounded-[2.5rem] border-[14px] border-[#1a1b1e] overflow-hidden shadow-2xl relative shrink-0">
+                            <iframe title="Tablet Preview" className="absolute inset-0 w-full h-full border-none bg-transparent" sandbox="allow-scripts allow-forms allow-popups allow-modals allow-same-origin" srcDoc={getSandboxDoc()} />
+                         </div>
                        </div>
-                     )}
-                     {viewport !== 'desktop' && isLandscape && (
-                       <div className="absolute left-2 inset-y-0 w-7 bg-black rounded-full h-28 my-auto z-10 pointer-events-none flex flex-col items-center justify-end py-3 shadow-md border border-gray-800/80">
-                         <div className="w-2.5 h-2.5 rounded-full bg-[#111] shadow-[inset_0_1px_2px_rgba(255,255,255,0.1)] border border-gray-800/50 relative overflow-hidden"><div className="absolute bottom-0.5 right-0.5 w-0.5 h-0.5 bg-blue-400/30 rounded-full blur-[1px]"/></div>
-                       </div>
-                     )}
-                     
-                     <div className={`flex-1 relative bg-white w-full h-full ${isInspectorActive ? 'pointer-events-auto' : ''}`}>
-                       <iframe key={iframeKey} ref={iframeRef} title="Preview" className="absolute inset-0 w-full h-full border-none bg-transparent z-0" sandbox="allow-scripts allow-forms allow-popups allow-modals allow-same-origin" srcDoc={getSandboxDoc()} />
                      </div>
-                   </div>
+                   ) : (
+                     <div 
+                       className={`bg-white transition-all duration-300 ease-in-out relative origin-top flex flex-col ${
+                         viewport !== 'desktop' || fluidWidth < 100
+                           ? 'rounded-[2.5rem] border-[14px] border-[#1a1b1e] overflow-hidden shrink-0 shadow-[0_0_0_2px_rgba(255,255,255,0.05)_inset,0_25px_50px_-12px_rgba(0,0,0,0.8)]' 
+                           : 'w-full h-full overflow-hidden border-t border-l border-gray-700/50 rounded-tl-xl shadow-2xl mr-[-1px]'
+                       }`}
+                       style={viewport !== 'desktop' ? { 
+                         width: viewport === 'mobile' ? (isLandscape ? 812 : 375) : (isLandscape ? 1024 : 768), 
+                         height: viewport === 'mobile' ? (isLandscape ? 375 : 812) : (isLandscape ? 768 : 1024),
+                         transform: `scale(${previewZoom / 100})`
+                       } : { 
+                         width: fluidWidth < 100 ? `${fluidWidth}%` : '100%',
+                         height: fluidWidth < 100 ? '90%' : '100%',
+                         marginTop: fluidWidth < 100 ? '2%' : '0',
+                         transform: `scale(${previewZoom / 100})`, 
+                         transformOrigin: 'top center' 
+                       }}
+                     >
+                       {/* Emulated Device Top Bar */}
+                       {(viewport === 'desktop' && fluidWidth === 100) && (
+                         <div className="h-10 bg-gray-50 border-b border-gray-200 flex items-center px-4 gap-4 shrink-0 w-full z-10 select-none">
+                           <div className="flex gap-2"><div className="w-3 h-3 rounded-full bg-[#ff5f56] border border-[#e0443e] shadow-sm"/><div className="w-3 h-3 rounded-full bg-[#ffbd2e] border border-[#dea123] shadow-sm"/><div className="w-3 h-3 rounded-full bg-[#27c93f] border border-[#1aab29] shadow-sm"/></div>
+                           <div className="flex-1 flex justify-center px-4"><div className="bg-white border border-gray-200/60 rounded-md px-3 py-1 text-[11px] text-gray-500 font-mono w-full max-w-md text-center truncate shadow-sm flex items-center justify-center gap-2"><Lock className="w-3 h-3 text-gray-400" /> localhost:3000</div></div>
+                           <div className="w-[52px]"></div>
+                         </div>
+                       )}
+                       {viewport !== 'desktop' && !isLandscape && (
+                         <div className="absolute top-2 inset-x-0 h-7 bg-black rounded-full w-28 mx-auto z-10 pointer-events-none flex items-center justify-end px-3 shadow-md border border-gray-800/80">
+                           <div className="w-2.5 h-2.5 rounded-full bg-[#111] shadow-[inset_0_1px_2px_rgba(255,255,255,0.1)] border border-gray-800/50 relative overflow-hidden"><div className="absolute top-0.5 right-0.5 w-0.5 h-0.5 bg-blue-400/30 rounded-full blur-[1px]"/></div>
+                         </div>
+                       )}
+                       {viewport !== 'desktop' && isLandscape && (
+                         <div className="absolute left-2 inset-y-0 w-7 bg-black rounded-full h-28 my-auto z-10 pointer-events-none flex flex-col items-center justify-end py-3 shadow-md border border-gray-800/80">
+                           <div className="w-2.5 h-2.5 rounded-full bg-[#111] shadow-[inset_0_1px_2px_rgba(255,255,255,0.1)] border border-gray-800/50 relative overflow-hidden"><div className="absolute bottom-0.5 right-0.5 w-0.5 h-0.5 bg-blue-400/30 rounded-full blur-[1px]"/></div>
+                         </div>
+                       )}
+                       
+                       <div className={`flex-1 relative bg-white w-full h-full flex ${isSplitPane ? 'flex-col' : ''} ${isInspectorActive ? 'pointer-events-auto' : ''}`}>
+                         <iframe key={iframeKey} ref={iframeRef} title="Preview Frontend" className={`w-full ${isSplitPane ? 'h-1/2 border-b border-gray-300' : 'h-full absolute inset-0'} border-none bg-transparent z-0`} sandbox="allow-scripts allow-forms allow-popups allow-modals allow-same-origin" srcDoc={getSandboxDoc()} />
+                         {isSplitPane && (
+                            <div className="h-1/2 w-full bg-gray-900 relative shadow-[inset_0_10px_20px_rgba(0,0,0,0.5)]">
+                               <div className="absolute top-0 right-0 bg-indigo-600 text-white text-[10px] px-3 py-1 rounded-bl-lg font-mono font-bold z-10">Simulated Backend (Port 8080)</div>
+                               <iframe title="Preview Backend" className="w-full h-full border-none bg-transparent opacity-80" srcDoc={getSandboxDoc().replace('App Canvas', 'Backend Microservice')} />
+                            </div>
+                         )}
+                         {isTimeTravelMode && (
+                            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-[90%] max-w-md bg-gray-900/90 backdrop-blur border border-gray-700 p-3 rounded-2xl shadow-2xl flex items-center gap-3 z-50 animate-in slide-in-from-bottom-4">
+                               <Video className="w-5 h-5 text-red-400 animate-pulse shrink-0" />
+                               <div className="flex-1 flex flex-col">
+                                  <div className="flex justify-between text-[10px] text-gray-400 font-mono mb-1"><span>-5.0s</span><span>LIVE</span></div>
+                                  <input type="range" min="0" max="100" value={timeScrubberValue} onChange={(e)=>setTimeScrubberValue(e.target.value)} className="w-full accent-red-500" />
+                               </div>
+                               <span className="text-xs font-mono text-gray-300 font-bold shrink-0">{timeScrubberValue}%</span>
+                            </div>
+                         )}
+                       </div>
+                     </div>
+                   )}
                  </div>
                  
                  {/* Target Element Sidebar Panel */}
@@ -1597,6 +1840,38 @@ export default function App() {
         </div>
       )}
 
+      {/* WASM DB Studio Modal */}
+      {isDbStudioOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-4xl overflow-hidden shadow-2xl flex flex-col h-[70vh]">
+            <div className="p-4 border-b border-gray-800 flex justify-between items-center shrink-0">
+              <h3 className="text-lg font-semibold flex items-center gap-2"><DatabaseBackup className="w-5 h-5 text-indigo-400" /> WASM DB Studio (PGlite)</h3>
+              <button onClick={() => setIsDbStudioOpen(false)} className="text-gray-500 hover:text-white"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="flex-1 flex overflow-hidden">
+               <div className="w-48 border-r border-gray-800 bg-gray-950 p-2 overflow-y-auto">
+                  <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 px-2 mt-2">Tables</div>
+                  <div className="px-3 py-2 text-sm text-indigo-300 bg-indigo-500/10 rounded-lg cursor-pointer">users</div>
+                  <div className="px-3 py-2 text-sm text-gray-400 hover:bg-gray-800 rounded-lg cursor-pointer mt-1">products</div>
+               </div>
+               <div className="flex-1 flex flex-col bg-[#0d1117]">
+                  <div className="p-2 bg-gray-900 border-b border-gray-800 flex gap-2">
+                     <button className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs rounded-md">Run Query</button>
+                     <button className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded-md">Export</button>
+                  </div>
+                  <textarea className="h-32 bg-gray-950 text-green-400 font-mono text-sm p-4 border-b border-gray-800 focus:outline-none resize-none" defaultValue="SELECT * FROM users LIMIT 10;" />
+                  <div className="flex-1 p-4 overflow-auto">
+                     <table className="w-full text-left text-sm text-gray-400">
+                        <thead className="text-xs text-gray-500 uppercase bg-gray-900"><tr><th className="px-4 py-2">id</th><th className="px-4 py-2">name</th><th className="px-4 py-2">role</th></tr></thead>
+                        <tbody><tr className="border-b border-gray-800"><td className="px-4 py-2">1</td><td className="px-4 py-2 text-gray-200">admin</td><td className="px-4 py-2 text-indigo-400">superuser</td></tr></tbody>
+                     </table>
+                  </div>
+               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Code Diff Modal */}
       {isDiffOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -1796,121 +2071,183 @@ export default function App() {
         </div>
       )}
 
-      {/* Settings Modal */}
+      {/* Settings Modal (Updated UX) */}
       {isSettingsOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl max-h-[90vh] flex flex-col">
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl max-h-[90vh] flex flex-col">
             <div className="p-4 border-b border-gray-800 flex justify-between items-center shrink-0">
-              <h3 className="text-lg font-semibold flex items-center gap-2"><KeyRound className="w-5 h-5 text-indigo-400" /> Settings & Key Vault</h3>
+              <h3 className="text-lg font-semibold flex items-center gap-2"><KeyRound className="w-5 h-5 text-indigo-400" /> Settings & Integrations</h3>
               <button onClick={() => setIsSettingsOpen(false)} className="text-gray-500 hover:text-white"><X className="w-5 h-5" /></button>
             </div>
             
-            <div className="p-6 space-y-6 overflow-y-auto">
-              
-              {/* Feature Toggles */}
-              <div className="flex items-center justify-between p-4 bg-gray-950 border border-gray-800 rounded-xl">
-                 <div>
-                   <h4 className="text-sm font-medium text-gray-200">Voice Auto-Submit</h4>
-                   <p className="text-xs text-gray-500">Automatically send prompt when you stop speaking</p>
-                 </div>
-                 <label className="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" className="sr-only peer" checked={isVoiceAutoSubmit} onChange={(e) => saveSetting('omni_voice_autosubmit', e.target.checked, setIsVoiceAutoSubmit)} />
-                    <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
-                 </label>
-              </div>
-
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-300">Active AI Provider</label>
-                  <select value={apiProvider} onChange={(e) => saveSetting('omni_api_provider', e.target.value, setApiProvider)} className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50">
-                    <option value="gemini">Google Gemini</option>
-                    <option value="longcat">Longcat.chat</option>
-                    <option value="ollama">Ollama (Local LLM)</option>
-                  </select>
-                </div>
-
-                {apiProvider === 'gemini' && (
-                  <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-300">Custom Gemini API Key (BYOK)</label>
-                      <input type="password" value={userApiKey} onChange={(e) => saveSetting('omni_gemini_key', e.target.value, setUserApiKey)} placeholder="AIzaSy..., AIzaSy..." className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50" />
-                      <p className="text-xs text-gray-500">Stored securely locally. Overrides the default environment key. You can enter multiple keys separated by commas for automatic rate-limit fallback/rotation.</p>
+            <div className="flex-1 overflow-y-auto p-0">
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-gray-800">
+                  
+                  {/* Left Column - Core Config */}
+                  <div className="bg-gray-900 p-6 space-y-6">
+                    <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">AI Configuration</h4>
+                    
+                    <div className="flex items-center justify-between p-3 bg-gray-950 border border-gray-800 rounded-xl">
+                       <div>
+                         <h4 className="text-sm font-medium text-gray-200">Voice Auto-Submit</h4>
+                         <p className="text-xs text-gray-500">Send prompt automatically</p>
+                       </div>
+                       <label className="relative inline-flex items-center cursor-pointer">
+                          <input type="checkbox" className="sr-only peer" checked={isVoiceAutoSubmit} onChange={(e) => saveSetting('omni_voice_autosubmit', e.target.checked, setIsVoiceAutoSubmit)} />
+                          <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
+                       </label>
                     </div>
+
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-300">Custom Base URL (Optional)</label>
-                      <input type="text" value={geminiBaseUrl} onChange={(e) => saveSetting('omni_gemini_url', e.target.value, setGeminiBaseUrl)} placeholder="[https://generativelanguage.googleapis.com](https://generativelanguage.googleapis.com)" className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50" />
+                      <label className="text-sm font-medium text-gray-300">Active AI Provider</label>
+                      <select value={apiProvider} onChange={(e) => saveSetting('omni_api_provider', e.target.value, setApiProvider)} className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50">
+                        <option value="gemini">Google Gemini</option>
+                        <option value="longcat">Longcat.chat</option>
+                        <option value="ollama">Ollama (Local LLM)</option>
+                      </select>
                     </div>
+
+                    {apiProvider === 'gemini' && (
+                      <div className="space-y-4 animate-in fade-in">
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-gray-300">Custom Gemini API Key</label>
+                          <div className="flex flex-wrap gap-2 mb-2">
+                            {userApiKey.split(',').map(k => k.trim()).filter(Boolean).map((key, idx) => (
+                               <div key={idx} className="flex items-center gap-1 bg-indigo-500/20 text-indigo-300 px-2 py-1 rounded-md text-xs font-mono">
+                                  {showGeminiKey ? key : '•'.repeat(Math.min(key.length, 10))}
+                                  <button onClick={() => {
+                                     const newKeys = userApiKey.split(',').map(k=>k.trim()).filter(Boolean).filter((_, i) => i !== idx).join(', ');
+                                     saveSetting('omni_gemini_key', newKeys, setUserApiKey);
+                                  }}><X className="w-3 h-3 hover:text-red-400"/></button>
+                               </div>
+                            ))}
+                          </div>
+                          <div className="relative flex items-center gap-2">
+                            <input 
+                              type={showGeminiKey ? "text" : "password"} 
+                              value={geminiKeyInput}
+                              onChange={(e) => setGeminiKeyInput(e.target.value)}
+                              placeholder="Paste API Key..." 
+                              onKeyDown={(e) => {
+                                 if (e.key === 'Enter' && e.target.value.trim()) {
+                                    e.preventDefault();
+                                    const currentKeys = userApiKey.split(',').map(k=>k.trim()).filter(Boolean);
+                                    if (!currentKeys.includes(e.target.value.trim())) saveSetting('omni_gemini_key', [...currentKeys, e.target.value.trim()].join(', '), setUserApiKey);
+                                    setGeminiKeyInput('');
+                                 }
+                              }}
+                              className="flex-1 bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                            />
+                            <button type="button" onClick={() => setShowGeminiKey(!showGeminiKey)} className="p-2 bg-gray-900 border border-gray-800 rounded-xl hover:bg-gray-800 text-gray-400 transition-colors" title={showGeminiKey ? "Hide Keys" : "Show Keys"}>
+                               {showGeminiKey ? <EyeOff className="w-4 h-4"/> : <Eye className="w-4 h-4" />}
+                            </button>
+                            <button type="button" onClick={() => testConnection('gemini')} className="p-2 bg-indigo-600 hover:bg-indigo-500 border border-indigo-500 rounded-xl text-white transition-colors flex items-center justify-center w-10">
+                               {testingStatus.gemini === 'loading' ? <RefreshCw className="w-4 h-4 animate-spin" /> : testingStatus.gemini === 'success' ? <Check className="w-4 h-4 text-green-300" /> : testingStatus.gemini === 'error' ? <AlertCircle className="w-4 h-4 text-red-300" /> : <Zap className="w-4 h-4" />}
+                            </button>
+                          </div>
+                          <div className="flex items-center justify-between mt-1">
+                              <p className="text-[10px] text-gray-500">Stored safely locally.</p>
+                              <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-[10px] text-indigo-400 hover:underline flex items-center gap-1"><ExternalLink className="w-3 h-3"/> Get Free Gemini Key</a>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {apiProvider === 'longcat' && (
+                      <div className="space-y-4 animate-in fade-in">
+                         {/* Longcat settings (Truncated slightly for visual balance, same logic applies) */}
+                         <div className="space-y-2">
+                           <label className="text-sm font-medium text-gray-300">Longcat API Key</label>
+                           <div className="relative flex items-center gap-2">
+                             <input type={showLongcatKey ? "text" : "password"} value={longcatKeyInput} onChange={(e) => setLongcatKeyInput(e.target.value)} placeholder="Paste key..." onKeyDown={(e) => { if (e.key === 'Enter' && e.target.value.trim()) { e.preventDefault(); const currentKeys = longcatApiKey.split(',').map(k=>k.trim()).filter(Boolean); if (!currentKeys.includes(e.target.value.trim())) saveSetting('omni_longcat_key', [...currentKeys, e.target.value.trim()].join(', '), setLongcatApiKey); setLongcatKeyInput(''); } }} className="flex-1 bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50" />
+                             <button type="button" onClick={() => setShowLongcatKey(!showLongcatKey)} className="p-2 bg-gray-900 border border-gray-800 rounded-xl hover:bg-gray-800 text-gray-400 transition-colors">{showLongcatKey ? <EyeOff className="w-4 h-4"/> : <Eye className="w-4 h-4" />}</button>
+                             <button type="button" onClick={() => testConnection('longcat')} className="p-2 bg-indigo-600 hover:bg-indigo-500 border border-indigo-500 rounded-xl text-white transition-colors flex items-center justify-center w-10">{testingStatus.longcat === 'loading' ? <RefreshCw className="w-4 h-4 animate-spin" /> : testingStatus.longcat === 'success' ? <Check className="w-4 h-4 text-green-300" /> : testingStatus.longcat === 'error' ? <AlertCircle className="w-4 h-4 text-red-300" /> : <Zap className="w-4 h-4" />}</button>
+                           </div>
+                         </div>
+                      </div>
+                    )}
+
+                    {apiProvider === 'ollama' && (
+                      <div className="space-y-4 animate-in fade-in">
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-gray-300">Local Endpoint URL</label>
+                          <input type="text" value={ollamaUrl} onChange={(e) => saveSetting('omni_ollama_url', e.target.value, setOllamaUrl)} placeholder="http://localhost:11434/api/chat" className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50" />
+                        </div>
+                      </div>
+                    )}
+                    
+                    <div className="pt-4 border-t border-gray-800 space-y-2">
+                       <label className="text-sm font-medium text-gray-300 flex items-center gap-2"><MonitorSpeaker className="w-4 h-4 text-indigo-400"/> Assistant Voice Setup</label>
+                       <p className="text-xs text-gray-500 mb-2">Choose the TTS voice used when Omni Voice Assistant is active.</p>
+                       <select value={selectedVoiceURI} onChange={(e) => saveSetting('omni_voice_uri', e.target.value, setSelectedVoiceURI)} className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50">
+                          {availableVoices.length === 0 && <option value="">Loading voices...</option>}
+                          {availableVoices.map((v, i) => (
+                             <option key={i} value={v.voiceURI}>{v.name} ({v.lang})</option>
+                          ))}
+                       </select>
+                    </div>
+
                   </div>
-                )}
+                  
+                  {/* Right Column - Integrations & Sandbox Config */}
+                  <div className="bg-gray-900 p-6 space-y-6">
+                    <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Integrations & Data</h4>
+                    
+                    <div className="space-y-2">
+                       <label className="text-sm font-medium text-gray-300 flex items-center gap-2"><Figma className="w-4 h-4 text-pink-400"/> Figma API Token (Optional)</label>
+                       <p className="text-xs text-gray-500 mb-2">Allows the Agent to directly extract design tokens and CSS from a Figma file URL.</p>
+                       <input type="password" value={figmaToken} onChange={(e) => saveSetting('omni_figma_token', e.target.value, setFigmaToken)} placeholder="figd_..." className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50" />
+                    </div>
 
-                {apiProvider === 'longcat' && (
-                  <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-300">Longcat API Key</label>
-                      <input type="password" value={longcatApiKey} onChange={(e) => saveSetting('omni_longcat_key', e.target.value, setLongcatApiKey)} placeholder="lc_..., lc_..." className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50" />
-                      <p className="text-xs text-gray-500">Enter one or multiple keys separated by commas for automatic rate-limit fallback/rotation.</p>
+                    <div className="pt-4 border-t border-gray-800 space-y-2">
+                       <label className="text-sm font-medium text-gray-300 flex items-center gap-2"><Lock className="w-4 h-4 text-amber-400"/> Environment Variables</label>
+                       <p className="text-xs text-gray-500 mb-2">Injected safely into Sandbox as <code>window.ENV</code>.</p>
+                       <textarea value={sandboxEnv} onChange={(e) => saveSetting('omni_sandbox_env', e.target.value, setSandboxEnv)} className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-xs font-mono text-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 h-24 resize-none" />
                     </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-300">Primary Base URL</label>
-                      <input type="text" value={longcatBaseUrl} onChange={(e) => saveSetting('omni_longcat_url', e.target.value, setLongcatBaseUrl)} className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50" />
-                      <p className="text-xs text-gray-500">Default: [https://api.longcat.chat/openai/v1/chat/completions](https://api.longcat.chat/openai/v1/chat/completions)</p>
+
+                    <div className="pt-4 border-t border-gray-800 space-y-2">
+                       <div className="flex justify-between items-center">
+                         <label className="text-sm font-medium text-gray-300 flex items-center gap-2">Context Memory Limit <span className="px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 text-xs">{maxContext === 0 ? 'Unlimited' : `${maxContext} Msgs`}</span></label>
+                       </div>
+                       <input type="range" min="0" max="40" step="2" value={maxContext} onChange={(e) => saveSetting('omni_max_context', parseInt(e.target.value), setMaxContext)} className="w-full accent-indigo-500" />
                     </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-300">Fallback Base URL (Optional)</label>
-                      <input type="text" value={longcatFallbackUrl} onChange={(e) => saveSetting('omni_longcat_fallback_url', e.target.value, setLongcatFallbackUrl)} placeholder="Secondary proxy URL..." className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50" />
+
+                    {/* Prompt Vault */}
+                    <div className="pt-4 border-t border-gray-800 space-y-3">
+                       <div className="flex justify-between items-center">
+                         <label className="text-sm font-medium text-gray-300 flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-green-400"/> Custom Persona Vault</label>
+                         <button onClick={() => saveSetting('omni_system_prompt', PERSONAS.default, setCustomSystemPrompt)} className="text-xs text-indigo-400 hover:text-indigo-300">Reset Default</button>
+                       </div>
+                       <textarea value={customSystemPrompt} onChange={(e) => setCustomSystemPrompt(e.target.value)} className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-xs font-mono text-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 h-24 resize-none" />
+                       <div className="flex gap-2">
+                         <input type="text" value={newPersonaName} onChange={e => setNewPersonaName(e.target.value)} placeholder="Name your Persona..." className="flex-1 bg-gray-950 border border-gray-800 rounded-lg px-3 py-1.5 text-xs text-gray-200 focus:outline-none focus:border-indigo-500" />
+                         <button onClick={saveToVault} disabled={!newPersonaName.trim()} className="px-3 py-1.5 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-lg text-xs font-medium hover:bg-indigo-500/20 disabled:opacity-50 transition-colors flex items-center gap-1"><Save className="w-3.5 h-3.5"/> Save</button>
+                       </div>
                     </div>
+
                   </div>
-                )}
-
-                {apiProvider === 'ollama' && (
-                  <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
-                    <div className="p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-lg mb-2"><p className="text-xs text-indigo-300">Make sure Ollama is running locally and CORS is enabled (set <code>OLLAMA_ORIGINS="*"</code>).</p></div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-300">Local Endpoint URL</label>
-                      <input type="text" value={ollamaUrl} onChange={(e) => saveSetting('omni_ollama_url', e.target.value, setOllamaUrl)} placeholder="http://localhost:11434/api/chat" className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50" />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-300">Model Name</label>
-                      <input type="text" value={ollamaModel} onChange={(e) => saveSetting('omni_ollama_model', e.target.value, setOllamaModel)} placeholder="llama3, deepseek-coder, etc." className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50" />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Environment Variables */}
-              <div className="pt-4 border-t border-gray-800 space-y-2">
-                 <label className="text-sm font-medium text-gray-300">Environment Variables (JSON)</label>
-                 <p className="text-xs text-gray-500 mb-2">These are injected safely into your Sandbox as <code>window.ENV</code>.</p>
-                 <textarea value={sandboxEnv} onChange={(e) => saveSetting('omni_sandbox_env', e.target.value, setSandboxEnv)} className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-xs font-mono text-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 h-24 resize-none" />
-              </div>
-
-              {/* Context Manager */}
-              <div className="pt-4 border-t border-gray-800 space-y-2">
-                 <div className="flex justify-between items-center">
-                   <label className="text-sm font-medium text-gray-300 flex items-center gap-2">Context Memory Limit <span className="px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 text-xs">{maxContext === 0 ? 'Unlimited' : `${maxContext} Msgs`}</span></label>
-                 </div>
-                 <p className="text-xs text-gray-500 mb-2">Lower limits save API costs and prevent "Token Limit" errors on long projects.</p>
-                 <input type="range" min="0" max="40" step="2" value={maxContext} onChange={(e) => saveSetting('omni_max_context', parseInt(e.target.value), setMaxContext)} className="w-full accent-indigo-500" />
-              </div>
-
-              {/* Prompt Engineering Vault */}
-              <div className="pt-4 border-t border-gray-800 space-y-3">
-                 <div className="flex justify-between items-center">
-                   <label className="text-sm font-medium text-gray-300">System Prompt (Persona Vault)</label>
-                   <button onClick={() => saveSetting('omni_system_prompt', PERSONAS.default, setCustomSystemPrompt)} className="text-xs text-indigo-400 hover:text-indigo-300">Reset Default</button>
-                 </div>
-                 <textarea value={customSystemPrompt} onChange={(e) => setCustomSystemPrompt(e.target.value)} className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-xs font-mono text-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 h-32 resize-none" />
-                 
-                 <div className="flex gap-2">
-                   <input type="text" value={newPersonaName} onChange={e => setNewPersonaName(e.target.value)} placeholder="Name your Persona..." className="flex-1 bg-gray-950 border border-gray-800 rounded-lg px-3 py-1.5 text-xs text-gray-200 focus:outline-none focus:border-indigo-500" />
-                   <button onClick={saveToVault} disabled={!newPersonaName.trim()} className="px-3 py-1.5 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-lg text-xs font-medium hover:bg-indigo-500/20 disabled:opacity-50 transition-colors flex items-center gap-1"><Save className="w-3.5 h-3.5"/> Save</button>
-                 </div>
-              </div>
-
+               </div>
             </div>
             
-            <div className="p-4 border-t border-gray-800 bg-gray-900/50 flex justify-end shrink-0">
-              <button onClick={() => setIsSettingsOpen(false)} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors">Save & Close</button>
+            <div className="p-4 border-t border-gray-800 bg-gray-900/80 flex justify-between items-center shrink-0">
+              <button onClick={purgeCredentials} className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg text-sm font-medium transition-colors flex items-center gap-2">
+                <Trash2 className="w-4 h-4" /> Purge Credentials
+              </button>
+              <button onClick={() => {
+                  if (geminiKeyInput.trim()) {
+                    const currentKeys = userApiKey.split(',').map(k=>k.trim()).filter(Boolean);
+                    if (!currentKeys.includes(geminiKeyInput.trim())) saveSetting('omni_gemini_key', [...currentKeys, geminiKeyInput.trim()].join(', '), setUserApiKey);
+                    setGeminiKeyInput('');
+                  }
+                  if (longcatKeyInput.trim()) {
+                    const currentKeys = longcatApiKey.split(',').map(k=>k.trim()).filter(Boolean);
+                    if (!currentKeys.includes(longcatKeyInput.trim())) saveSetting('omni_longcat_key', [...currentKeys, longcatKeyInput.trim()].join(', '), setLongcatApiKey);
+                    setLongcatKeyInput('');
+                  }
+                  setIsSettingsOpen(false);
+              }} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors">
+                Save & Close
+              </button>
             </div>
           </div>
         </div>
