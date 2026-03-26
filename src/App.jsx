@@ -103,7 +103,7 @@ export default function App() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isZenMode, setIsZenMode] = useState(false);
   const [isChatVisible, setIsChatVisible] = useState(true); 
-  const [isCodeVisible, setIsCodeVisible] = useState(true); // NEW: Code visibility toggle
+  const [isCodeVisible, setIsCodeVisible] = useState(true); 
   const [isPreviewDark, setIsPreviewDark] = useState(false);
   const [showSnippets, setShowSnippets] = useState(false);
   const [iframeKey, setIframeKey] = useState(0); 
@@ -459,13 +459,13 @@ export default function App() {
             zip.file("vite.config.js", `import { defineConfig } from 'vite';\nexport default defineConfig({});`);
             zip.file("index.html", generatedCode); 
         } else if (format === 'pwa') {
-            zip.file("index.html", generatedCode.replace('</head>', '<link rel="manifest" href="manifest.json"><script>if("serviceWorker" in navigator){navigator.serviceWorker.register("sw.js");}<\/script><\/head>'));
+            zip.file("index.html", generatedCode.replace('</head>', '<link rel="manifest" href="manifest.json"><script>if("serviceWorker" in navigator){navigator.serviceWorker.register("sw.js");}</script></head>'));
             zip.file("manifest.json", JSON.stringify({ name: "Omni App", short_name: "App", start_url: ".", display: "standalone", background_color: "#ffffff", theme_color: "#000000" }, null, 2));
             zip.file("sw.js", `self.addEventListener('install', (e) => e.waitUntil(caches.open('v1').then((c) => c.addAll(['/'])))); self.addEventListener('fetch', (e) => e.respondWith(caches.match(e.request).then((r) => r || fetch(e.request))));`);
         } else {
             let html = generatedCode; let css = ''; let js = ''; let hasCss = false; let hasJs = false;
             html = html.replace(/<style>([\s\S]*?)<\/style>/gi, (match, content) => { css += content + '\n'; if (!hasCss) { hasCss = true; return '<link rel="stylesheet" href="style.css">'; } return ''; });
-            html = html.replace(/<script([^>]*)>([\s\S]*?)<\/script>/gi, (match, attrs, content) => { if (attrs.includes('src=')) return match; if (content.includes('iframe-console') || content.includes('window.ENV') || content.includes('__inspectorMode')) return match; js += content + '\n'; if (!hasJs) { hasJs = true; return '<script src="script.js"><\/script>'; } return ''; });
+            html = html.replace(/<script([^>]*)>([\s\S]*?)<\/script>/gi, (match, attrs, content) => { if (attrs.includes('src=')) return match; if (content.includes('iframe-console') || content.includes('window.ENV') || content.includes('__inspectorMode')) return match; js += content + '\n'; if (!hasJs) { hasJs = true; return '<script src="script.js"></script>'; } return ''; });
             zip.file("index.html", html); if (css.trim()) zip.file("style.css", css); if (js.trim()) zip.file("script.js", js);
         }
         const content = await zip.generateAsync({type:"blob"}); const url = URL.createObjectURL(content); const a = document.createElement('a'); a.href = url; a.download = format === 'pwa' ? 'omni_pwa.zip' : (format === 'vite' ? 'omni_vite_project.zip' : 'omni_project.zip'); a.click(); URL.revokeObjectURL(url);
@@ -875,16 +875,16 @@ export default function App() {
           try { const response = await origFetch.apply(this, args); postLog('network', ['[FETCH Success]', response.status, response.url]); return response; } 
           catch(e) { postLog('network', ['[FETCH Failed]', e.message]); throw e; }
         };
-      <\/script>
+      </script>
     `;
-    const envScript = `<script>window.ENV = ${sandboxEnv || '{}'};<\/script>`;
-    const darkModeScript = isPreviewDark ? `<script>document.documentElement.classList.add('dark'); document.body.style.backgroundColor = '#111827'; document.body.style.color = '#f8fafc';<\/script>` : '';
-    const perfScript = isPerformanceMode ? `<script src="https://cdnjs.cloudflare.com/ajax/libs/stats.js/16/Stats.min.js"><\/script><script>window.addEventListener('load', function() { const stats = new Stats(); stats.showPanel(0); stats.dom.style.position = 'fixed'; stats.dom.style.top = '10px'; stats.dom.style.left = '10px'; stats.dom.style.zIndex = '999999'; document.body.appendChild(stats.dom); function animate() { stats.begin(); stats.end(); requestAnimationFrame(animate); } requestAnimationFrame(animate); });<\/script>` : '';
-    const rrwebScript = isTimeTravelMode ? `<script src="https://cdn.jsdelivr.net/npm/rrweb@2.0.0-alpha.11/dist/rrweb.min.js"><\/script><script>console.log("[Time Travel Debugging] rrweb injected. Recording started (mock).");<\/script>` : '';
+    const envScript = `<script>window.ENV = ${sandboxEnv || '{}'};</script>`;
+    const darkModeScript = isPreviewDark ? `<script>document.documentElement.classList.add('dark'); document.body.style.backgroundColor = '#111827'; document.body.style.color = '#f8fafc';</script>` : '';
+    const perfScript = isPerformanceMode ? `<script src="https://cdnjs.cloudflare.com/ajax/libs/stats.js/16/Stats.min.js"></script><script>window.addEventListener('load', function() { const stats = new Stats(); stats.showPanel(0); stats.dom.style.position = 'fixed'; stats.dom.style.top = '10px'; stats.dom.style.left = '10px'; stats.dom.style.zIndex = '999999'; document.body.appendChild(stats.dom); function animate() { stats.begin(); stats.end(); requestAnimationFrame(animate); } requestAnimationFrame(animate); });</script>` : '';
+    const rrwebScript = isTimeTravelMode ? `<script src="https://cdn.jsdelivr.net/npm/rrweb@2.0.0-alpha.11/dist/rrweb.min.js"></script><script>console.log("[Time Travel Debugging] rrweb injected. Recording started (mock).");</script>` : '';
     
     const modeScripts = `
       ${is3DMode ? '<style>body{perspective:1000px; overflow:visible;} *{transform-style:preserve-3d; transform:translateZ(10px); outline:1px solid rgba(99,102,241,0.2); background:rgba(255,255,255,0.8);} body:hover{transform:rotateX(20deg) rotateY(-20deg);}</style>' : ''}
-      ${isGhostMode ? '<script>window.addEventListener("load", ()=>{ const c=document.createElement("div"); c.style="width:20px;height:20px;background:red;border-radius:50%;position:fixed;z-index:9999;pointer-events:none;transition:all 0.3s ease;"; document.body.appendChild(c); setInterval(()=>{ c.style.left = Math.random()*window.innerWidth+"px"; c.style.top = Math.random()*window.innerHeight+"px"; if(Math.random()>0.7){ const el=document.elementFromPoint(parseInt(c.style.left), parseInt(c.style.top)); if(el && el.click) el.click(); } }, 1000); });<\/script>' : ''}
+      ${isGhostMode ? '<script>window.addEventListener("load", ()=>{ const c=document.createElement("div"); c.style="width:20px;height:20px;background:red;border-radius:50%;position:fixed;z-index:9999;pointer-events:none;transition:all 0.3s ease;"; document.body.appendChild(c); setInterval(()=>{ c.style.left = Math.random()*window.innerWidth+"px"; c.style.top = Math.random()*window.innerHeight+"px"; if(Math.random()>0.7){ const el=document.elementFromPoint(parseInt(c.style.left), parseInt(c.style.top)); if(el && el.click) el.click(); } }, 1000); });</script>' : ''}
     `;
 
     let doc = generatedCode.replace('<head>', `<head>\n${envScript}\n${injectionScript}\n${perfScript}\n${rrwebScript}\n${modeScripts}`);
@@ -907,15 +907,15 @@ export default function App() {
   };
 
   const popularPackages = [
-    { name: 'Tailwind CSS', desc: 'Utility-first CSS framework', tag: '<script src="https://cdn.tailwindcss.com"><\/script>' },
-    { name: 'React + ReactDOM', desc: 'UI Library (UMD Build)', tag: '<script src="https://unpkg.com/react@18/umd/react.development.js"><\/script>\n<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"><\/script>' },
-    { name: 'Three.js', desc: '3D Javascript Library', tag: '<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>' },
-    { name: 'GSAP', desc: 'Professional Animation Library', tag: '<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"><\/script>' },
+    { name: 'Tailwind CSS', desc: 'Utility-first CSS framework', tag: '<script src="https://cdn.tailwindcss.com"></script>' },
+    { name: 'React + ReactDOM', desc: 'UI Library (UMD Build)', tag: '<script src="https://unpkg.com/react@18/umd/react.development.js"></script>\n<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>' },
+    { name: 'Three.js', desc: '3D Javascript Library', tag: '<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>' },
+    { name: 'GSAP', desc: 'Professional Animation Library', tag: '<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>' },
     { name: 'FontAwesome', desc: 'Icon set', tag: '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">' },
-    { name: 'Firebase SDK', desc: 'Google BaaS', tag: '<script type="module">import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";<\/script>' },
-    { name: 'Supabase SDK', desc: 'Open Source BaaS', tag: '<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/script>' },
-    { name: 'Pyodide (Python)', desc: 'Python in Browser', tag: '<script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"><\/script>' },
-    { name: 'sql.js (SQLite)', desc: 'Browser DB', tag: '<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"><\/script>' }
+    { name: 'Firebase SDK', desc: 'Google BaaS', tag: '<script type="module">import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";</script>' },
+    { name: 'Supabase SDK', desc: 'Open Source BaaS', tag: '<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>' },
+    { name: 'Pyodide (Python)', desc: 'Python in Browser', tag: '<script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>' },
+    { name: 'sql.js (SQLite)', desc: 'Browser DB', tag: '<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>' }
   ];
 
   const tailwindComponents = [
@@ -963,7 +963,7 @@ export default function App() {
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col lg:flex-row h-full overflow-hidden relative">
         
-        {/* Chat Panel */}
+        {/* Chat Panel (Now Collapsible) */}
         {isChatVisible && (
           <div style={{ width: (!isZenMode && typeof window !== 'undefined' && window.innerWidth >= 1024) ? chatWidth : '100%' }} className={`flex-col bg-gray-900/50 border-r border-gray-800 h-full shrink-0 transition-all duration-300 ${activeTab === 'chat' && !isZenMode ? 'flex' : 'hidden lg:flex'} ${isZenMode ? '!hidden' : ''}`}>
             <div className="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-900/80 backdrop-blur z-10">
@@ -1170,11 +1170,11 @@ export default function App() {
                   <div className="w-px h-4 bg-gray-700 mx-1"></div>
                   
                   {/* DRY Agent Actions Mapping */}
-                  <div className="flex gap-0.5 overflow-x-auto max-w-[250px] hide-scrollbar">
+                  <div className="flex gap-0.5 overflow-x-auto max-w-[250px] hide-scrollbar [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                     {AGENT_ACTIONS.filter(a => !a.isInfo).map(action => {
                        const ActionIcon = action.icon;
                        return (
-                       <button key={action.id} onClick={() => handleAgentAction(action.id)} disabled={isLoading} className={`p-1.5 hover:bg-gray-800 rounded transition-colors hover:${action.color} disabled:opacity-50`} title={`Agent: ${action.title}`}>
+                       <button key={action.id} onClick={() => handleAgentAction(action.id)} disabled={isLoading} className={`p-1.5 hover:bg-gray-800 rounded transition-colors ${action.color} disabled:opacity-50`} title={`Agent: ${action.title}`}>
                           <ActionIcon className="w-4 h-4" />
                        </button>
                        );
@@ -1183,7 +1183,7 @@ export default function App() {
                     {AGENT_ACTIONS.filter(a => a.isInfo).map(action => {
                        const ActionIcon = action.icon;
                        return (
-                       <button key={action.id} onClick={() => handleAgentAction(action.id)} disabled={isLoading} className={`p-1.5 hover:bg-gray-800 rounded transition-colors hover:${action.color} disabled:opacity-50`} title={`Agent: ${action.title}`}>
+                       <button key={action.id} onClick={() => handleAgentAction(action.id)} disabled={isLoading} className={`p-1.5 hover:bg-gray-800 rounded transition-colors ${action.color} disabled:opacity-50`} title={`Agent: ${action.title}`}>
                           <ActionIcon className="w-4 h-4" />
                        </button>
                        );
@@ -1204,7 +1204,7 @@ export default function App() {
               <div className="flex-1 relative bg-[#0d1117] overflow-hidden group">
                 <pre 
                   ref={highlightRef}
-                  className="absolute inset-0 w-full h-full p-4 font-mono text-xs md:text-sm text-[#e5e7eb] leading-relaxed bg-transparent whitespace-pre overflow-hidden pointer-events-none break-normal"
+                  className="absolute inset-0 w-full h-full p-4 font-mono text-xs md:text-sm text-[#e5e7eb] leading-relaxed bg-transparent whitespace-pre overflow-hidden pointer-events-none break-normal [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
                   style={{ tabSize: 2 }}
                   dangerouslySetInnerHTML={{ __html: highlightHTML(generatedCode) }}
                 />
@@ -1216,7 +1216,7 @@ export default function App() {
                   onKeyDown={handleEditorKeyDown}
                   onScroll={handleEditorScroll}
                   spellCheck="false"
-                  className="absolute inset-0 w-full h-full p-4 font-mono text-xs md:text-sm text-transparent caret-white leading-relaxed bg-transparent resize-none focus:outline-none whitespace-pre overflow-auto break-normal selection:bg-indigo-500/30"
+                  className="absolute inset-0 w-full h-full p-4 font-mono text-xs md:text-sm text-transparent caret-white leading-relaxed bg-transparent resize-none focus:outline-none whitespace-pre overflow-auto break-normal selection:bg-indigo-500/30 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
                   style={{ tabSize: 2 }}
                 />
               </div>
@@ -1344,7 +1344,7 @@ export default function App() {
                          </div>
                          <div>
                             <p className="text-xs text-gray-500 mb-1">Raw Source</p>
-                            <textarea readOnly value={targetedElement.html} className="w-full h-40 bg-[#0d1117] border border-gray-800 rounded p-2 text-gray-300 font-mono text-[10px] resize-none focus:outline-none" />
+                            <textarea readOnly value={targetedElement.html} className="w-full h-40 bg-[#0d1117] border border-gray-800 rounded p-2 text-gray-300 font-mono text-[10px] resize-none focus:outline-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" />
                          </div>
                          <div className="space-y-2 pt-2 border-t border-gray-800">
                             <button onClick={() => {
@@ -1545,11 +1545,11 @@ export default function App() {
             <div className="flex-1 flex overflow-hidden">
                <div className="flex-1 border-r border-gray-800 flex flex-col">
                   <div className="bg-gray-950 p-2 text-center text-xs font-bold text-red-400 uppercase tracking-widest border-b border-gray-800">Previous Version</div>
-                  <textarea readOnly value={codeHistory[historyIndex - 1] || ''} className="flex-1 p-4 bg-[#0d1117] text-gray-300 font-mono text-xs resize-none focus:outline-none opacity-80" />
+                  <textarea readOnly value={codeHistory[historyIndex - 1] || ''} className="flex-1 p-4 bg-[#0d1117] text-gray-300 font-mono text-xs resize-none focus:outline-none opacity-80 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" />
                </div>
                <div className="flex-1 flex flex-col">
                   <div className="bg-gray-950 p-2 text-center text-xs font-bold text-green-400 uppercase tracking-widest border-b border-gray-800">Current Version</div>
-                  <textarea readOnly value={generatedCode} className="flex-1 p-4 bg-[#0d1117] text-gray-100 font-mono text-xs resize-none focus:outline-none" />
+                  <textarea readOnly value={generatedCode} className="flex-1 p-4 bg-[#0d1117] text-gray-100 font-mono text-xs resize-none focus:outline-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" />
                </div>
             </div>
           </div>
