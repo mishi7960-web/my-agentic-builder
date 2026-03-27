@@ -10,7 +10,7 @@ import {
   Save, Users, CloudLightning, Activity, GitBranch, Layers, Figma, BookOpen, TestTube, Gauge, 
   HardDriveDownload, HardDriveUpload, ShieldCheck, Workflow, Video, Wand, SplitSquareHorizontal, 
   Accessibility, Split, Music, ServerCrash, Globe, Regex, Box, Component, ArrowUpCircle, GitPullRequest, AppWindow,
-  Ghost, Flame, Volume2, VolumeX,
+  Ghost, Flame, Volume2, VolumeX, Command,
   Tag, ShieldAlert, UserPlus, Network, Library, Wind, Repeat, Scale, LayoutGrid,
   PenTool, MonitorSpeaker, Link, CheckSquare, BrainCircuit,
   DatabaseBackup, SplitSquareVertical, BugPlay, Headset, Brain, Puzzle
@@ -105,6 +105,39 @@ const popularPackages = [
   { name: 'sql.js (SQLite)', desc: 'Browser DB', tag: '<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>' }
 ];
 
+// --- Gemini Live TTS Utilities ---
+const GEMINI_VOICES = ["Aoede", "Puck", "Charon", "Kore", "Fenrir", "Zephyr", "Leda", "Orus", "Callirrhoe", "Autonoe", "Enceladus", "Iapetus", "Umbriel", "Algieba", "Despina", "Erinome", "Algenib", "Rasalgethi", "Laomedeia", "Achernar", "Alnilam", "Schedar", "Gacrux", "Pulcherrima", "Achird", "Zubenelgenubi", "Vindemiatrix", "Sadachbia", "Sadaltager", "Sulafat"];
+
+function pcmToWav(pcmData, sampleRate = 24000) {
+  const binaryString = atob(pcmData);
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) bytes[i] = binaryString.charCodeAt(i);
+  
+  const buffer = new ArrayBuffer(44 + bytes.length);
+  const view = new DataView(buffer);
+  
+  const writeString = (v, offset, string) => { for (let i = 0; i < string.length; i++) v.setUint8(offset + i, string.charCodeAt(i)); };
+  
+  writeString(view, 0, 'RIFF');
+  view.setUint32(4, 36 + bytes.length, true);
+  writeString(view, 8, 'WAVE');
+  writeString(view, 12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true); // PCM Format
+  view.setUint16(22, 1, true); // Mono
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true); // ByteRate
+  view.setUint16(32, 2, true); // BlockAlign
+  view.setUint16(34, 16, true); // BitsPerSample
+  writeString(view, 36, 'data');
+  view.setUint32(40, bytes.length, true);
+  
+  const pcmView = new Uint8Array(buffer, 44);
+  pcmView.set(bytes);
+  return new Blob([buffer], { type: 'audio/wav' });
+}
+
 const tailwindComponents = [
   { name: 'Hero Section', code: `<section class="bg-white dark:bg-gray-900">\n  <div class="py-8 px-4 mx-auto max-w-screen-xl text-center lg:py-16">\n    <h1 class="mb-4 text-4xl font-extrabold tracking-tight leading-none text-gray-900 md:text-5xl lg:text-6xl dark:text-white">We invest in the world’s potential</h1>\n    <p class="mb-8 text-lg font-normal text-gray-500 lg:text-xl sm:px-16 lg:px-48 dark:text-gray-400">Here at Flowbite we focus on markets where technology, innovation, and capital can unlock long-term value and drive economic growth.</p>\n  </div>\n</section>` },
   { name: 'Simple Navbar', code: `<nav class="bg-white border-gray-200 dark:bg-gray-900 shadow-sm">\n  <div class="max-w-screen-xl flex flex-wrap items-center justify-between mx-auto p-4">\n    <a href="#" class="flex items-center space-x-3 rtl:space-x-reverse">\n      <span class="self-center text-2xl font-semibold whitespace-nowrap dark:text-white">AppCanvas</span>\n    </a>\n    <div class="hidden w-full md:block md:w-auto" id="navbar-default">\n      <ul class="font-medium flex flex-col p-4 md:p-0 mt-4 border border-gray-100 rounded-lg bg-gray-50 md:flex-row md:space-x-8 rtl:space-x-reverse md:mt-0 md:border-0 md:bg-white dark:bg-gray-800 md:dark:bg-gray-900 dark:border-gray-700">\n        <li><a href="#" class="block py-2 px-3 text-white bg-blue-700 rounded md:bg-transparent md:text-blue-700 md:p-0 dark:text-white md:dark:text-blue-500" aria-current="page">Home</a></li>\n        <li><a href="#" class="block py-2 px-3 text-gray-900 rounded hover:bg-gray-100 md:hover:bg-transparent md:border-0 md:hover:text-blue-700 md:p-0 dark:text-white md:dark:hover:text-blue-500 dark:hover:bg-gray-700 dark:hover:text-white md:dark:hover:bg-transparent">About</a></li>\n      </ul>\n    </div>\n  </div>\n</nav>` },
@@ -159,11 +192,17 @@ export default function App() {
   const [isAudioCallActive, setIsAudioCallActive] = useState(false);
   const [timeScrubberValue, setTimeScrubberValue] = useState(100);
 
-  // Voice Assistant States
-  const [isVoiceAssistantMode, setIsVoiceAssistantMode] = useState(false);
-  const [isSpeaking, setIsSpeaking] = useState(false);
+  // Advanced Voice Assistant States (Gemini Live Clone)
+  const [voiceState, setVoiceState] = useState('inactive'); // 'inactive', 'listening', 'thinking', 'speaking'
+  const [voiceTranscript, setVoiceTranscript] = useState('');
+  const [geminiVoice, setGeminiVoice] = useState('Aoede');
   const [availableVoices, setAvailableVoices] = useState([]);
   const [selectedVoiceURI, setSelectedVoiceURI] = useState('');
+  const [isVoiceAssistantMode, setIsVoiceAssistantMode] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  
+  const audioRef = useRef(null);
+  const recognitionRef = useRef(null);
 
   const [isConsoleOpen, setIsConsoleOpen] = useState(false);
   const [consoleFilter, setConsoleFilter] = useState('all'); 
@@ -179,6 +218,11 @@ export default function App() {
   const [isPreviewDark, setIsPreviewDark] = useState(false);
   const [showSnippets, setShowSnippets] = useState(false);
   const [iframeKey, setIframeKey] = useState(0); 
+
+  // Advance IDE Features: Command Palette & Context Menu
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [commandQuery, setCommandQuery] = useState('');
+  const [contextMenu, setContextMenu] = useState(null);
 
   const [chatWidth, setChatWidth] = useState(450);
   const [codeWidth, setCodeWidth] = useState(500);
@@ -255,8 +299,51 @@ export default function App() {
   const consoleEndRef = useRef(null);
   const editorRef = useRef(null);
   const highlightRef = useRef(null);
+  const lineNumbersRef = useRef(null);
 
   const estimateTokens = () => Math.floor(messages.map(m => m.text).join(' ').length / 4);
+
+  // Command Palette Configuration
+  const systemCommands = [
+    { id: 'sys-settings', title: 'Open Settings Vault', icon: Settings, action: () => setIsSettingsOpen(true) },
+    { id: 'sys-format', title: 'Format Canvas Code', icon: AlignLeft, action: () => formatCode() },
+    { id: 'sys-clear', title: 'Clear Chat History', icon: Trash2, action: () => handleClearChat() },
+    { id: 'sys-history', title: 'View Version History', icon: History, action: () => setIsHistoryOpen(true) },
+    { id: 'sys-preview', title: 'Switch to Live Canvas', icon: Play, action: () => setActiveTab('preview') },
+    { id: 'sys-code', title: 'Switch to Code Editor', icon: Code2, action: () => setActiveTab('code') },
+    { id: 'sys-zen', title: 'Toggle Zen Mode', icon: Maximize2, action: () => setIsZenMode(!isZenMode) },
+    { id: 'sys-console', title: 'Toggle Developer Console', icon: TerminalSquare, action: () => setIsConsoleOpen(!isConsoleOpen) },
+    { id: 'sys-mocks', title: 'Open API Mocking Dashboard', icon: Database, action: () => setIsMocksOpen(true) },
+    { id: 'sys-github', title: 'Sync with GitHub', icon: Github, action: () => setIsGithubOpen(true) },
+  ];
+
+  const allCommands = [
+    ...AGENT_ACTIONS.map(a => ({ ...a, action: () => handleAgentAction(a.id) })),
+    ...systemCommands
+  ];
+
+  useEffect(() => {
+    const handleGlobalKeyDown = (e) => {
+      // Command Palette Trigger (Cmd/Ctrl + K)
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setIsCommandPaletteOpen(true);
+      }
+      // Escape handlers
+      if (e.key === 'Escape') {
+        setIsCommandPaletteOpen(false);
+        setContextMenu(null);
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
+
+  useEffect(() => {
+    const closeContext = () => setContextMenu(null);
+    window.addEventListener('click', closeContext);
+    return () => window.removeEventListener('click', closeContext);
+  }, []);
 
   const purgeCredentials = () => {
     if (window.confirm("Are you sure you want to delete all your stored API keys from this browser?")) {
@@ -366,6 +453,7 @@ export default function App() {
     loadSafe('omni_github_token', setGithubToken); loadSafe('omni_github_repo', setGithubRepo);
     loadSafe('omni_figma_token', setFigmaToken);
     loadSafe('omni_voice_uri', setSelectedVoiceURI);
+    loadSafe('omni_gemini_voice', setGeminiVoice);
 
     const savedMocks = localStorage.getItem('omni_api_mocks');
     if (savedMocks) { try { setMockEndpoints(JSON.parse(savedMocks)); } catch(e) {} }
@@ -745,60 +833,119 @@ export default function App() {
     } catch(err) { alert("NPM Search Failed: " + err.message); } finally { setIsSearchingNpm(false); }
   };
 
-  // --- Voice Assistant Feature (TTS & STT) ---
-  const speakText = (text) => {
-    if (!window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
+  // --- Advanced AI Voice Assistant Loop (Gemini Live Equivalent) ---
+  const toggleVoiceMode = () => {
+    if (voiceState !== 'inactive') {
+        stopVoiceMode();
+    } else {
+        startVoiceListening();
+    }
+  };
+
+  const stopVoiceMode = () => {
+    if (recognitionRef.current) { recognitionRef.current.stop(); }
+    if (audioRef.current) { audioRef.current.pause(); audioRef.current.currentTime = 0; }
+    setVoiceState('inactive');
+    setVoiceTranscript('');
+  };
+
+  const startVoiceListening = () => {
+    setVoiceState('listening');
+    setVoiceTranscript('');
+    if (audioRef.current) { audioRef.current.pause(); }
     
-    let cleanText = text.replace(/```[\s\S]*?```/g, ' I have generated the code. ');
-    cleanText = cleanText.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
-    cleanText = cleanText.replace(/[*_#`]/g, '');
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) return alert("Speech recognition is not supported in your browser.");
     
+    recognitionRef.current = new SpeechRecognition();
+    recognitionRef.current.continuous = false;
+    recognitionRef.current.interimResults = true;
+    
+    let finalT = '';
+    recognitionRef.current.onresult = (e) => {
+       finalT = Array.from(e.results).map(res => res[0].transcript).join('');
+       setVoiceTranscript(finalT);
+    };
+    
+    recognitionRef.current.onend = () => {
+       if (finalT.trim()) {
+          handleVoiceSubmit(finalT);
+       } else {
+          setVoiceState('inactive');
+       }
+    };
+    recognitionRef.current.start();
+  };
+
+  const speakTextAI = async (fullText) => {
+    // Clean text to sound natural (remove Markdown, code blocks)
+    let cleanText = fullText.replace(/```[\s\S]*?```/g, ' I have updated the canvas. ');
+    cleanText = cleanText.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').replace(/[*_#`]/g, '');
+    
+    if (apiProvider === 'gemini') {
+        const keys = (userApiKey || apiKey).split(',').map(k => k.trim()).filter(Boolean);
+        if (keys.length > 0) {
+            try {
+                const payload = {
+                  contents: [{ parts: [{ text: cleanText }] }],
+                  generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: geminiVoice } } } },
+                  model: "gemini-2.5-flash-preview-tts"
+                };
+                
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${keys[0]}`, {
+                  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+                });
+                
+                if (res.ok) {
+                    const data = await res.json();
+                    const inlineData = data.candidates?.[0]?.content?.parts?.[0]?.inlineData;
+                    if (inlineData) {
+                        const match = inlineData.mimeType.match(/rate=(\d+)/);
+                        const rate = match ? parseInt(match[1], 10) : 24000;
+                        const wavBlob = pcmToWav(inlineData.data, rate);
+                        const url = URL.createObjectURL(wavBlob);
+                        if (audioRef.current) {
+                            audioRef.current.src = url;
+                            audioRef.current.play();
+                            setVoiceState('speaking');
+                        }
+                        return; // Successfully played Gemini Audio
+                    }
+                }
+            } catch(e) { console.error("Gemini Native TTS Failed", e); }
+        }
+    }
+    
+    // Fallback to local browser TTS if not Gemini or if fetch failed
     const utterance = new SpeechSynthesisUtterance(cleanText);
-    
     if (selectedVoiceURI) {
        const selectedVoice = availableVoices.find(v => v.voiceURI === selectedVoiceURI);
        if (selectedVoice) utterance.voice = selectedVoice;
     }
-
-    utterance.onstart = () => setIsSpeaking(true);
-    utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = () => setIsSpeaking(false);
-    
+    utterance.onstart = () => setVoiceState('speaking');
+    utterance.onend = () => { if (isVoiceAutoSubmit) { startVoiceListening(); } else { setVoiceState('inactive'); } };
+    utterance.onerror = () => setVoiceState('inactive');
     window.speechSynthesis.speak(utterance);
   };
 
-  const toggleListen = () => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) return alert("Speech recognition is not supported in your browser.");
+  const handleVoiceSubmit = async (text) => {
+    setVoiceState('thinking');
+    setInput('');
+    setMessages(prev => [...prev, { role: 'user', text: text, timestamp: new Date().toISOString() }]);
     
-    if (isListening) { 
-      setIsListening(false); 
-    } else {
-      const recognition = new SpeechRecognition(); 
-      recognition.continuous = false; 
-      recognition.interimResults = true;
-      let finalTranscript = '';
-      
-      recognition.onresult = (event) => { 
-        finalTranscript = Array.from(event.results).map(res => res[0].transcript).join(''); 
-        setInput(prev => prev.trim() + ' ' + finalTranscript); 
-      };
-      
-      recognition.onend = () => { 
-        setIsListening(false); 
-        if ((isVoiceAutoSubmit || isVoiceAssistantMode) && finalTranscript.trim() !== '') { 
-          if (isVoiceAssistantMode && window.speechSynthesis) {
-             const unlock = new SpeechSynthesisUtterance('');
-             unlock.volume = 0;
-             window.speechSynthesis.speak(unlock);
-          }
-          submitPrompt(finalTranscript, null, isVoiceAssistantMode); 
-        } 
-      };
-      
-      recognition.start(); 
-      setIsListening(true);
+    try {
+       const responseText = await callAIAPI(messages, text, false, null, generatedCode, false);
+       const code = extractCode(responseText);
+       const hasValidCode = !!code;
+       const finalChatText = hasValidCode ? cleanResponseText(responseText) : responseText;
+       
+       setMessages(prev => [...prev, { role: 'model', text: finalChatText, timestamp: new Date().toISOString() }]);
+       if (hasValidCode) updateCode(code);
+       
+       await speakTextAI(responseText); // Start speaking the response
+    } catch (err) {
+       setMessages(prev => [...prev, { role: 'model', text: `❌ **Voice Error:** ${err.message}` }]);
+       setVoiceState('inactive');
     }
   };
 
@@ -811,11 +958,20 @@ export default function App() {
       .replace(/(&quot;.*?&quot;|&#39;.*?&#39;|".*?"|'.*?')/g, '<span class="text-green-400">$1</span>'); 
   };
 
-  const handleEditorScroll = (e) => { if (highlightRef.current) { highlightRef.current.scrollTop = e.target.scrollTop; highlightRef.current.scrollLeft = e.target.scrollLeft; } };
+  const handleEditorScroll = (e) => { 
+    if (highlightRef.current) { 
+        highlightRef.current.scrollTop = e.target.scrollTop; 
+        highlightRef.current.scrollLeft = e.target.scrollLeft; 
+    } 
+    if (lineNumbersRef.current) {
+        lineNumbersRef.current.scrollTop = e.target.scrollTop;
+    }
+  };
+
   const handleEditorSelect = (e) => { const start = e.target.selectionStart; const end = e.target.selectionEnd; if (start !== end) { setSelectedCodeContext(e.target.value.substring(start, end)); } else { setSelectedCodeContext(''); } };
 
   const handleEditorKeyDown = (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); handleDownloadCode(); return; }
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); exportToZip('html'); return; }
     if (e.key === 'Tab') {
       e.preventDefault();
       const start = e.target.selectionStart; const end = e.target.selectionEnd; const val = e.target.value;
@@ -824,13 +980,18 @@ export default function App() {
     }
   };
 
+  const handleContextMenu = (e) => {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY });
+  };
+
   const extractCode = (text) => {
     const regex = new RegExp(T_BACKTICKS + '(?:html|javascript|js|css|mermaid)?\\n([\\s\\S]*?)' + T_BACKTICKS);
     const match = text.match(regex);
     if (match) return match[1];
     const fallbackRegex = new RegExp(T_BACKTICKS + '(?:html|javascript|js|css|mermaid)?\\n([\\s\\S]*)');
     const fallbackMatch = text.match(fallbackRegex);
-    return fallbackMatch ? fallbackMatch[1] : null; // Changed to null to prevent accidental code overrides
+    return fallbackMatch ? fallbackMatch[1] : null; 
   };
 
   // Helper to replace raw HTML blocks with a simple UI marker in the chat history
@@ -1203,6 +1364,7 @@ export default function App() {
             <button onClick={() => setActiveTab('preview')} className={`p-3 rounded-xl flex justify-center lg:hidden transition-all ${activeTab === 'preview' ? 'bg-gray-800 text-indigo-400' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'}`} title="Preview"><Play className="w-6 h-6" /></button>
             
             <div className="w-8 h-px bg-gray-800 mx-auto my-2"></div>
+            <button onClick={() => setIsCommandPaletteOpen(true)} className="p-3 rounded-xl flex justify-center text-gray-500 hover:text-gray-300 hover:bg-gray-800/50 transition-all" title="Command Palette (Cmd+K)"><Command className="w-6 h-6" /></button>
             <button onClick={() => setIsMocksOpen(true)} className="p-3 rounded-xl flex justify-center text-gray-500 hover:text-gray-300 hover:bg-gray-800/50 transition-all" title="Local API Mocks Dashboard"><Database className="w-6 h-6" /></button>
             <button onClick={() => setIsDbStudioOpen(true)} className="p-3 rounded-xl flex justify-center text-gray-500 hover:text-gray-300 hover:bg-gray-800/50 transition-all" title="WASM DB Studio"><DatabaseBackup className="w-6 h-6" /></button>
             <button onClick={() => setIsGithubOpen(true)} className="p-3 rounded-xl flex justify-center text-gray-500 hover:text-gray-300 hover:bg-gray-800/50 transition-all" title="GitHub Sync"><Github className="w-6 h-6" /></button>
@@ -1239,15 +1401,6 @@ export default function App() {
                 <button onClick={() => setIsAutoSolveEnabled(!isAutoSolveEnabled)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${isAutoSolveEnabled ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' : 'bg-gray-800 text-gray-400 border-gray-700 hover:bg-gray-700'}`} title="Autonomously fix runtime errors"><Zap className="w-3.5 h-3.5" /> Auto-Solve</button>
               </div>
             </div>
-
-            {/* Speaking Stop Overlay */}
-            {isSpeaking && (
-              <div className="absolute top-20 right-4 z-50">
-                <button onClick={() => { window.speechSynthesis.cancel(); setIsSpeaking(false); }} className="bg-red-500/20 border border-red-500/50 text-red-400 px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2 shadow-lg animate-in fade-in slide-in-from-top-4">
-                   <VolumeX className="w-4 h-4" /> Stop Speaking
-                </button>
-              </div>
-            )}
 
             <div className="flex-1 overflow-y-auto p-4 space-y-6 scroll-smooth">
               {messages.length === 0 ? (
@@ -1376,11 +1529,7 @@ export default function App() {
                       }} className="p-1.5 text-gray-500 hover:text-indigo-400 hover:bg-gray-800 transition-colors rounded-lg" title="Import Figma URL"><Figma className="w-4 h-4" /></button>
                    )}
                    <div className="w-px h-5 bg-gray-700 mx-0.5"></div>
-                   <button type="button" onClick={() => setIsVoiceAssistantMode(!isVoiceAssistantMode)} className={`p-1.5 transition-colors rounded-lg flex items-center gap-1.5 ${isVoiceAssistantMode ? 'bg-blue-500/20 text-blue-400 border border-blue-500/50 shadow-[0_0_10px_rgba(59,130,246,0.2)]' : 'text-gray-500 hover:text-blue-400 hover:bg-gray-800'}`} title="Toggle Omni Voice Assistant (Uses Gemini API & TTS)">
-                     <Volume2 className="w-4 h-4" />
-                     {isVoiceAssistantMode && <span className="text-[10px] font-bold uppercase tracking-wider pr-1">Voice</span>}
-                   </button>
-                   <button type="button" onClick={toggleListen} className={`p-1.5 transition-colors rounded-lg ${isListening ? 'text-red-400 bg-red-500/10 animate-pulse border border-red-500/30' : 'text-gray-500 hover:text-red-400 hover:bg-gray-800'}`} title="Voice Dictation">
+                   <button type="button" onClick={toggleVoiceMode} className="p-1.5 transition-colors rounded-lg flex items-center gap-1.5 text-gray-500 hover:text-blue-400 hover:bg-gray-800" title="Start Omni Voice Assistant (Gemini Live Equivalent)">
                      <Mic className="w-4 h-4" />
                    </button>
                    <input type="file" id="chat-image-upload" accept="image/*" className="hidden" onChange={handleChatImageUpload} />
@@ -1389,8 +1538,8 @@ export default function App() {
                 <textarea
                   value={input} onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(e); } }}
-                  placeholder={isVoiceAssistantMode ? "Voice Assistant Mode is ON (Talk to me!)..." : "Describe what to build..."}
-                  className={`w-full bg-gray-950 border rounded-xl py-3 pl-[11.5rem] pr-12 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:ring-2 resize-none h-[60px] max-h-[200px] ${isVoiceAssistantMode ? 'border-blue-500/50 focus:ring-blue-500/50' : 'border-gray-800 focus:ring-indigo-500/50'}`}
+                  placeholder="Describe what to build..."
+                  className={`w-full bg-gray-950 border rounded-xl py-3 pl-[11.5rem] pr-12 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:ring-2 resize-none h-[60px] max-h-[200px] border-gray-800 focus:ring-indigo-500/50`}
                   disabled={isLoading}
                 />
                 
@@ -1466,26 +1615,42 @@ export default function App() {
                   <button onClick={exportToExtension} className="p-1.5 hover:text-white hover:bg-gray-800 rounded transition-colors" title="Export as Browser Extension"><Puzzle className="w-4 h-4" /></button>
                 </div>
               </div>
+              
+              {/* ADVANCED EDITOR WITH LINE NUMBERS */}
               <div className="flex-1 relative bg-[#0d1117] overflow-hidden flex flex-col">
-                <div className="flex-1 relative group overflow-hidden">
-                  <pre 
-                    ref={highlightRef}
-                    className="absolute inset-0 w-full h-full p-4 font-mono text-xs md:text-sm text-[#e5e7eb] leading-relaxed bg-transparent whitespace-pre overflow-hidden pointer-events-none break-normal [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
-                    style={{ tabSize: 2 }}
-                    dangerouslySetInnerHTML={{ __html: highlightHTML(generatedCode) }}
-                  />
-                  <textarea 
-                    ref={editorRef}
-                    value={generatedCode}
-                    onChange={(e) => updateCode(e.target.value)}
-                    onSelect={handleEditorSelect} 
-                    onKeyDown={handleEditorKeyDown}
-                    onScroll={handleEditorScroll}
-                    spellCheck="false"
-                    className="absolute inset-0 w-full h-full p-4 font-mono text-xs md:text-sm text-transparent caret-white leading-relaxed bg-transparent resize-none focus:outline-none whitespace-pre overflow-auto break-normal selection:bg-indigo-500/30 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
-                    style={{ tabSize: 2 }}
-                  />
+                <div className="flex-1 flex overflow-hidden group">
+                  {/* Line Numbers Gutter */}
+                  <div 
+                    ref={lineNumbersRef}
+                    className="w-12 bg-[#090b0f] border-r border-gray-800 text-gray-600 font-mono text-right pr-3 py-4 select-none overflow-hidden shrink-0"
+                    style={{ fontSize: '13px', lineHeight: '21px' }}
+                  >
+                    {generatedCode.split('\n').map((_, i) => <div key={i}>{i + 1}</div>)}
+                  </div>
+                  
+                  {/* Editor Container */}
+                  <div className="flex-1 relative overflow-hidden">
+                    <pre 
+                      ref={highlightRef}
+                      className="absolute inset-0 w-full h-full p-4 font-mono text-[#e5e7eb] bg-transparent whitespace-pre overflow-hidden pointer-events-none break-normal [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] m-0"
+                      style={{ tabSize: 2, fontSize: '13px', lineHeight: '21px' }}
+                      dangerouslySetInnerHTML={{ __html: highlightHTML(generatedCode) }}
+                    />
+                    <textarea 
+                      ref={editorRef}
+                      value={generatedCode}
+                      onChange={(e) => updateCode(e.target.value)}
+                      onSelect={handleEditorSelect} 
+                      onKeyDown={handleEditorKeyDown}
+                      onScroll={handleEditorScroll}
+                      onContextMenu={handleContextMenu}
+                      spellCheck="false"
+                      className="absolute inset-0 w-full h-full p-4 font-mono text-transparent caret-white bg-transparent resize-none focus:outline-none whitespace-pre overflow-auto break-normal selection:bg-indigo-500/30 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] m-0 border-none outline-none"
+                      style={{ tabSize: 2, fontSize: '13px', lineHeight: '21px' }}
+                    />
+                  </div>
                 </div>
+
                 {isTerminalOpen && (
                   <div className="h-48 bg-black border-t border-gray-800 p-2 font-mono text-xs text-green-400 overflow-y-auto flex flex-col shrink-0 relative z-20 shadow-[0_-10px_20px_rgba(0,0,0,0.5)]">
                      <div className="flex justify-between items-center text-gray-500 mb-2 border-b border-gray-800 pb-1">
@@ -1730,6 +1895,120 @@ export default function App() {
           </div>
         </div>
       </main>
+
+      {/* Voice Assistant Overlay (Gemini Live Equivalent) */}
+      {voiceState !== 'inactive' && (
+        <div className="fixed inset-0 bg-gray-950/85 backdrop-blur-xl z-[200] flex flex-col items-center justify-center animate-in fade-in duration-300">
+           <button onClick={stopVoiceMode} className="absolute top-8 right-8 p-3 bg-gray-800/50 hover:bg-gray-800 rounded-full text-gray-300 transition-colors"><X className="w-6 h-6" /></button>
+           
+           <div className="flex flex-col items-center max-w-3xl w-full px-8">
+              <div className="h-32 mb-16 flex items-center justify-center">
+                 {voiceState === 'listening' && (
+                    <div className="relative w-40 h-40 flex items-center justify-center cursor-pointer" onClick={stopVoiceMode} title="Stop Listening">
+                       <div className="absolute inset-0 bg-blue-500/20 rounded-full animate-ping"></div>
+                       <div className="absolute inset-4 bg-blue-500/40 rounded-full animate-pulse"></div>
+                       <div className="relative w-20 h-20 bg-blue-500 rounded-full flex items-center justify-center shadow-[0_0_50px_rgba(59,130,246,0.6)]">
+                           <Mic className="w-10 h-10 text-white" />
+                       </div>
+                    </div>
+                 )}
+                 {voiceState === 'thinking' && (
+                    <div className="relative w-40 h-40 flex items-center justify-center">
+                       <div className="absolute inset-6 border-[6px] border-t-purple-500 border-r-indigo-500 border-b-pink-500 border-l-transparent rounded-full animate-spin"></div>
+                       <Bot className="w-10 h-10 text-purple-400 animate-pulse" />
+                    </div>
+                 )}
+                 {voiceState === 'speaking' && (
+                    <div className="relative w-40 h-40 flex items-center justify-center cursor-pointer" onClick={startVoiceListening} title="Interrupt & Speak">
+                       <div className="flex items-center gap-2 h-16">
+                          {[...Array(5)].map((_, i) => (
+                             <div key={i} className="w-3 bg-teal-400 rounded-full animate-[bounce_1s_infinite]" style={{ animationDelay: `${i * 0.15}s`, height: i % 2 === 0 ? '100%' : '60%' }}></div>
+                          ))}
+                       </div>
+                    </div>
+                 )}
+              </div>
+              
+              <div className="text-center min-h-[120px]">
+                 {voiceState === 'listening' && (
+                   <p className="text-3xl md:text-5xl font-medium text-gray-100 transition-all leading-tight tracking-tight">
+                      {voiceTranscript || "I'm listening..."}
+                   </p>
+                 )}
+                 {voiceState === 'thinking' && <p className="text-2xl text-purple-300 animate-pulse">Processing your request...</p>}
+                 {voiceState === 'speaking' && (
+                   <div className="animate-in slide-in-from-bottom-2 fade-in">
+                     <p className="text-2xl text-teal-400 font-medium tracking-wide">Omni is speaking</p>
+                     <p className="text-sm text-gray-500 mt-4">(Tap the waveform to interrupt)</p>
+                   </div>
+                 )}
+              </div>
+           </div>
+        </div>
+      )}
+
+      {/* Hidden Audio Player for TTS */}
+      <audio ref={audioRef} onEnded={() => { if (isVoiceAutoSubmit) { startVoiceListening(); } else { setVoiceState('inactive'); } }} className="hidden" />
+
+      {/* Editor Context Menu */}
+      {contextMenu && (
+        <div 
+          className="fixed bg-gray-900 border border-gray-700 shadow-2xl rounded-lg py-1.5 z-[150] w-56 animate-in fade-in zoom-in-95"
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="px-3 pb-1.5 mb-1.5 border-b border-gray-800 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Editor Actions</div>
+          <button onClick={() => { handleAgentAction('explain'); setContextMenu(null); }} className="w-full text-left px-3 py-2 hover:bg-indigo-500/20 hover:text-indigo-300 text-sm text-gray-300 flex items-center gap-2 transition-colors"><Lightbulb className="w-4 h-4"/> Explain Selection</button>
+          <button onClick={() => { handleAgentAction('refactor-multi'); setContextMenu(null); }} className="w-full text-left px-3 py-2 hover:bg-indigo-500/20 hover:text-indigo-300 text-sm text-gray-300 flex items-center gap-2 transition-colors"><Wand2 className="w-4 h-4"/> Refactor Selection</button>
+          <div className="my-1 border-t border-gray-800"></div>
+          <button onClick={() => { if (selectedCodeContext) navigator.clipboard.writeText(selectedCodeContext); setContextMenu(null); }} className="w-full text-left px-3 py-2 hover:bg-indigo-500/20 hover:text-indigo-300 text-sm text-gray-300 flex items-center gap-2 transition-colors"><Copy className="w-4 h-4"/> Copy Text</button>
+          <button onClick={() => { formatCode(); setContextMenu(null); }} className="w-full text-left px-3 py-2 hover:bg-indigo-500/20 hover:text-indigo-300 text-sm text-gray-300 flex items-center gap-2 transition-colors"><AlignLeft className="w-4 h-4"/> Format Code</button>
+        </div>
+      )}
+
+      {/* Command Palette Modal */}
+      {isCommandPaletteOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-start justify-center pt-[15vh]" onClick={() => setIsCommandPaletteOpen(false)}>
+          <div className="bg-gray-900 border border-gray-700 shadow-2xl rounded-xl w-full max-w-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center px-4 py-4 border-b border-gray-800 bg-gray-950">
+               <Search className="w-5 h-5 text-indigo-400 mr-3" />
+               <input 
+                 autoFocus
+                 type="text" 
+                 value={commandQuery}
+                 onChange={e => setCommandQuery(e.target.value)}
+                 className="flex-1 bg-transparent text-gray-100 focus:outline-none text-base placeholder-gray-500 font-medium"
+                 placeholder="Type a command or search actions..."
+               />
+               <div className="flex items-center gap-1">
+                 <span className="text-[10px] font-mono text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700">ESC</span>
+               </div>
+            </div>
+            <div className="max-h-96 overflow-y-auto p-2">
+               {allCommands.filter(c => c.title.toLowerCase().includes(commandQuery.toLowerCase()) || c.id.includes(commandQuery.toLowerCase())).map((cmd, idx) => {
+                  const Icon = cmd.icon;
+                  return (
+                  <button 
+                    key={idx}
+                    onClick={() => { cmd.action(); setIsCommandPaletteOpen(false); }}
+                    className="w-full text-left px-4 py-3 hover:bg-indigo-500/20 hover:text-indigo-300 text-gray-300 rounded-lg flex items-center justify-between group transition-colors"
+                  >
+                     <div className="flex items-center gap-3">
+                         <div className="p-1.5 bg-gray-800 group-hover:bg-indigo-500/20 rounded-md text-gray-400 group-hover:text-indigo-400 transition-colors">
+                            <Icon className="w-4 h-4" />
+                         </div>
+                         <span className="font-medium text-sm">{cmd.title}</span>
+                     </div>
+                     <span className="text-[10px] text-gray-500 font-mono uppercase tracking-wider">{cmd.id.startsWith('sys-') ? 'System' : 'AI Action'}</span>
+                  </button>
+               )})}
+               {allCommands.filter(c => c.title.toLowerCase().includes(commandQuery.toLowerCase()) || c.id.includes(commandQuery.toLowerCase())).length === 0 && (
+                  <div className="p-8 text-center text-gray-500 text-sm">No commands found matching "{commandQuery}"</div>
+               )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Chat Sessions / History Modal */}
       {isSessionsModalOpen && (
@@ -2197,12 +2476,25 @@ export default function App() {
                     <div className="pt-4 border-t border-gray-800 space-y-2">
                        <label className="text-sm font-medium text-gray-300 flex items-center gap-2"><MonitorSpeaker className="w-4 h-4 text-indigo-400"/> Assistant Voice Setup</label>
                        <p className="text-xs text-gray-500 mb-2">Choose the TTS voice used when Omni Voice Assistant is active.</p>
-                       <select value={selectedVoiceURI} onChange={(e) => saveSetting('omni_voice_uri', e.target.value, setSelectedVoiceURI)} className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50">
-                          {availableVoices.length === 0 && <option value="">Loading voices...</option>}
-                          {availableVoices.map((v, i) => (
-                             <option key={i} value={v.voiceURI}>{v.name} ({v.lang})</option>
-                          ))}
-                       </select>
+                       
+                       {apiProvider === 'gemini' ? (
+                          <div className="space-y-1 mb-2">
+                            <span className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Gemini Native Voices</span>
+                            <select value={geminiVoice} onChange={(e) => saveSetting('omni_gemini_voice', e.target.value, setGeminiVoice)} className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50">
+                               {GEMINI_VOICES.map(v => <option key={v} value={v}>{v} (High Quality)</option>)}
+                            </select>
+                          </div>
+                       ) : (
+                          <div className="space-y-1 mb-2">
+                            <span className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Browser Fallback Voices</span>
+                            <select value={selectedVoiceURI} onChange={(e) => saveSetting('omni_voice_uri', e.target.value, setSelectedVoiceURI)} className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50">
+                               {availableVoices.length === 0 && <option value="">Loading voices...</option>}
+                               {availableVoices.map((v, i) => (
+                                  <option key={i} value={v.voiceURI}>{v.name} ({v.lang})</option>
+                               ))}
+                            </select>
+                          </div>
+                       )}
                     </div>
 
                   </div>
@@ -2258,18 +2550,18 @@ export default function App() {
                     setGeminiKeyInput('');
                   }
                   if (longcatKeyInput.trim()) {
-                    const currentKeys = longcatApiKey.split(',').map(k=>k.trim()).filter(Boolean);
-                    if (!currentKeys.includes(longcatKeyInput.trim())) saveSetting('omni_longcat_key', [...currentKeys, longcatKeyInput.trim()].join(', '), setLongcatApiKey);
-                    setLongcatKeyInput('');
-                  }
-                  setIsSettingsOpen(false);
-              }} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors">
-                Save & Close
-              </button>
-            </div>
-          </div>
+                const currentKeys = longcatApiKey.split(',').map(k=>k.trim()).filter(Boolean);
+                if (!currentKeys.includes(longcatKeyInput.trim())) saveSetting('omni_longcat_key', [...currentKeys, longcatKeyInput.trim()].join(', '), setLongcatApiKey);
+                setLongcatKeyInput('');
+              }
+              setIsSettingsOpen(false);
+          }} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors">
+            Save & Close
+          </button>
         </div>
-      )}
+      </div>
     </div>
-  );
+  )}
+</div>
+);
 }
