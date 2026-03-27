@@ -13,7 +13,7 @@ import {
   Ghost, Flame, Volume2, VolumeX, Command,
   Tag, ShieldAlert, UserPlus, Network, Library, Wind, Repeat, Scale, LayoutGrid,
   PenTool, MonitorSpeaker, Link, CheckSquare, BrainCircuit,
-  DatabaseBackup, SplitSquareVertical, BugPlay, Headset, Brain, Puzzle
+  DatabaseBackup, SplitSquareVertical, BugPlay, Headset, Brain, Puzzle, Map
 } from 'lucide-react';
 
 // --- Environment API Key Fallback ---
@@ -83,7 +83,11 @@ const AGENT_ACTIONS = [
   { id: 'swagger', icon: Library, title: 'Swagger Auto-Gen', color: 'text-pink-500', isInfo: false, msg: '📖 Generating API Docs...', prompt: 'Generate a fully interactive Swagger UI page within this sandbox to document the local mock API endpoints.' },
   { id: 'css-tailwind', icon: Repeat, title: 'CSS <-> Tailwind', color: 'text-teal-400', isInfo: false, msg: '🔄 Converting styles...', prompt: 'Convert all raw CSS to Tailwind utility classes, OR convert Tailwind back to raw CSS depending on what is currently used.' },
   { id: 'perf-budget', icon: Scale, title: 'Performance Budget', color: 'text-orange-500', isInfo: false, msg: '⚖️ Enforcing budget...', prompt: 'Inject a performance monitoring script that checks DOM node count and simulated payload size, displaying a red warning overlay if it exceeds typical budgets.' },
-  { id: 'chaos-test', icon: Wind, title: 'Chaos Monkey', color: 'text-gray-500', isInfo: false, msg: '🌪️ Unleashing chaos...', prompt: 'Inject a Chaos Monkey script that randomly deletes DOM nodes, delays events, or throws network errors to test UI resilience.' }
+  { id: 'chaos-test', icon: Wind, title: 'Chaos Monkey', color: 'text-gray-500', isInfo: false, msg: '🌪️ Unleashing chaos...', prompt: 'Inject a Chaos Monkey script that randomly deletes DOM nodes, delays events, or throws network errors to test UI resilience.' },
+  { id: 'cicd', icon: Activity, title: 'Auto CI/CD Pipeline', color: 'text-green-500', isInfo: false, msg: '🔄 Running CI/CD Pipeline...', prompt: 'Run a simulated CI/CD pipeline. Write tests for this code, execute them, find any errors, and patch the code until it is perfect. Return the final resilient HTML.' },
+  { id: 'dom-clone', icon: Search, title: 'DOM-to-Tailwind', color: 'text-purple-500', isInfo: false, msg: '🕵️‍♂️ Transpiling DOM...', prompt: 'Assume the user has provided a snippet of extracted DOM or a URL. Convert the structure and computed styles into clean, modern Tailwind CSS and React/HTML code.' },
+  { id: 'video-ui', icon: Video, title: 'Video-to-Code', color: 'text-pink-500', isInfo: false, msg: '🎬 Analyzing Video...', prompt: 'Analyze the attached video or GIF of a UI interaction. Generate the exact HTML, Tailwind CSS, and Framer Motion/GSAP JS required to replicate this animation.' },
+  { id: 'rag-sync', icon: Brain, title: 'RAG Knowledge Sync', color: 'text-blue-500', isInfo: true, msg: '🧠 Syncing RAG...', prompt: 'Process the uploaded documentation into the local Vector DB (simulated). Acknowledge that the knowledge base is now active for future coding tasks.' }
 ];
 
 const sanitizeUrl = (urlStr) => {
@@ -191,6 +195,7 @@ export default function App() {
   const [isTerminalOpen, setIsTerminalOpen] = useState(false);
   const [isAudioCallActive, setIsAudioCallActive] = useState(false);
   const [timeScrubberValue, setTimeScrubberValue] = useState(100);
+  const [isSpatialMode, setIsSpatialMode] = useState(false);
 
   // Advanced Voice Assistant States (Gemini Live Clone)
   const [voiceState, setVoiceState] = useState('inactive'); // 'inactive', 'listening', 'thinking', 'speaking'
@@ -1367,6 +1372,7 @@ export default function App() {
             <button onClick={() => setIsCommandPaletteOpen(true)} className="p-3 rounded-xl flex justify-center text-gray-500 hover:text-gray-300 hover:bg-gray-800/50 transition-all" title="Command Palette (Cmd+K)"><Command className="w-6 h-6" /></button>
             <button onClick={() => setIsMocksOpen(true)} className="p-3 rounded-xl flex justify-center text-gray-500 hover:text-gray-300 hover:bg-gray-800/50 transition-all" title="Local API Mocks Dashboard"><Database className="w-6 h-6" /></button>
             <button onClick={() => setIsDbStudioOpen(true)} className="p-3 rounded-xl flex justify-center text-gray-500 hover:text-gray-300 hover:bg-gray-800/50 transition-all" title="WASM DB Studio"><DatabaseBackup className="w-6 h-6" /></button>
+            <button onClick={() => setIsSpatialMode(!isSpatialMode)} className={`p-3 rounded-xl flex justify-center transition-all ${isSpatialMode ? 'bg-indigo-500/20 text-indigo-400' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'}`} title="Toggle Infinite Spatial Workspace"><Map className="w-6 h-6" /></button>
             <button onClick={() => setIsGithubOpen(true)} className="p-3 rounded-xl flex justify-center text-gray-500 hover:text-gray-300 hover:bg-gray-800/50 transition-all" title="GitHub Sync"><Github className="w-6 h-6" /></button>
           </nav>
           <div className="mt-auto flex flex-col gap-4 w-full px-2">
@@ -1380,7 +1386,10 @@ export default function App() {
       )}
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col lg:flex-row h-full overflow-hidden relative">
+      <main className="flex-1 flex flex-col lg:flex-row h-full overflow-hidden relative bg-[#090b0f]">
+        <div className={`flex-1 flex flex-col lg:flex-row w-full h-full transition-all duration-500 origin-center ${isSpatialMode ? 'scale-[0.85] p-6 lg:p-12 rounded-[3rem] shadow-[0_0_100px_rgba(0,0,0,1)] ring-4 ring-gray-800 overflow-hidden' : ''}`}
+             style={isSpatialMode ? { backgroundImage: 'url("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMiIgY3k9IjIiIHI9IjEiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4wNikiLz48L3N2Zz4=")' } : {}}
+        >
         
         {/* Chat Panel (Now Collapsible) */}
         {isChatVisible && (
@@ -1421,7 +1430,13 @@ export default function App() {
                     {msg.role === 'user' && !msg.isAutoGenerated && <button onClick={() => handleEditMessage(idx)} className="opacity-0 group-hover:opacity-100 p-1.5 hover:text-indigo-400 text-gray-500 transition-opacity self-center"><Edit2 className="w-3.5 h-3.5" /></button>}
                     {msg.role === 'model' && <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${msg.isAutoGenerated ? 'bg-amber-500/20 text-amber-400' : 'bg-indigo-500/20 text-indigo-400'}`}><Bot className="w-5 h-5" /></div>}
                     <div className={`max-w-[85%] rounded-2xl p-4 text-sm leading-relaxed ${msg.role === 'user' ? msg.isAutoGenerated ? 'bg-gray-800 border border-amber-500/20 text-gray-300 rounded-tr-sm' : 'bg-indigo-600 text-white rounded-tr-sm shadow-md' : msg.isAutoGenerated ? 'bg-gray-800/80 border border-amber-500/20 text-gray-200 rounded-tl-sm' : 'bg-gray-800 text-gray-200 rounded-tl-sm border border-gray-700/50'}`}>
-                      {msg.image && <div className="mb-3"><img src={msg.image} alt="Context" className="max-w-full h-auto max-h-48 object-cover rounded-lg border border-gray-700" /></div>}
+                      {msg.image && <div className="mb-3">
+                         {msg.image.startsWith('data:video') ? (
+                           <video src={msg.image} controls className="max-w-full h-auto max-h-48 object-cover rounded-lg border border-gray-700" />
+                         ) : (
+                           <img src={msg.image} alt="Context" className="max-w-full h-auto max-h-48 object-cover rounded-lg border border-gray-700" />
+                         )}
+                      </div>}
                       <div className="whitespace-pre-wrap break-words">
                         {String(msg.text).split(T_BACKTICKS).map((chunk, i) => {
                           if (i % 2 !== 0) {
@@ -1506,7 +1521,11 @@ export default function App() {
               <form onSubmit={handleSendMessage} className="relative mt-1">
                 {chatImage && (
                   <div className="absolute bottom-full mb-2 left-0 p-2 bg-gray-800 rounded-xl border border-gray-700 shadow-xl flex items-center gap-2 animate-in fade-in">
-                    <img src={chatImage} alt="Upload preview" className="h-16 w-16 object-cover rounded-lg border border-gray-600" />
+                    {chatImage.startsWith('data:video') ? (
+                      <video src={chatImage} className="h-16 w-16 object-cover rounded-lg border border-gray-600" autoPlay loop muted />
+                    ) : (
+                      <img src={chatImage} alt="Upload preview" className="h-16 w-16 object-cover rounded-lg border border-gray-600" />
+                    )}
                     <button type="button" onClick={() => setChatImage(null)} className="p-1 bg-red-500/20 text-red-400 hover:bg-red-500/40 rounded-md transition-colors"><X className="w-4 h-4"/></button>
                   </div>
                 )}
@@ -1532,7 +1551,7 @@ export default function App() {
                    <button type="button" onClick={toggleVoiceMode} className="p-1.5 transition-colors rounded-lg flex items-center gap-1.5 text-gray-500 hover:text-blue-400 hover:bg-gray-800" title="Start Omni Voice Assistant (Gemini Live Equivalent)">
                      <Mic className="w-4 h-4" />
                    </button>
-                   <input type="file" id="chat-image-upload" accept="image/*" className="hidden" onChange={handleChatImageUpload} />
+                   <input type="file" id="chat-image-upload" accept="image/*,video/mp4,video/webm,image/gif" className="hidden" onChange={handleChatImageUpload} />
                 </div>
 
                 <textarea
@@ -1893,6 +1912,8 @@ export default function App() {
               )}
             </div>
           </div>
+        </div>
+        
         </div>
       </main>
 
@@ -2513,6 +2534,14 @@ export default function App() {
                        <label className="text-sm font-medium text-gray-300 flex items-center gap-2"><Lock className="w-4 h-4 text-amber-400"/> Environment Variables</label>
                        <p className="text-xs text-gray-500 mb-2">Injected safely into Sandbox as <code>window.ENV</code>.</p>
                        <textarea value={sandboxEnv} onChange={(e) => saveSetting('omni_sandbox_env', e.target.value, setSandboxEnv)} className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-xs font-mono text-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 h-24 resize-none" />
+                    </div>
+
+                    <div className="pt-4 border-t border-gray-800 space-y-2">
+                       <label className="text-sm font-medium text-gray-300 flex items-center gap-2"><Brain className="w-4 h-4 text-fuchsia-400"/> Local Vector RAG</label>
+                       <p className="text-xs text-gray-500 mb-2">Upload project docs or PDFs to give the Omni-Agent persistent memory.</p>
+                       <button onClick={() => alert("Simulated: Vector DB Initialized. Docs chunked and embedded into IndexedDB.")} className="w-full py-2 border border-dashed border-gray-700 rounded-xl text-gray-400 hover:text-fuchsia-400 hover:border-fuchsia-500/50 hover:bg-fuchsia-500/10 transition-colors text-xs font-medium flex items-center justify-center gap-2">
+                          <Database className="w-3.5 h-3.5" /> Upload Knowledge Base
+                       </button>
                     </div>
 
                     <div className="pt-4 border-t border-gray-800 space-y-2">
