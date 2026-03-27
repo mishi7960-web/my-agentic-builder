@@ -10,10 +10,10 @@ import {
   Save, Users, CloudLightning, Activity, GitBranch, Layers, Figma, BookOpen, TestTube, Gauge, 
   HardDriveDownload, HardDriveUpload, ShieldCheck, Workflow, Video, Wand, SplitSquareHorizontal, 
   Accessibility, Split, Music, ServerCrash, Globe, Regex, Box, Component, ArrowUpCircle, GitPullRequest, AppWindow,
-  Ghost, Flame, Volume2, VolumeX, Command,
+  Ghost, Flame, Volume2, VolumeX, Command, Menu,
   Tag, ShieldAlert, UserPlus, Network, Library, Wind, Repeat, Scale, LayoutGrid,
-  PenTool, MonitorSpeaker, Link, CheckSquare, BrainCircuit,
-  DatabaseBackup, SplitSquareVertical, BugPlay, Headset, Brain, Puzzle, Map
+  PenTool, MonitorSpeaker, CheckSquare, BrainCircuit,
+  DatabaseBackup, SplitSquareVertical, BugPlay, Headset, Brain, Puzzle, Map as MapIcon, SearchCode, Replace
 } from 'lucide-react';
 
 // --- Environment API Key Fallback ---
@@ -161,6 +161,13 @@ const templates = [
   { icon: '📊', label: 'Financial Dashboard', prompt: 'Design an analytical Financial Dashboard with mock charts using Chart.js' }
 ];
 
+const MobileMenuItem = ({ icon: Icon, label, onClick }) => (
+   <button onClick={onClick} className="flex flex-col items-center justify-center gap-2 p-3 rounded-2xl bg-gray-950 border border-gray-800 hover:bg-gray-800 hover:border-indigo-500/50 transition-colors w-full h-full aspect-square">
+      <Icon className="w-6 h-6 text-indigo-400" />
+      <span className="text-[10px] font-medium text-gray-400 text-center leading-tight truncate w-full px-1">{label}</span>
+   </button>
+);
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('chat');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -173,6 +180,7 @@ export default function App() {
   const [isDiffOpen, setIsDiffOpen] = useState(false); 
   const [isAuditOpen, setIsAuditOpen] = useState(false);
   const [isGithubOpen, setIsGithubOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
   const [viewport, setViewport] = useState('desktop'); 
   const [isLandscape, setIsLandscape] = useState(false);
@@ -224,10 +232,14 @@ export default function App() {
   const [showSnippets, setShowSnippets] = useState(false);
   const [iframeKey, setIframeKey] = useState(0); 
 
-  // Advance IDE Features: Command Palette & Context Menu
+  // Advance IDE Features: Command Palette, Context Menu, Minimap, Search
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [commandQuery, setCommandQuery] = useState('');
   const [contextMenu, setContextMenu] = useState(null);
+  const [showMinimap, setShowMinimap] = useState(true);
+  const [isSearchReplaceOpen, setIsSearchReplaceOpen] = useState(false);
+  const [findText, setFindText] = useState('');
+  const [replaceText, setReplaceText] = useState('');
 
   const [chatWidth, setChatWidth] = useState(450);
   const [codeWidth, setCodeWidth] = useState(500);
@@ -305,6 +317,7 @@ export default function App() {
   const editorRef = useRef(null);
   const highlightRef = useRef(null);
   const lineNumbersRef = useRef(null);
+  const minimapRef = useRef(null);
 
   const estimateTokens = () => Math.floor(messages.map(m => m.text).join(' ').length / 4);
 
@@ -317,6 +330,8 @@ export default function App() {
     { id: 'sys-preview', title: 'Switch to Live Canvas', icon: Play, action: () => setActiveTab('preview') },
     { id: 'sys-code', title: 'Switch to Code Editor', icon: Code2, action: () => setActiveTab('code') },
     { id: 'sys-zen', title: 'Toggle Zen Mode', icon: Maximize2, action: () => setIsZenMode(!isZenMode) },
+    { id: 'sys-minimap', title: 'Toggle Code Minimap', icon: MapIcon, action: () => setShowMinimap(!showMinimap) },
+    { id: 'sys-search', title: 'Toggle In-Editor Find & Replace', icon: SearchCode, action: () => setIsSearchReplaceOpen(!isSearchReplaceOpen) },
     { id: 'sys-console', title: 'Toggle Developer Console', icon: TerminalSquare, action: () => setIsConsoleOpen(!isConsoleOpen) },
     { id: 'sys-mocks', title: 'Open API Mocking Dashboard', icon: Database, action: () => setIsMocksOpen(true) },
     { id: 'sys-github', title: 'Sync with GitHub', icon: Github, action: () => setIsGithubOpen(true) },
@@ -333,6 +348,12 @@ export default function App() {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
         setIsCommandPaletteOpen(true);
+      }
+      // Find (Cmd/Ctrl + F)
+      if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+        e.preventDefault();
+        setIsSearchReplaceOpen(true);
+        setActiveTab('code');
       }
       // Escape handlers
       if (e.key === 'Escape') {
@@ -838,6 +859,11 @@ export default function App() {
     } catch(err) { alert("NPM Search Failed: " + err.message); } finally { setIsSearchingNpm(false); }
   };
 
+  const handleReplaceAll = () => {
+    if (!findText) return;
+    setGeneratedCode(prev => prev.split(findText).join(replaceText));
+  };
+
   // --- Advanced AI Voice Assistant Loop (Gemini Live Equivalent) ---
   const toggleVoiceMode = () => {
     if (voiceState !== 'inactive') {
@@ -970,6 +996,11 @@ export default function App() {
     } 
     if (lineNumbersRef.current) {
         lineNumbersRef.current.scrollTop = e.target.scrollTop;
+    }
+    if (minimapRef.current) {
+        // Approximate sync for minimap scroll
+        const ratio = minimapRef.current.scrollHeight / e.target.scrollHeight;
+        minimapRef.current.scrollTop = e.target.scrollTop * ratio;
     }
   };
 
@@ -1354,69 +1385,65 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen bg-gray-950 text-gray-100 font-sans overflow-hidden">
+    <div className="flex h-[100dvh] bg-gray-950 text-gray-100 font-sans overflow-hidden">
       
-      {/* Sidebar Navigation */}
+      {/* Desktop Sidebar Navigation */}
       {!isZenMode && (
-        <aside className="w-16 lg:w-20 bg-gray-900 border-r border-gray-800 flex flex-col items-center py-6 gap-6 z-20 shrink-0 transition-all duration-300 overflow-y-auto [&::-webkit-scrollbar]:hidden">
+        <aside className="hidden lg:flex w-20 bg-gray-900 border-r border-gray-800 flex-col items-center py-6 gap-6 z-20 shrink-0 transition-all duration-300 overflow-y-auto [&::-webkit-scrollbar]:hidden">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20 mt-2 shrink-0">
             <AppWindow className="text-white w-6 h-6" />
           </div>
           <nav className="flex flex-col gap-4 mt-4 w-full px-2">
             <button onClick={() => { setActiveTab('chat'); setIsChatVisible(true); }} className={`p-3 rounded-xl flex justify-center transition-all ${activeTab === 'chat' && isChatVisible ? 'bg-gray-800 text-indigo-400' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'}`} title="Chat"><MessageSquare className="w-6 h-6" /></button>
-            <button onClick={() => setIsSessionsModalOpen(true)} className="p-3 rounded-xl flex justify-center lg:hidden transition-all text-gray-500 hover:text-gray-300 hover:bg-gray-800/50" title="Chat History"><FolderOpen className="w-6 h-6" /></button>
-            <button onClick={() => setActiveTab('code')} className={`p-3 rounded-xl flex justify-center lg:hidden transition-all ${activeTab === 'code' ? 'bg-gray-800 text-indigo-400' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'}`} title="Code"><Code2 className="w-6 h-6" /></button>
-            <button onClick={() => setActiveTab('preview')} className={`p-3 rounded-xl flex justify-center lg:hidden transition-all ${activeTab === 'preview' ? 'bg-gray-800 text-indigo-400' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'}`} title="Preview"><Play className="w-6 h-6" /></button>
-            
             <div className="w-8 h-px bg-gray-800 mx-auto my-2"></div>
             <button onClick={() => setIsCommandPaletteOpen(true)} className="p-3 rounded-xl flex justify-center text-gray-500 hover:text-gray-300 hover:bg-gray-800/50 transition-all" title="Command Palette (Cmd+K)"><Command className="w-6 h-6" /></button>
             <button onClick={() => setIsMocksOpen(true)} className="p-3 rounded-xl flex justify-center text-gray-500 hover:text-gray-300 hover:bg-gray-800/50 transition-all" title="Local API Mocks Dashboard"><Database className="w-6 h-6" /></button>
             <button onClick={() => setIsDbStudioOpen(true)} className="p-3 rounded-xl flex justify-center text-gray-500 hover:text-gray-300 hover:bg-gray-800/50 transition-all" title="WASM DB Studio"><DatabaseBackup className="w-6 h-6" /></button>
-            <button onClick={() => setIsSpatialMode(!isSpatialMode)} className={`p-3 rounded-xl flex justify-center transition-all ${isSpatialMode ? 'bg-indigo-500/20 text-indigo-400' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'}`} title="Toggle Infinite Spatial Workspace"><Map className="w-6 h-6" /></button>
+            <button onClick={() => setIsSpatialMode(!isSpatialMode)} className={`p-3 rounded-xl flex justify-center transition-all ${isSpatialMode ? 'bg-indigo-500/20 text-indigo-400' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/50'}`} title="Toggle Infinite Spatial Workspace"><MapIcon className="w-6 h-6" /></button>
             <button onClick={() => setIsGithubOpen(true)} className="p-3 rounded-xl flex justify-center text-gray-500 hover:text-gray-300 hover:bg-gray-800/50 transition-all" title="GitHub Sync"><Github className="w-6 h-6" /></button>
           </nav>
           <div className="mt-auto flex flex-col gap-4 w-full px-2">
-            <button onClick={() => setIsChatVisible(!isChatVisible)} className="p-3 rounded-xl hidden lg:flex flex justify-center text-gray-500 hover:text-gray-300 hover:bg-gray-800/50 transition-all" title={isChatVisible ? "Collapse Chat" : "Expand Chat"}>
+            <button onClick={() => setIsChatVisible(!isChatVisible)} className="p-3 rounded-xl flex justify-center text-gray-500 hover:text-gray-300 hover:bg-gray-800/50 transition-all" title={isChatVisible ? "Collapse Chat" : "Expand Chat"}>
               {isChatVisible ? <PanelLeftClose className="w-6 h-6" /> : <PanelLeftOpen className="w-6 h-6" />}
             </button>
-            <button onClick={() => setIsSessionsModalOpen(true)} className="p-3 rounded-xl hidden lg:flex flex justify-center text-gray-500 hover:text-gray-300 hover:bg-gray-800/50 transition-all" title="Chat History"><FolderOpen className="w-6 h-6" /></button>
+            <button onClick={() => setIsSessionsModalOpen(true)} className="p-3 rounded-xl flex justify-center text-gray-500 hover:text-gray-300 hover:bg-gray-800/50 transition-all" title="Chat History"><FolderOpen className="w-6 h-6" /></button>
             <button onClick={() => setIsSettingsOpen(true)} className="p-3 rounded-xl flex justify-center text-gray-500 hover:text-gray-300 hover:bg-gray-800/50 transition-all" title="Key Vault & Settings"><Settings className="w-6 h-6" /></button>
           </div>
         </aside>
       )}
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col lg:flex-row h-full overflow-hidden relative bg-[#090b0f]">
+      <main className="flex-1 flex flex-col lg:flex-row h-full overflow-hidden relative bg-[#090b0f] pb-[60px] lg:pb-0">
         <div className={`flex-1 flex flex-col lg:flex-row w-full h-full transition-all duration-500 origin-center ${isSpatialMode ? 'scale-[0.85] p-6 lg:p-12 rounded-[3rem] shadow-[0_0_100px_rgba(0,0,0,1)] ring-4 ring-gray-800 overflow-hidden' : ''}`}
              style={isSpatialMode ? { backgroundImage: 'url("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMiIgY3k9IjIiIHI9IjEiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4wNikiLz48L3N2Zz4=")' } : {}}
         >
         
-        {/* Chat Panel (Now Collapsible) */}
+        {/* Chat Panel (Collapsible Desktop, Toggleable Mobile) */}
         {isChatVisible && (
           <div style={{ width: (!isZenMode && typeof window !== 'undefined' && window.innerWidth >= 1024) ? chatWidth : '100%' }} className={`flex-col bg-gray-900/50 border-r border-gray-800 h-full shrink-0 transition-all duration-300 ${activeTab === 'chat' && !isZenMode ? 'flex' : 'hidden lg:flex'} ${isZenMode ? '!hidden' : ''} relative`}>
-            <div className="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-900/80 backdrop-blur z-10">
+            <div className="p-2 lg:p-4 border-b border-gray-800 flex justify-between items-center bg-gray-900/80 backdrop-blur z-10">
               <div>
-                <h2 className="font-semibold text-lg flex items-center gap-2">
+                <h2 className="font-semibold text-sm lg:text-lg flex items-center gap-2">
                   {isMultiAgent ? 'Omni Team' : 'Omni Agent'} 
                   {agentStatus !== 'idle' && <span className={`flex h-2 w-2 rounded-full ${agentStatus === 'fixing' ? 'bg-amber-500' : 'bg-indigo-500'} animate-pulse`} />}
                 </h2>
-                <p className="text-xs text-gray-500 font-mono text-indigo-300">~ {estimateTokens()} Tokens</p>
+                <p className="text-[10px] lg:text-xs text-gray-500 font-mono text-indigo-300">~ {estimateTokens()} Tokens</p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 lg:gap-2">
                 <button onClick={() => setIsMultiAgent(!isMultiAgent)} className={`p-1.5 rounded-lg transition-colors border ${isMultiAgent ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30' : 'bg-gray-800 text-gray-400 border-gray-700 hover:bg-gray-700'}`} title="Multi-Agent Mode (Architect -> Dev -> QA)"><Users className="w-4 h-4" /></button>
-                <div className="w-px h-4 bg-gray-800 mx-1"></div>
+                <div className="w-px h-4 bg-gray-800 mx-0.5 lg:mx-1"></div>
                 <button onClick={handleNewChat} className="p-1.5 text-gray-500 hover:text-indigo-400 hover:bg-indigo-400/10 rounded-lg transition-colors" title="Start New Chat"><MessageSquarePlus className="w-4 h-4" /></button>
                 <button onClick={handleClearChat} className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors" title="Delete Current Session"><Trash2 className="w-4 h-4" /></button>
-                <button onClick={() => setIsAutoSolveEnabled(!isAutoSolveEnabled)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${isAutoSolveEnabled ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' : 'bg-gray-800 text-gray-400 border-gray-700 hover:bg-gray-700'}`} title="Autonomously fix runtime errors"><Zap className="w-3.5 h-3.5" /> Auto-Solve</button>
+                <button onClick={() => setIsAutoSolveEnabled(!isAutoSolveEnabled)} className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${isAutoSolveEnabled ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' : 'bg-gray-800 text-gray-400 border-gray-700 hover:bg-gray-700'}`} title="Autonomously fix runtime errors"><Zap className="w-3.5 h-3.5" /> Auto-Solve</button>
               </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-6 scroll-smooth">
               {messages.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-center space-y-6 animate-in fade-in">
+                <div className="h-full flex flex-col items-center justify-center text-center space-y-6 animate-in fade-in pt-4">
                   <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 flex items-center justify-center mb-2"><Sparkles className="w-8 h-8 text-indigo-400" /></div>
                   <div><h3 className="text-xl font-semibold text-gray-200">Welcome to Omni-Sandbox</h3><p className="text-sm text-gray-500 mt-2 max-w-xs mx-auto">What would you like to build today?</p></div>
-                  <div className="grid grid-cols-2 gap-3 w-full max-w-sm mt-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-sm mt-4 px-2">
                     {templates.map((t, i) => (
                       <button key={i} onClick={() => submitPrompt(t.prompt, null, isVoiceAssistantMode)} className="p-3 text-left rounded-xl border border-gray-800 bg-gray-900/50 hover:bg-gray-800 hover:border-indigo-500/50 transition-all flex flex-col gap-2 group">
                         <span className="text-2xl group-hover:scale-110 transition-transform origin-bottom-left">{t.icon}</span><span className="text-sm font-medium text-gray-300 group-hover:text-indigo-300">{t.label}</span>
@@ -1441,9 +1468,6 @@ export default function App() {
                         {String(msg.text).split(T_BACKTICKS).map((chunk, i) => {
                           if (i % 2 !== 0) {
                             if (msg.role === 'model' && (chunk.trim() === 'canvas_update' || chunk.includes('<html') || chunk.includes('<body'))) {
-                              // Make it act exactly like Gemini Canvas:
-                              // Do not render huge app cards or code blocks in the chat UI.
-                              // The app automatically updates in the right-hand panel silently.
                               return null;
                             }
                             return <div key={i} className="mt-2 mb-2 bg-gray-950 rounded-lg p-3 overflow-x-auto text-xs font-mono text-gray-300 border border-gray-800 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">{chunk.replace(/^(html|javascript|css|js|mermaid)\n/, '')}</div>;
@@ -1465,7 +1489,7 @@ export default function App() {
               <div ref={chatEndRef} />
             </div>
 
-            <div className="p-4 bg-gray-900 border-t border-gray-800 z-10 flex flex-col gap-2">
+            <div className="p-3 lg:p-4 bg-gray-900 border-t border-gray-800 z-10 flex flex-col gap-2">
               
               {(targetedElement || selectedCodeContext) && (
                 <div className="flex flex-wrap gap-2 mb-1 px-1">
@@ -1486,18 +1510,18 @@ export default function App() {
                 </div>
               )}
 
-              <div className="flex flex-wrap items-center justify-between gap-2 px-1">
-                <div className="flex items-center gap-2 bg-gray-950 border border-gray-800 rounded-lg px-3 py-1.5 shadow-sm max-w-full sm:max-w-fit">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-1">
+                <div className="flex items-center gap-2 bg-gray-950 border border-gray-800 rounded-lg px-3 py-1.5 shadow-sm w-full sm:max-w-fit">
                   <Bot className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-                  <select value={selectedModel} onChange={(e) => saveSetting('omni_selected_model', e.target.value, setSelectedModel)} className="bg-transparent text-xs font-medium text-gray-300 focus:outline-none cursor-pointer appearance-none outline-none pr-4">
+                  <select value={selectedModel} onChange={(e) => saveSetting('omni_selected_model', e.target.value, setSelectedModel)} className="bg-transparent w-full text-xs font-medium text-gray-300 focus:outline-none cursor-pointer appearance-none outline-none pr-4">
                     {getModelOptions().map(opt => <option key={opt.value} value={opt.value} className="bg-gray-900 text-gray-300">{opt.label}</option>)}
                   </select>
                   <ChevronRight className="w-3 h-3 text-gray-600 shrink-0 rotate-90 -ml-2" />
                 </div>
                 
-                <div className="flex items-center gap-2 bg-gray-950 border border-gray-800 rounded-lg px-3 py-1.5 shadow-sm max-w-full sm:max-w-fit">
+                <div className="flex items-center gap-2 bg-gray-950 border border-gray-800 rounded-lg px-3 py-1.5 shadow-sm w-full sm:max-w-fit">
                   <User className="w-3.5 h-3.5 text-pink-400 shrink-0" />
-                  <select value={activePersona} onChange={(e) => { saveSetting('omni_active_persona', e.target.value, setActivePersona); setCustomSystemPrompt(PERSONAS[e.target.value] || userSavedPersonas[e.target.value]); }} className="bg-transparent text-xs font-medium text-gray-300 focus:outline-none cursor-pointer appearance-none outline-none pr-4">
+                  <select value={activePersona} onChange={(e) => { saveSetting('omni_active_persona', e.target.value, setActivePersona); setCustomSystemPrompt(PERSONAS[e.target.value] || userSavedPersonas[e.target.value]); }} className="bg-transparent w-full text-xs font-medium text-gray-300 focus:outline-none cursor-pointer appearance-none outline-none pr-4">
                     <optgroup label="System Defaults">
                       <option value="default" className="bg-gray-900 text-gray-300">Default Agent</option>
                       <option value="tailwind" className="bg-gray-900 text-gray-300">Tailwind Pro</option>
@@ -1512,13 +1536,9 @@ export default function App() {
                   </select>
                   <ChevronRight className="w-3 h-3 text-gray-600 shrink-0 rotate-90 -ml-2" />
                 </div>
-
-                {selectedModel === 'custom' && (
-                  <input type="text" value={customModelInput} onChange={(e) => saveSetting('omni_custom_model_input', e.target.value, setCustomModelInput)} placeholder="e.g., gemini-exp-1234" className="bg-gray-950 border border-gray-800 rounded-lg px-3 py-1.5 text-xs text-gray-100 focus:outline-none focus:border-indigo-500 w-full sm:w-48 shadow-sm" />
-                )}
               </div>
               
-              <form onSubmit={handleSendMessage} className="relative mt-1">
+              <form onSubmit={handleSendMessage} className="relative mt-1 flex flex-col sm:block">
                 {chatImage && (
                   <div className="absolute bottom-full mb-2 left-0 p-2 bg-gray-800 rounded-xl border border-gray-700 shadow-xl flex items-center gap-2 animate-in fade-in">
                     {chatImage.startsWith('data:video') ? (
@@ -1530,7 +1550,7 @@ export default function App() {
                   </div>
                 )}
                 {showSnippets && (
-                  <div className="absolute bottom-full mb-3 left-0 w-72 bg-gray-800 border border-gray-700 rounded-xl shadow-2xl p-2 z-20 animate-in fade-in slide-in-from-bottom-2">
+                  <div className="absolute bottom-full mb-3 left-0 w-full sm:w-72 bg-gray-800 border border-gray-700 rounded-xl shadow-2xl p-2 z-20 animate-in fade-in slide-in-from-bottom-2">
                     <div className="text-xs text-gray-400 mb-2 px-2 font-semibold uppercase tracking-wider">Quick Prompts</div>
                     <div className="space-y-1">
                       {quickSnippets.map((s, i) => <button key={i} type="button" onClick={() => {setInput(s); setShowSnippets(false);}} className="text-left w-full p-2.5 text-xs text-gray-300 hover:bg-indigo-500/20 hover:text-indigo-300 rounded-lg transition-colors truncate">{s}</button>)}
@@ -1538,33 +1558,35 @@ export default function App() {
                   </div>
                 )}
                 
-                <div className="absolute left-2 top-2 bottom-2 flex items-center gap-1 z-10">
-                   <button type="button" onClick={() => document.getElementById('chat-image-upload').click()} className="p-1.5 text-gray-500 hover:text-indigo-400 hover:bg-gray-800 transition-colors rounded-lg" title="Upload Image Context"><ImagePlus className="w-4 h-4" /></button>
+                {/* Responsive Mobile-Friendly Icon Toolbar */}
+                <div className="flex sm:absolute sm:left-2 sm:top-2 sm:bottom-2 items-center gap-1 z-10 mb-2 sm:mb-0 overflow-x-auto pb-1 sm:pb-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                   <button type="button" onClick={() => document.getElementById('chat-image-upload').click()} className="p-2 sm:p-1.5 text-gray-500 hover:text-indigo-400 hover:bg-gray-800 transition-colors rounded-lg bg-gray-900 sm:bg-transparent" title="Upload Image Context"><ImagePlus className="w-5 h-5 sm:w-4 sm:h-4" /></button>
                    {apiProvider !== 'ollama' && (
                       <button type="button" onClick={() => {
                         const defaultUrl = figmaToken ? "Enter Figma File URL:" : "Enter Figma File URL (Add Figma API Token in Settings for direct extraction!):";
                         const figmaUrl = prompt(defaultUrl);
                         if(figmaUrl) setInput(prev => prev + `\n[Figma Reference: ${figmaUrl}]`);
-                      }} className="p-1.5 text-gray-500 hover:text-indigo-400 hover:bg-gray-800 transition-colors rounded-lg" title="Import Figma URL"><Figma className="w-4 h-4" /></button>
+                      }} className="p-2 sm:p-1.5 text-gray-500 hover:text-indigo-400 hover:bg-gray-800 transition-colors rounded-lg bg-gray-900 sm:bg-transparent" title="Import Figma URL"><Figma className="w-5 h-5 sm:w-4 sm:h-4" /></button>
                    )}
-                   <div className="w-px h-5 bg-gray-700 mx-0.5"></div>
-                   <button type="button" onClick={toggleVoiceMode} className="p-1.5 transition-colors rounded-lg flex items-center gap-1.5 text-gray-500 hover:text-blue-400 hover:bg-gray-800" title="Start Omni Voice Assistant (Gemini Live Equivalent)">
-                     <Mic className="w-4 h-4" />
+                   <div className="w-px h-5 bg-gray-700 mx-0.5 hidden sm:block"></div>
+                   <button type="button" onClick={toggleVoiceMode} className="p-2 sm:p-1.5 transition-colors rounded-lg flex items-center gap-1.5 text-gray-500 hover:text-blue-400 hover:bg-gray-800 bg-gray-900 sm:bg-transparent" title="Start Omni Voice Assistant (Gemini Live Equivalent)">
+                     <Mic className="w-5 h-5 sm:w-4 sm:h-4" />
                    </button>
                    <input type="file" id="chat-image-upload" accept="image/*,video/mp4,video/webm,image/gif" className="hidden" onChange={handleChatImageUpload} />
                 </div>
 
-                <textarea
-                  value={input} onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(e); } }}
-                  placeholder="Describe what to build..."
-                  className={`w-full bg-gray-950 border rounded-xl py-3 pl-[11.5rem] pr-12 text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:ring-2 resize-none h-[60px] max-h-[200px] border-gray-800 focus:ring-indigo-500/50`}
-                  disabled={isLoading}
-                />
-                
-                <div className="absolute right-2 top-2 bottom-2 flex items-center gap-1">
-                  <button type="button" onClick={() => setShowSnippets(!showSnippets)} className={`p-1.5 transition-colors rounded-lg ${showSnippets ? 'text-indigo-400 bg-indigo-500/10' : 'text-gray-500 hover:text-indigo-400'}`} title="Prompt Snippets"><Bookmark className="w-4 h-4" /></button>
-                  <button type="submit" disabled={!input.trim() || isLoading} className={`aspect-square h-full rounded-lg flex items-center justify-center transition-colors disabled:bg-gray-800 disabled:text-gray-600 ${isVoiceAssistantMode ? 'bg-blue-600 hover:bg-blue-500' : 'bg-indigo-600 hover:bg-indigo-500'}`}><ChevronRight className="w-5 h-5" /></button>
+                <div className="relative w-full">
+                    <textarea
+                      value={input} onChange={(e) => setInput(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(e); } }}
+                      placeholder="Describe what to build..."
+                      className={`w-full bg-gray-950 border rounded-xl py-3 pl-4 sm:pl-[8rem] md:pl-[10rem] pr-[4.5rem] text-base sm:text-sm text-gray-100 placeholder-gray-600 focus:outline-none focus:ring-2 resize-none h-[60px] max-h-[200px] border-gray-800 focus:ring-indigo-500/50`}
+                      disabled={isLoading}
+                    />
+                    <div className="absolute right-2 top-2 bottom-2 flex items-center gap-1">
+                      <button type="button" onClick={() => setShowSnippets(!showSnippets)} className={`p-1.5 transition-colors rounded-lg hidden sm:block ${showSnippets ? 'text-indigo-400 bg-indigo-500/10' : 'text-gray-500 hover:text-indigo-400'}`} title="Prompt Snippets"><Bookmark className="w-4 h-4" /></button>
+                      <button type="submit" disabled={!input.trim() || isLoading} className={`aspect-square h-full rounded-lg flex items-center justify-center transition-colors disabled:bg-gray-800 disabled:text-gray-600 ${isVoiceAssistantMode ? 'bg-blue-600 hover:bg-blue-500' : 'bg-indigo-600 hover:bg-indigo-500'}`}><ChevronRight className="w-5 h-5" /></button>
+                    </div>
                 </div>
               </form>
             </div>
@@ -1581,30 +1603,30 @@ export default function App() {
             <div style={{ width: (typeof window !== 'undefined' && window.innerWidth >= 1280 && !isZenMode) ? codeWidth : '100%' }} className={`flex-col border-r border-gray-800 h-full shrink-0 ${activeTab === 'code' ? 'flex' : (isCodeVisible ? 'hidden xl:flex' : '!hidden')}`}>
               <div className="h-12 bg-gray-900 border-b border-gray-800 flex justify-between items-center px-2 text-sm font-medium text-gray-400 shrink-0 overflow-x-auto whitespace-nowrap [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                 <div className="flex items-center gap-2 pl-2">
-                  <button onClick={() => setIsZenMode(!isZenMode)} className="p-1 hover:text-white hover:bg-gray-800 rounded transition-colors"><PanelLeftClose className="w-4 h-4" /></button>
-                  <Terminal className="w-4 h-4" /> <span>app_canvas.html</span>
+                  <button onClick={() => setIsZenMode(!isZenMode)} className="p-1 hover:text-white hover:bg-gray-800 rounded transition-colors hidden sm:block"><PanelLeftClose className="w-4 h-4" /></button>
+                  <Terminal className="w-4 h-4 hidden sm:block" /> <span>app_canvas.html</span>
                   <button onClick={() => {
                      const win = window.open('', '_blank', 'width=800,height=800');
                      win.document.write(`<textarea style="width:100%;height:100%;background:#0d1117;color:#e5e7eb;font-family:monospace;padding:20px;border:none;">${generatedCode.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</textarea>`);
                      win.document.title = "Omni Code Editor Pop-out";
-                  }} className="p-1 hover:text-indigo-400 transition-colors ml-1" title="Pop-out Editor"><ExternalLink className="w-3 h-3"/></button>
+                  }} className="p-1 hover:text-indigo-400 transition-colors ml-1 hidden sm:block" title="Pop-out Editor"><ExternalLink className="w-3 h-3"/></button>
                 </div>
                 <div className="flex items-center gap-0.5 ml-2">
                   <button onClick={() => setIsAssetsOpen(true)} className="p-1.5 hover:text-indigo-400 hover:bg-indigo-500/10 rounded transition-colors" title="Manage Assets"><ImageIcon className="w-4 h-4" /></button>
                   <button onClick={() => setIsPackagesOpen(true)} className="p-1.5 hover:text-indigo-400 hover:bg-indigo-500/10 rounded transition-colors" title="Inject CDNs / BaaS"><Package className="w-4 h-4" /></button>
-                  <button onClick={() => setIsComponentsOpen(true)} className="p-1.5 hover:text-indigo-400 hover:bg-indigo-500/10 rounded transition-colors" title="Tailwind Blocks"><Blocks className="w-4 h-4" /></button>
+                  <button onClick={() => setIsComponentsOpen(true)} className="p-1.5 hover:text-indigo-400 hover:bg-indigo-500/10 rounded transition-colors hidden sm:block" title="Tailwind Blocks"><Blocks className="w-4 h-4" /></button>
                   <div className="w-px h-4 bg-gray-700 mx-1"></div>
                   
                   <button onClick={formatCode} disabled={isFormatting} className="p-1.5 hover:text-indigo-400 hover:bg-indigo-500/10 rounded transition-colors" title="Auto-Format"><AlignLeft className="w-4 h-4" /></button>
-                  <button onClick={() => setIsDiffOpen(true)} disabled={codeHistory.length < 2} className="p-1.5 hover:text-cyan-400 hover:bg-cyan-500/10 rounded transition-colors" title="Compare Diff"><GitCompare className="w-4 h-4" /></button>
+                  <button onClick={() => setIsDiffOpen(true)} disabled={codeHistory.length < 2} className="p-1.5 hover:text-cyan-400 hover:bg-cyan-500/10 rounded transition-colors hidden sm:block" title="Compare Diff"><GitCompare className="w-4 h-4" /></button>
                   <div className="w-px h-4 bg-gray-700 mx-1"></div>
                   
                   {/* DRY Agent Actions Mapping */}
-                  <div className="flex gap-0.5 overflow-x-auto max-w-[250px] hide-scrollbar [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                  <div className="flex gap-0.5 overflow-x-auto max-w-[200px] sm:max-w-[250px] hide-scrollbar [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                     {AGENT_ACTIONS.filter(a => !a.isInfo).map(action => {
                        const ActionIcon = action.icon;
                        return (
-                       <button key={action.id} onClick={() => handleAgentAction(action.id)} disabled={isLoading} className={`p-1.5 hover:bg-gray-800 rounded transition-colors ${action.color} disabled:opacity-50`} title={`Agent: ${action.title}`}>
+                       <button key={action.id} onClick={() => handleAgentAction(action.id)} disabled={isLoading} className={`p-1.5 hover:bg-gray-800 rounded transition-colors ${action.color} disabled:opacity-50 shrink-0`} title={`Agent: ${action.title}`}>
                           <ActionIcon className="w-4 h-4" />
                        </button>
                        );
@@ -1613,35 +1635,51 @@ export default function App() {
                     {AGENT_ACTIONS.filter(a => a.isInfo).map(action => {
                        const ActionIcon = action.icon;
                        return (
-                       <button key={action.id} onClick={() => handleAgentAction(action.id)} disabled={isLoading} className={`p-1.5 hover:bg-gray-800 rounded transition-colors ${action.color} disabled:opacity-50`} title={`Agent: ${action.title}`}>
+                       <button key={action.id} onClick={() => handleAgentAction(action.id)} disabled={isLoading} className={`p-1.5 hover:bg-gray-800 rounded transition-colors ${action.color} disabled:opacity-50 shrink-0`} title={`Agent: ${action.title}`}>
                           <ActionIcon className="w-4 h-4" />
                        </button>
                        );
                     })}
                   </div>
 
-                  <div className="w-px h-4 bg-gray-700 mx-1"></div>
-                  <button onClick={handleUndo} disabled={historyIndex === 0} className="p-1.5 hover:text-white hover:bg-gray-800 rounded transition-colors disabled:opacity-30" title="Undo"><Undo className="w-4 h-4" /></button>
-                  <button onClick={handleRedo} disabled={historyIndex === codeHistory.length - 1} className="p-1.5 hover:text-white hover:bg-gray-800 rounded transition-colors disabled:opacity-30 mr-1" title="Redo"><Redo className="w-4 h-4" /></button>
-                  <button onClick={() => setIsHistoryOpen(true)} className="p-1.5 hover:text-white hover:bg-gray-800 rounded transition-colors" title="Version History & Branches"><History className="w-4 h-4" /></button>
-                  <div className="w-px h-4 bg-gray-700 mx-1"></div>
-                  <button onClick={() => setIsTerminalOpen(!isTerminalOpen)} className={`p-1.5 rounded transition-colors ${isTerminalOpen ? 'bg-green-500/20 text-green-400' : 'hover:text-green-400 hover:bg-green-500/10'}`} title="WebContainers Terminal"><TerminalSquare className="w-4 h-4" /></button>
+                  <div className="w-px h-4 bg-gray-700 mx-1 hidden sm:block"></div>
+                  <button onClick={handleUndo} disabled={historyIndex === 0} className="p-1.5 hover:text-white hover:bg-gray-800 rounded transition-colors disabled:opacity-30 hidden sm:block" title="Undo"><Undo className="w-4 h-4" /></button>
+                  <button onClick={handleRedo} disabled={historyIndex === codeHistory.length - 1} className="p-1.5 hover:text-white hover:bg-gray-800 rounded transition-colors disabled:opacity-30 mr-1 hidden sm:block" title="Redo"><Redo className="w-4 h-4" /></button>
+                  <button onClick={() => setIsHistoryOpen(true)} className="p-1.5 hover:text-white hover:bg-gray-800 rounded transition-colors hidden sm:block" title="Version History & Branches"><History className="w-4 h-4" /></button>
+                  <div className="w-px h-4 bg-gray-700 mx-1 hidden sm:block"></div>
+                  
+                  {/* NEW: Map & Find Tools */}
+                  <button onClick={() => setShowMinimap(!showMinimap)} className={`p-1.5 rounded transition-colors hidden sm:block ${showMinimap ? 'bg-indigo-500/20 text-indigo-400' : 'hover:text-indigo-400 hover:bg-indigo-500/10'}`} title="Toggle Minimap"><MapIcon className="w-4 h-4" /></button>
+                  <button onClick={() => setIsSearchReplaceOpen(!isSearchReplaceOpen)} className={`p-1.5 rounded transition-colors ${isSearchReplaceOpen ? 'bg-indigo-500/20 text-indigo-400' : 'hover:text-indigo-400 hover:bg-indigo-500/10'}`} title="Find & Replace"><SearchCode className="w-4 h-4" /></button>
+
                   <div className="w-px h-4 bg-gray-700 mx-1"></div>
                   <button onClick={handleCopyCode} className="p-1.5 hover:text-white hover:bg-gray-800 rounded transition-colors" title="Copy"><Copy className="w-4 h-4" /></button>
-                  <button onClick={() => exportToZip('html')} className="p-1.5 hover:text-white hover:bg-gray-800 rounded transition-colors" title="Export Zip"><Download className="w-4 h-4" /></button>
-                  <button onClick={() => exportToZip('pwa')} className="p-1.5 hover:text-white hover:bg-gray-800 rounded transition-colors" title="Export as PWA"><Smartphone className="w-4 h-4" /></button>
-                  <button onClick={() => exportToZip('vite')} className="p-1.5 hover:text-white hover:bg-gray-800 rounded transition-colors" title="Export as Vite App"><FileArchive className="w-4 h-4" /></button>
-                  <button onClick={exportToExtension} className="p-1.5 hover:text-white hover:bg-gray-800 rounded transition-colors" title="Export as Browser Extension"><Puzzle className="w-4 h-4" /></button>
                 </div>
               </div>
+
+              {/* Advanced IDE Features: Find & Replace Bar */}
+              {isSearchReplaceOpen && (
+                <div className="h-auto py-2 bg-gray-950 border-b border-gray-800 flex flex-wrap items-center px-3 gap-2 shrink-0 animate-in slide-in-from-top-1">
+                  <div className="flex items-center bg-gray-900 border border-gray-700 rounded-md px-2 flex-1 min-w-[120px]">
+                     <SearchCode className="w-3.5 h-3.5 text-gray-500 mr-2" />
+                     <input type="text" value={findText} onChange={e => setFindText(e.target.value)} placeholder="Find..." className="w-full bg-transparent text-base sm:text-xs text-gray-200 focus:outline-none py-1.5" />
+                  </div>
+                  <div className="flex items-center bg-gray-900 border border-gray-700 rounded-md px-2 flex-1 min-w-[120px]">
+                     <Replace className="w-3.5 h-3.5 text-gray-500 mr-2" />
+                     <input type="text" value={replaceText} onChange={e => setReplaceText(e.target.value)} placeholder="Replace..." className="w-full bg-transparent text-base sm:text-xs text-gray-200 focus:outline-none py-1.5" />
+                  </div>
+                  <button onClick={handleReplaceAll} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-md transition-colors shrink-0">Replace All</button>
+                  <button onClick={() => setIsSearchReplaceOpen(false)} className="p-1 text-gray-500 hover:text-white shrink-0"><X className="w-4 h-4" /></button>
+                </div>
+              )}
               
-              {/* ADVANCED EDITOR WITH LINE NUMBERS */}
+              {/* ADVANCED EDITOR WITH LINE NUMBERS AND MINIMAP */}
               <div className="flex-1 relative bg-[#0d1117] overflow-hidden flex flex-col">
                 <div className="flex-1 flex overflow-hidden group">
                   {/* Line Numbers Gutter */}
                   <div 
                     ref={lineNumbersRef}
-                    className="w-12 bg-[#090b0f] border-r border-gray-800 text-gray-600 font-mono text-right pr-3 py-4 select-none overflow-hidden shrink-0"
+                    className="w-10 sm:w-12 bg-[#090b0f] border-r border-gray-800 text-gray-600 font-mono text-right pr-2 sm:pr-3 py-4 select-none overflow-hidden shrink-0"
                     style={{ fontSize: '13px', lineHeight: '21px' }}
                   >
                     {generatedCode.split('\n').map((_, i) => <div key={i}>{i + 1}</div>)}
@@ -1668,6 +1706,28 @@ export default function App() {
                       style={{ tabSize: 2, fontSize: '13px', lineHeight: '21px' }}
                     />
                   </div>
+
+                  {/* VS Code Style Minimap */}
+                  {showMinimap && (
+                    <div 
+                      ref={minimapRef}
+                      className="w-16 bg-[#090b0f] border-l border-gray-800 hidden sm:block shrink-0 overflow-hidden pointer-events-none select-none opacity-60 relative"
+                    >
+                       <pre 
+                         className="absolute inset-0 w-[400%] origin-top-left font-mono text-[#e5e7eb] whitespace-pre break-normal"
+                         style={{ transform: 'scale(0.25)', fontSize: '10px', lineHeight: '14px', padding: '8px' }}
+                         dangerouslySetInnerHTML={{ __html: highlightHTML(generatedCode) }}
+                       />
+                       {/* Minimap Viewport Highlight Indicator */}
+                       <div className="absolute w-full bg-indigo-500/10 border-y border-indigo-500/30" 
+                            style={{ 
+                              top: editorRef.current ? `${(editorRef.current.scrollTop / editorRef.current.scrollHeight) * 100}%` : '0%',
+                              height: editorRef.current ? `${(editorRef.current.clientHeight / editorRef.current.scrollHeight) * 100}%` : '10%'
+                            }} 
+                       />
+                    </div>
+                  )}
+
                 </div>
 
                 {isTerminalOpen && (
@@ -1685,7 +1745,7 @@ export default function App() {
             {isCodeVisible && <div onMouseDown={startCodeDrag} className="hidden xl:flex w-1 bg-transparent hover:bg-indigo-500 cursor-col-resize shrink-0 z-30 transition-colors relative -ml-[1px]" />}
 
             {/* Live Preview View */}
-            <div className={isFullscreen ? 'fixed inset-0 z-50 flex flex-col bg-[#0d1117]' : `flex-1 flex-col h-full min-w-0 ${activeTab === 'preview' || (activeTab === 'chat' && window.innerWidth >= 1024) ? 'flex' : 'hidden xl:flex'}`}>
+            <div className={isFullscreen ? 'fixed inset-0 z-[120] flex flex-col bg-[#0d1117]' : `flex-1 flex-col h-full min-w-0 ${activeTab === 'preview' || (activeTab === 'chat' && window.innerWidth >= 1024) ? 'flex' : 'hidden xl:flex'}`}>
               <div className="h-12 bg-gray-900 border-b border-gray-800 flex justify-between items-center px-4 text-sm font-medium text-gray-400 shrink-0 overflow-x-auto whitespace-nowrap [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2">
@@ -1694,44 +1754,32 @@ export default function App() {
                     </button>
                     <Play className="w-4 h-4 text-green-400" />
                     <span className="hidden sm:inline">Live Canvas</span>
-                    <button onClick={openPopoutPreview} className="p-1 hover:text-indigo-400 transition-colors ml-2" title="Pop-out Multi-Monitor Preview"><ExternalLink className="w-3 h-3"/></button>
+                    <button onClick={openPopoutPreview} className="p-1 hover:text-indigo-400 transition-colors ml-2 hidden sm:block" title="Pop-out Multi-Monitor Preview"><ExternalLink className="w-3 h-3"/></button>
                   </div>
-                  <div className="flex items-center bg-gray-950 rounded-lg p-0.5 border border-gray-800 hidden sm:flex">
+                  <div className="flex items-center bg-gray-950 rounded-lg p-0.5 border border-gray-800">
                     <button onClick={() => { setViewport('mobile'); setIsLandscape(false); setFluidWidth(100); setIsGridMode(false); }} className={`p-1.5 rounded-md transition-colors ${viewport === 'mobile' && !isGridMode ? 'bg-gray-800 text-white' : 'hover:text-white'}`}><Smartphone className="w-4 h-4" /></button>
                     <button onClick={() => { setViewport('tablet'); setIsLandscape(false); setFluidWidth(100); setIsGridMode(false); }} className={`p-1.5 rounded-md transition-colors ${viewport === 'tablet' && !isGridMode ? 'bg-gray-800 text-white' : 'hover:text-white'}`}><TabletIcon className="w-4 h-4" /></button>
                     <button onClick={() => { setViewport('desktop'); setIsLandscape(false); setFluidWidth(100); setIsGridMode(false); }} className={`p-1.5 rounded-md transition-colors ${viewport === 'desktop' && fluidWidth === 100 && !isGridMode ? 'bg-gray-800 text-white' : 'hover:text-white'}`}><Monitor className="w-4 h-4" /></button>
-                    <div className="w-px h-4 bg-gray-700 mx-1"></div>
-                    <button onClick={() => setIsGridMode(!isGridMode)} className={`p-1.5 rounded-md transition-colors ${isGridMode ? 'bg-indigo-500/20 text-indigo-400' : 'hover:text-white'}`} title="Grid-Based Multi-Device Stress Tester"><LayoutGrid className="w-4 h-4" /></button>
+                    <div className="w-px h-4 bg-gray-700 mx-1 hidden sm:block"></div>
+                    <button onClick={() => setIsGridMode(!isGridMode)} className={`p-1.5 rounded-md transition-colors hidden sm:block ${isGridMode ? 'bg-indigo-500/20 text-indigo-400' : 'hover:text-white'}`} title="Grid-Based Multi-Device Stress Tester"><LayoutGrid className="w-4 h-4" /></button>
                     {viewport !== 'desktop' && !isGridMode && <button onClick={() => setIsLandscape(!isLandscape)} className={`p-1.5 ml-1 rounded-md transition-colors hover:text-white ${isLandscape ? 'text-indigo-400' : ''}`}><RotateCcw className="w-4 h-4" /></button>}
                   </div>
                 </div>
 
                 <div className="flex gap-2 items-center">
                    {/* Sync & Collab Tools */}
-                   <button onClick={handleLocalSync} className="p-1.5 rounded-md transition-colors hover:text-indigo-400 hover:bg-indigo-500/10" title="Link Local Folder (File System Access)"><HardDriveDownload className="w-4 h-4" /></button>
-                   <div className="flex items-center gap-1 bg-gray-900 border border-gray-800 rounded-md p-0.5">
-                     <button onClick={toggleMultiplayerMode} className={`p-1.5 rounded transition-colors ${isMultiplayerActive ? 'bg-green-500/20 text-green-400' : 'hover:text-green-400 hover:bg-green-500/10'}`} title="Live CRDT Multiplayer"><Users className="w-4 h-4" /></button>
-                     {isMultiplayerActive && (
-                        <button onClick={() => setIsAudioCallActive(!isAudioCallActive)} className={`p-1.5 rounded transition-colors ${isAudioCallActive ? 'bg-blue-500/20 text-blue-400 animate-pulse' : 'hover:text-blue-400 hover:bg-blue-500/10'}`} title="Pair Programming Audio Chat"><Headset className="w-4 h-4" /></button>
-                     )}
-                   </div>
-                   <div className="w-px h-4 bg-gray-700 mx-1"></div>
+                   <button onClick={handleLocalSync} className="p-1.5 rounded-md transition-colors hover:text-indigo-400 hover:bg-indigo-500/10 hidden sm:block" title="Link Local Folder (File System Access)"><HardDriveDownload className="w-4 h-4" /></button>
                    
-                   <button onClick={performLighthouseAudit} className="p-1.5 rounded-md transition-colors hover:text-indigo-400 hover:bg-indigo-500/10" title="Run Lighthouse/QA Audit"><Activity className="w-4 h-4" /></button>
-                   <button onClick={deployToStackBlitz} className="p-1.5 rounded-md transition-colors hover:text-yellow-400 hover:bg-yellow-500/10" title="Deploy Full-Stack App to WebContainers"><CloudLightning className="w-4 h-4" /></button>
-                   <div className="w-px h-4 bg-gray-700 mx-1"></div>
+                   <div className="w-px h-4 bg-gray-700 mx-1 hidden sm:block"></div>
+                   
+                   <button onClick={performLighthouseAudit} className="p-1.5 rounded-md transition-colors hover:text-indigo-400 hover:bg-indigo-500/10 hidden md:block" title="Run Lighthouse/QA Audit"><Activity className="w-4 h-4" /></button>
+                   <button onClick={deployToStackBlitz} className="p-1.5 rounded-md transition-colors hover:text-yellow-400 hover:bg-yellow-500/10 hidden md:block" title="Deploy Full-Stack App to WebContainers"><CloudLightning className="w-4 h-4" /></button>
+                   <div className="w-px h-4 bg-gray-700 mx-1 hidden sm:block"></div>
                    
                    {/* Advanced Tools */}
-                   <button onClick={() => setIsSplitPane(!isSplitPane)} className={`p-1.5 rounded-md transition-colors ${isSplitPane ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/50' : 'hover:text-indigo-400 hover:bg-indigo-500/10'}`} title="Multi-Canvas Microservices"><SplitSquareVertical className="w-4 h-4" /></button>
-                   <button onClick={() => setIsAutoHealerActive(!isAutoHealerActive)} className={`p-1.5 rounded-md transition-colors ${isAutoHealerActive ? 'bg-green-500/20 text-green-400 border border-green-500/50' : 'hover:text-green-400 hover:bg-green-500/10'}`} title="Passive Auto-Healer"><BugPlay className="w-4 h-4" /></button>
-                   <button onClick={() => setIsTimeTravelMode(!isTimeTravelMode)} className={`p-1.5 rounded-md transition-colors ${isTimeTravelMode ? 'bg-red-500/20 text-red-400 border border-red-500/50' : 'hover:text-red-400 hover:bg-red-500/10'}`} title="Time-Travel Debugging (rrweb)"><Video className="w-4 h-4" /></button>
-                   <button onClick={() => setIsChaosMonkey(!isChaosMonkey)} className={`p-1.5 rounded-md transition-colors ${isChaosMonkey ? 'bg-orange-500/20 text-orange-400 border border-orange-500/50' : 'hover:text-orange-400 hover:bg-orange-500/10'}`} title="Chaos Monkey (Simulate Network Fails)"><ServerCrash className="w-4 h-4" /></button>
-                   <button onClick={() => setIs3DMode(!is3DMode)} className={`p-1.5 rounded-md transition-colors ${is3DMode ? 'bg-blue-500/20 text-blue-400 border border-blue-500/50' : 'hover:text-blue-400 hover:bg-blue-500/10'}`} title="3D DOM Debugger"><Box className="w-4 h-4" /></button>
-                   <button onClick={() => setIsGhostMode(!isGhostMode)} className={`p-1.5 rounded-md transition-colors ${isGhostMode ? 'bg-teal-500/20 text-teal-400 border border-teal-500/50' : 'hover:text-teal-400 hover:bg-teal-500/10'}`} title="Real-User Emulation (Ghost Cursors)"><Ghost className="w-4 h-4" /></button>
-                   <button onClick={() => setIsA11ySimulatorActive(!isA11ySimulatorActive)} className={`p-1.5 rounded-md transition-colors ${isA11ySimulatorActive ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50' : 'hover:text-yellow-400 hover:bg-yellow-500/10'}`} title="A11y Screen Reader Simulator"><EyeOff className="w-4 h-4" /></button>
-                   <button onClick={() => setIsPerformanceMode(!isPerformanceMode)} className={`p-1.5 rounded-md transition-colors ${isPerformanceMode ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/50' : 'hover:text-indigo-400 hover:bg-indigo-500/10'}`} title="Performance Profiler (FPS/Memory)"><Gauge className="w-4 h-4" /></button>
+                   <button onClick={() => setIsPerformanceMode(!isPerformanceMode)} className={`p-1.5 rounded-md transition-colors hidden lg:block ${isPerformanceMode ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/50' : 'hover:text-indigo-400 hover:bg-indigo-500/10'}`} title="Performance Profiler (FPS/Memory)"><Gauge className="w-4 h-4" /></button>
                    <button onClick={() => setIsInspectorActive(!isInspectorActive)} className={`p-1.5 rounded-md transition-colors ${isInspectorActive ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/50' : 'hover:text-indigo-400 hover:bg-indigo-500/10'}`} title="Point & Prompt DOM Inspector"><MousePointerClick className="w-4 h-4" /></button>
-                   <div className="w-px h-4 bg-gray-700 mx-1"></div>
+                   <div className="w-px h-4 bg-gray-700 mx-1 hidden sm:block"></div>
 
                    {viewport === 'desktop' && (
                      <div className="flex items-center gap-2 mr-2 hidden lg:flex">
@@ -1739,21 +1787,19 @@ export default function App() {
                         <input type="range" min="30" max="100" value={fluidWidth} onChange={(e)=>setFluidWidth(e.target.value)} className="w-24 accent-indigo-500" />
                      </div>
                    )}
-                   <button onClick={shareLink} className="p-1.5 rounded-md transition-colors hover:text-indigo-400 hover:bg-indigo-500/10" title="Share Snapshot Link"><Share className="w-4 h-4" /></button>
-                   <div className="w-px h-4 bg-gray-700 mx-1"></div>
+                   <button onClick={shareLink} className="p-1.5 rounded-md transition-colors hover:text-indigo-400 hover:bg-indigo-500/10 hidden sm:block" title="Share Snapshot Link"><Share className="w-4 h-4" /></button>
+                   <div className="w-px h-4 bg-gray-700 mx-1 hidden sm:block"></div>
                    
-                   <button onClick={() => setPreviewZoom(z => Math.max(25, z - 25))} className="p-1.5 rounded-md transition-colors hover:text-white"><ZoomOut className="w-4 h-4" /></button>
-                   <span className="text-xs w-8 text-center font-mono">{previewZoom}%</span>
-                   <button onClick={() => setPreviewZoom(z => Math.min(200, z + 25))} className="p-1.5 rounded-md transition-colors hover:text-white"><ZoomIn className="w-4 h-4" /></button>
-                   <div className="w-px h-4 bg-gray-700 mx-1"></div>
-                   <button onClick={() => setIsPreviewDark(!isPreviewDark)} className={`hover:text-white transition-colors flex items-center p-1.5 rounded ${isPreviewDark ? 'bg-indigo-500/20 text-indigo-400' : ''}`}><Moon className="w-4 h-4" /></button>
-                   <button onClick={() => setIsConsoleOpen(!isConsoleOpen)} className={`hover:text-white transition-colors flex items-center gap-1 px-2 py-1 rounded ${isConsoleOpen ? 'bg-gray-800 text-white' : ''}`} title="Developer Console">
-                     <TerminalSquare className="w-4 h-4" />{consoleLogs.length > 0 && <span className="bg-amber-500 text-black text-[10px] font-bold px-1.5 rounded-full">{consoleLogs.length}</span>}
-                   </button>
-                   <div className="w-px h-4 bg-gray-700 mx-1"></div>
+                   <button onClick={() => setPreviewZoom(z => Math.max(25, z - 25))} className="p-1.5 rounded-md transition-colors hover:text-white hidden sm:block"><ZoomOut className="w-4 h-4" /></button>
+                   <span className="text-xs w-8 text-center font-mono hidden sm:inline-block">{previewZoom}%</span>
+                   <button onClick={() => setPreviewZoom(z => Math.min(200, z + 25))} className="p-1.5 rounded-md transition-colors hover:text-white hidden sm:block"><ZoomIn className="w-4 h-4" /></button>
+                   <div className="w-px h-4 bg-gray-700 mx-1 hidden sm:block"></div>
+                   <button onClick={() => setIsPreviewDark(!isPreviewDark)} className={`hover:text-white transition-colors flex items-center p-1.5 rounded hidden sm:block ${isPreviewDark ? 'bg-indigo-500/20 text-indigo-400' : ''}`}><Moon className="w-4 h-4" /></button>
+                   
+                   <div className="w-px h-4 bg-gray-700 mx-1 hidden sm:block"></div>
                    <button onClick={() => setIframeKey(k => k + 1)} className="hover:text-red-400 transition-colors" title="Hard Reset"><Power className="w-4 h-4" /></button>
                    <button onClick={() => setIsFullscreen(!isFullscreen)} className="hover:text-white transition-colors" title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}>{isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}</button>
-                   <button onClick={() => iframeRef.current && (iframeRef.current.srcdoc = getSandboxDoc())} className="hover:text-white transition-colors" title="Reload"><RefreshCw className="w-4 h-4" /></button>
+                   <button onClick={() => iframeRef.current && (iframeRef.current.srcdoc = getSandboxDoc())} className="hover:text-white transition-colors hidden sm:block" title="Reload"><RefreshCw className="w-4 h-4" /></button>
                 </div>
               </div>
               
@@ -1766,13 +1812,19 @@ export default function App() {
                      <div className="w-full h-full p-8 overflow-auto flex flex-wrap gap-12 items-start justify-center">
                        <div className="flex flex-col items-center gap-3">
                          <span className="text-xs font-bold text-gray-500 uppercase tracking-widest bg-gray-900 px-3 py-1 rounded-full">Mobile (375x812)</span>
-                         <div className="w-[375px] h-[812px] bg-white rounded-[2.5rem] border-[14px] border-[#1a1b1e] overflow-hidden shadow-2xl relative shrink-0">
+                         <div className="w-[375px] h-[812px] bg-white rounded-[3rem] border-[12px] border-gray-900 overflow-hidden shadow-2xl relative shrink-0">
+                            {/* Realistic iPhone Notch */}
+                            <div className="absolute top-0 inset-x-0 h-6 w-40 bg-gray-900 rounded-b-3xl mx-auto z-20 flex justify-center items-end pb-1">
+                               <div className="w-12 h-1.5 bg-black rounded-full"></div>
+                            </div>
                             <iframe title="Mobile Preview" className="absolute inset-0 w-full h-full border-none bg-transparent" sandbox="allow-scripts allow-forms allow-popups allow-modals allow-same-origin" srcDoc={getSandboxDoc()} />
                          </div>
                        </div>
                        <div className="flex flex-col items-center gap-3">
                          <span className="text-xs font-bold text-gray-500 uppercase tracking-widest bg-gray-900 px-3 py-1 rounded-full">Tablet (768x1024)</span>
                          <div className="w-[768px] h-[1024px] bg-white rounded-[2.5rem] border-[14px] border-[#1a1b1e] overflow-hidden shadow-2xl relative shrink-0">
+                            {/* Simple tablet camera dot */}
+                            <div className="absolute top-0 inset-y-0 right-2 w-2 h-2 bg-black rounded-full my-auto z-20"></div>
                             <iframe title="Tablet Preview" className="absolute inset-0 w-full h-full border-none bg-transparent" sandbox="allow-scripts allow-forms allow-popups allow-modals allow-same-origin" srcDoc={getSandboxDoc()} />
                          </div>
                        </div>
@@ -1781,7 +1833,7 @@ export default function App() {
                      <div 
                        className={`bg-white transition-all duration-300 ease-in-out relative origin-top flex flex-col ${
                          viewport !== 'desktop' || fluidWidth < 100
-                           ? 'rounded-[2.5rem] border-[14px] border-[#1a1b1e] overflow-hidden shrink-0 shadow-[0_0_0_2px_rgba(255,255,255,0.05)_inset,0_25px_50px_-12px_rgba(0,0,0,0.8)]' 
+                           ? 'rounded-[3rem] border-[12px] border-[#1a1b1e] overflow-hidden shrink-0 shadow-[0_0_0_2px_rgba(255,255,255,0.05)_inset,0_25px_50px_-12px_rgba(0,0,0,0.8)] ring-2 ring-gray-800' 
                            : 'w-full h-full overflow-hidden border-t border-l border-gray-700/50 rounded-tl-xl shadow-2xl mr-[-1px]'
                        }`}
                        style={viewport !== 'desktop' ? { 
@@ -1796,7 +1848,17 @@ export default function App() {
                          transformOrigin: 'top center' 
                        }}
                      >
-                       {/* Emulated Device Top Bar */}
+                       {/* Hardware Side Buttons for mobile/tablet */}
+                       {viewport !== 'desktop' && !isLandscape && (
+                          <>
+                             <div className="absolute -left-[16px] top-24 w-[4px] h-8 bg-gray-700 rounded-l-md hidden sm:block"></div>
+                             <div className="absolute -left-[16px] top-36 w-[4px] h-12 bg-gray-700 rounded-l-md hidden sm:block"></div>
+                             <div className="absolute -left-[16px] top-52 w-[4px] h-12 bg-gray-700 rounded-l-md hidden sm:block"></div>
+                             <div className="absolute -right-[16px] top-32 w-[4px] h-16 bg-gray-700 rounded-r-md hidden sm:block"></div>
+                          </>
+                       )}
+
+                       {/* Emulated Device Top Bar for Desktop */}
                        {(viewport === 'desktop' && fluidWidth === 100) && (
                          <div className="h-10 bg-gray-50 border-b border-gray-200 flex items-center px-4 gap-4 shrink-0 w-full z-10 select-none">
                            <div className="flex gap-2"><div className="w-3 h-3 rounded-full bg-[#ff5f56] border border-[#e0443e] shadow-sm"/><div className="w-3 h-3 rounded-full bg-[#ffbd2e] border border-[#dea123] shadow-sm"/><div className="w-3 h-3 rounded-full bg-[#27c93f] border border-[#1aab29] shadow-sm"/></div>
@@ -1804,14 +1866,17 @@ export default function App() {
                            <div className="w-[52px]"></div>
                          </div>
                        )}
-                       {viewport !== 'desktop' && !isLandscape && (
-                         <div className="absolute top-2 inset-x-0 h-7 bg-black rounded-full w-28 mx-auto z-10 pointer-events-none flex items-center justify-end px-3 shadow-md border border-gray-800/80">
-                           <div className="w-2.5 h-2.5 rounded-full bg-[#111] shadow-[inset_0_1px_2px_rgba(255,255,255,0.1)] border border-gray-800/50 relative overflow-hidden"><div className="absolute top-0.5 right-0.5 w-0.5 h-0.5 bg-blue-400/30 rounded-full blur-[1px]"/></div>
+                       
+                       {/* Dynamic Island / Notch for Pro Devices */}
+                       {viewport === 'mobile' && !isLandscape && (
+                         <div className="absolute top-0 inset-x-0 h-6 w-32 bg-black rounded-b-[18px] mx-auto z-20 pointer-events-none flex items-center justify-center">
+                            <div className="w-10 h-1.5 bg-gray-800 rounded-full shadow-inner"></div>
                          </div>
                        )}
+
                        {viewport !== 'desktop' && isLandscape && (
-                         <div className="absolute left-2 inset-y-0 w-7 bg-black rounded-full h-28 my-auto z-10 pointer-events-none flex flex-col items-center justify-end py-3 shadow-md border border-gray-800/80">
-                           <div className="w-2.5 h-2.5 rounded-full bg-[#111] shadow-[inset_0_1px_2px_rgba(255,255,255,0.1)] border border-gray-800/50 relative overflow-hidden"><div className="absolute bottom-0.5 right-0.5 w-0.5 h-0.5 bg-blue-400/30 rounded-full blur-[1px]"/></div>
+                         <div className="absolute left-0 inset-y-0 w-6 h-32 bg-black rounded-r-[18px] my-auto z-20 pointer-events-none flex items-center justify-center">
+                             <div className="h-10 w-1.5 bg-gray-800 rounded-full shadow-inner"></div>
                          </div>
                        )}
                        
@@ -1917,6 +1982,45 @@ export default function App() {
         </div>
       </main>
 
+      {/* Mobile Bottom Navigation */}
+      <nav className="lg:hidden fixed bottom-0 inset-x-0 h-[60px] bg-gray-950 border-t border-gray-800 flex justify-around items-center px-2 z-[100] pb-safe shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
+        <button onClick={() => setActiveTab('chat')} className={`p-2 flex flex-col items-center gap-1 w-full ${activeTab === 'chat' ? 'text-indigo-400' : 'text-gray-500 hover:text-gray-300'}`}>
+          <MessageSquare className="w-5 h-5" />
+          <span className="text-[10px] font-medium">Chat</span>
+        </button>
+        <button onClick={() => setActiveTab('code')} className={`p-2 flex flex-col items-center gap-1 w-full ${activeTab === 'code' ? 'text-indigo-400' : 'text-gray-500 hover:text-gray-300'}`}>
+          <Code2 className="w-5 h-5" />
+          <span className="text-[10px] font-medium">Code</span>
+        </button>
+        <button onClick={() => setActiveTab('preview')} className={`p-2 flex flex-col items-center gap-1 w-full ${activeTab === 'preview' ? 'text-indigo-400' : 'text-gray-500 hover:text-gray-300'}`}>
+          <Play className="w-5 h-5" />
+          <span className="text-[10px] font-medium">Preview</span>
+        </button>
+        <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 flex flex-col items-center gap-1 w-full text-gray-500 hover:text-gray-300">
+          <Menu className="w-5 h-5" />
+          <span className="text-[10px] font-medium">Menu</span>
+        </button>
+      </nav>
+
+      {/* Mobile Menu Drawer */}
+      {isMobileMenuOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[150] flex flex-col justify-end lg:hidden" onClick={() => setIsMobileMenuOpen(false)}>
+          <div className="bg-gray-900 rounded-t-3xl border-t border-gray-800 p-4 pb-10 flex flex-col gap-2 animate-in slide-in-from-bottom-full duration-300 max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="w-12 h-1.5 bg-gray-800 rounded-full mx-auto mb-4 shrink-0" />
+            <div className="grid grid-cols-4 sm:grid-cols-5 gap-3">
+              <MobileMenuItem icon={Settings} label="Settings" onClick={() => setIsSettingsOpen(true)} />
+              <MobileMenuItem icon={Command} label="Commands" onClick={() => setIsCommandPaletteOpen(true)} />
+              <MobileMenuItem icon={FolderOpen} label="History" onClick={() => setIsSessionsModalOpen(true)} />
+              <MobileMenuItem icon={Database} label="API Mocks" onClick={() => setIsMocksOpen(true)} />
+              <MobileMenuItem icon={DatabaseBackup} label="DB Studio" onClick={() => setIsDbStudioOpen(true)} />
+              <MobileMenuItem icon={Github} label="Git Sync" onClick={() => setIsGithubOpen(true)} />
+              <MobileMenuItem icon={MapIcon} label="Spatial" onClick={() => setIsSpatialMode(!isSpatialMode)} />
+              <MobileMenuItem icon={TerminalSquare} label="Console" onClick={() => { setIsConsoleOpen(!isConsoleOpen); setActiveTab('preview'); }} />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Voice Assistant Overlay (Gemini Live Equivalent) */}
       {voiceState !== 'inactive' && (
         <div className="fixed inset-0 bg-gray-950/85 backdrop-blur-xl z-[200] flex flex-col items-center justify-center animate-in fade-in duration-300">
@@ -1989,19 +2093,19 @@ export default function App() {
 
       {/* Command Palette Modal */}
       {isCommandPaletteOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-start justify-center pt-[15vh]" onClick={() => setIsCommandPaletteOpen(false)}>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-start justify-center pt-[10vh] px-4" onClick={() => setIsCommandPaletteOpen(false)}>
           <div className="bg-gray-900 border border-gray-700 shadow-2xl rounded-xl w-full max-w-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
             <div className="flex items-center px-4 py-4 border-b border-gray-800 bg-gray-950">
-               <Search className="w-5 h-5 text-indigo-400 mr-3" />
+               <Search className="w-5 h-5 text-indigo-400 mr-3 shrink-0" />
                <input 
                  autoFocus
                  type="text" 
                  value={commandQuery}
                  onChange={e => setCommandQuery(e.target.value)}
-                 className="flex-1 bg-transparent text-gray-100 focus:outline-none text-base placeholder-gray-500 font-medium"
+                 className="flex-1 bg-transparent text-gray-100 focus:outline-none text-base placeholder-gray-500 font-medium w-full"
                  placeholder="Type a command or search actions..."
                />
-               <div className="flex items-center gap-1">
+               <div className="flex items-center gap-1 shrink-0 ml-2">
                  <span className="text-[10px] font-mono text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700">ESC</span>
                </div>
             </div>
@@ -2014,13 +2118,13 @@ export default function App() {
                     onClick={() => { cmd.action(); setIsCommandPaletteOpen(false); }}
                     className="w-full text-left px-4 py-3 hover:bg-indigo-500/20 hover:text-indigo-300 text-gray-300 rounded-lg flex items-center justify-between group transition-colors"
                   >
-                     <div className="flex items-center gap-3">
-                         <div className="p-1.5 bg-gray-800 group-hover:bg-indigo-500/20 rounded-md text-gray-400 group-hover:text-indigo-400 transition-colors">
+                     <div className="flex items-center gap-3 overflow-hidden">
+                         <div className="p-1.5 bg-gray-800 group-hover:bg-indigo-500/20 rounded-md text-gray-400 group-hover:text-indigo-400 transition-colors shrink-0">
                             <Icon className="w-4 h-4" />
                          </div>
-                         <span className="font-medium text-sm">{cmd.title}</span>
+                         <span className="font-medium text-sm truncate">{cmd.title}</span>
                      </div>
-                     <span className="text-[10px] text-gray-500 font-mono uppercase tracking-wider">{cmd.id.startsWith('sys-') ? 'System' : 'AI Action'}</span>
+                     <span className="text-[10px] text-gray-500 font-mono uppercase tracking-wider shrink-0 ml-2 hidden sm:block">{cmd.id.startsWith('sys-') ? 'System' : 'AI Action'}</span>
                   </button>
                )})}
                {allCommands.filter(c => c.title.toLowerCase().includes(commandQuery.toLowerCase()) || c.id.includes(commandQuery.toLowerCase())).length === 0 && (
@@ -2033,7 +2137,7 @@ export default function App() {
 
       {/* Chat Sessions / History Modal */}
       {isSessionsModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[120] flex items-center justify-center p-4">
           <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
             <div className="p-4 border-b border-gray-800 flex justify-between items-center shrink-0">
               <h3 className="text-lg font-semibold flex items-center gap-2"><FolderOpen className="w-5 h-5 text-indigo-400" /> Chat History</h3>
@@ -2074,14 +2178,14 @@ export default function App() {
 
       {/* GitHub Direct Sync Modal */}
       {isGithubOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[120] flex items-center justify-center p-4">
           <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl max-h-[90vh] flex flex-col">
             <div className="p-4 border-b border-gray-800 flex justify-between items-center shrink-0">
               <h3 className="text-lg font-semibold flex items-center gap-2"><Github className="w-5 h-5 text-indigo-400" /> GitHub Direct Sync</h3>
               <button onClick={() => setIsGithubOpen(false)} className="text-gray-500 hover:text-white"><X className="w-5 h-5" /></button>
             </div>
             
-            <div className="p-6 space-y-5 overflow-y-auto">
+            <div className="p-4 sm:p-6 space-y-5 overflow-y-auto">
               <p className="text-sm text-gray-400">Pull code directly from your GitHub repositories into the Canvas, or push your generated code back as a commit.</p>
               
               <div className="space-y-4">
@@ -2102,7 +2206,7 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="flex gap-3 pt-4">
+              <div className="flex gap-3 pt-4 flex-col sm:flex-row">
                  <button onClick={fetchFromGitHub} disabled={isLoading} className="flex-1 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
                     <HardDriveDownload className="w-4 h-4"/> Pull to Canvas
                  </button>
@@ -2117,42 +2221,44 @@ export default function App() {
 
       {/* API Mocking Dashboard Modal */}
       {isMocksOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl">
-            <div className="p-4 border-b border-gray-800 flex justify-between items-center">
-              <h3 className="text-lg font-semibold flex items-center gap-2"><Database className="w-5 h-5 text-indigo-400" /> Local API Mocking Dashboard</h3>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[120] flex items-center justify-center p-4">
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+            <div className="p-4 border-b border-gray-800 flex justify-between items-center shrink-0">
+              <h3 className="text-lg font-semibold flex items-center gap-2"><Database className="w-5 h-5 text-indigo-400" /> Local API Mocks</h3>
               <button onClick={() => setIsMocksOpen(false)} className="text-gray-500 hover:text-white"><X className="w-5 h-5" /></button>
             </div>
-            <div className="p-6 overflow-y-auto max-h-[60vh]">
-              <p className="text-sm text-gray-400 mb-6">Define fake API endpoints here. The Sandbox intercepts matching `fetch()` calls and returns your mock data. Turn on "Edge Function" mode to execute raw JS logic (like Vercel Edge/Cloudflare Workers).</p>
+            <div className="p-4 sm:p-6 overflow-y-auto flex-1">
+              <p className="text-sm text-gray-400 mb-6 hidden sm:block">Define fake API endpoints here. The Sandbox intercepts matching `fetch()` calls and returns your mock data. Turn on "Edge Function" mode to execute raw JS logic (like Vercel Edge/Cloudflare Workers).</p>
               
               <div className="space-y-4">
                  {mockEndpoints.map((mock, index) => (
                     <div key={mock.id} className="bg-gray-950 border border-gray-800 rounded-xl p-4 relative group">
-                       <button onClick={() => { const newMocks = [...mockEndpoints]; newMocks.splice(index, 1); saveMocks(newMocks); }} className="absolute top-3 right-3 text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 className="w-4 h-4"/></button>
-                       <div className="flex gap-4 mb-3">
-                         <div className="flex-1">
-                           <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Endpoint Path</label>
+                       <button onClick={() => { const newMocks = [...mockEndpoints]; newMocks.splice(index, 1); saveMocks(newMocks); }} className="absolute top-3 right-3 text-gray-600 hover:text-red-400 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 className="w-4 h-4"/></button>
+                       <div className="flex flex-col sm:flex-row gap-4 mb-3">
+                         <div className="flex-1 pr-6 sm:pr-0">
+                           <label className="block text-[10px] sm:text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Endpoint Path</label>
                            <input type="text" value={mock.path} onChange={e => { const newMocks = [...mockEndpoints]; newMocks[index].path = e.target.value; saveMocks(newMocks); }} placeholder="/api/users" className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-indigo-500" />
                          </div>
-                         <div className="w-40">
-                           <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Type</label>
+                         <div className="w-full sm:w-40">
+                           <label className="block text-[10px] sm:text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Type</label>
                            <select value={mock.type || 'json'} onChange={e => { const newMocks = [...mockEndpoints]; newMocks[index].type = e.target.value; saveMocks(newMocks); }} className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-indigo-500">
                              <option value="json">Static JSON</option>
-                             <option value="edge">Edge Function (JS)</option>
+                             <option value="edge">Edge Function</option>
                            </select>
                          </div>
                        </div>
                        <div>
-                         <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">{mock.type === 'edge' ? 'Return Function Body' : 'JSON Response'}</label>
+                         <label className="block text-[10px] sm:text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">{mock.type === 'edge' ? 'Return Function Body' : 'JSON Response'}</label>
                          <textarea value={mock.response} onChange={e => { const newMocks = [...mockEndpoints]; newMocks[index].response = e.target.value; saveMocks(newMocks); }} placeholder={mock.type === 'edge' ? 'return { timestamp: Date.now(), req: req[0] };' : '{"status": "ok"}'} className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm font-mono text-gray-200 focus:outline-none focus:border-indigo-500 h-24 resize-none" />
                        </div>
                     </div>
                  ))}
               </div>
-              <button onClick={() => saveMocks([...mockEndpoints, { id: Date.now(), path: '/api/new', type: 'json', response: '{}' }])} className="w-full mt-4 py-3 border-2 border-dashed border-gray-700 rounded-xl text-gray-400 hover:text-indigo-400 hover:border-indigo-500/50 hover:bg-indigo-500/10 transition-colors flex items-center justify-center gap-2 text-sm font-medium">
-                + Add New Endpoint
-              </button>
+            </div>
+            <div className="p-4 bg-gray-900/80 border-t border-gray-800 shrink-0">
+               <button onClick={() => saveMocks([...mockEndpoints, { id: Date.now(), path: '/api/new', type: 'json', response: '{}' }])} className="w-full py-3 border-2 border-dashed border-gray-700 rounded-xl text-gray-400 hover:text-indigo-400 hover:border-indigo-500/50 hover:bg-indigo-500/10 transition-colors flex items-center justify-center gap-2 text-sm font-medium">
+                 + Add New Endpoint
+               </button>
             </div>
           </div>
         </div>
@@ -2160,24 +2266,24 @@ export default function App() {
 
       {/* WASM DB Studio Modal */}
       {isDbStudioOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-4xl overflow-hidden shadow-2xl flex flex-col h-[70vh]">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[120] flex items-center justify-center p-4">
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-4xl overflow-hidden shadow-2xl flex flex-col h-[80vh] sm:h-[70vh]">
             <div className="p-4 border-b border-gray-800 flex justify-between items-center shrink-0">
               <h3 className="text-lg font-semibold flex items-center gap-2"><DatabaseBackup className="w-5 h-5 text-indigo-400" /> WASM DB Studio (PGlite)</h3>
               <button onClick={() => setIsDbStudioOpen(false)} className="text-gray-500 hover:text-white"><X className="w-5 h-5" /></button>
             </div>
-            <div className="flex-1 flex overflow-hidden">
-               <div className="w-48 border-r border-gray-800 bg-gray-950 p-2 overflow-y-auto">
-                  <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 px-2 mt-2">Tables</div>
-                  <div className="px-3 py-2 text-sm text-indigo-300 bg-indigo-500/10 rounded-lg cursor-pointer">users</div>
-                  <div className="px-3 py-2 text-sm text-gray-400 hover:bg-gray-800 rounded-lg cursor-pointer mt-1">products</div>
+            <div className="flex-1 flex flex-col sm:flex-row overflow-hidden">
+               <div className="w-full sm:w-48 border-b sm:border-b-0 sm:border-r border-gray-800 bg-gray-950 p-2 overflow-y-auto shrink-0 flex sm:flex-col gap-2">
+                  <div className="text-xs font-bold text-gray-500 uppercase tracking-wider sm:mb-2 px-2 mt-2 hidden sm:block">Tables</div>
+                  <div className="px-3 py-2 text-sm text-indigo-300 bg-indigo-500/10 rounded-lg cursor-pointer whitespace-nowrap">users</div>
+                  <div className="px-3 py-2 text-sm text-gray-400 hover:bg-gray-800 rounded-lg cursor-pointer sm:mt-1 whitespace-nowrap">products</div>
                </div>
-               <div className="flex-1 flex flex-col bg-[#0d1117]">
-                  <div className="p-2 bg-gray-900 border-b border-gray-800 flex gap-2">
-                     <button className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs rounded-md">Run Query</button>
-                     <button className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded-md">Export</button>
+               <div className="flex-1 flex flex-col bg-[#0d1117] min-w-0">
+                  <div className="p-2 bg-gray-900 border-b border-gray-800 flex gap-2 overflow-x-auto hide-scrollbar">
+                     <button className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs rounded-md shrink-0">Run Query</button>
+                     <button className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded-md shrink-0">Export</button>
                   </div>
-                  <textarea className="h-32 bg-gray-950 text-green-400 font-mono text-sm p-4 border-b border-gray-800 focus:outline-none resize-none" defaultValue="SELECT * FROM users LIMIT 10;" />
+                  <textarea className="h-24 sm:h-32 bg-gray-950 text-green-400 font-mono text-sm p-4 border-b border-gray-800 focus:outline-none resize-none shrink-0" defaultValue="SELECT * FROM users LIMIT 10;" />
                   <div className="flex-1 p-4 overflow-auto">
                      <table className="w-full text-left text-sm text-gray-400">
                         <thead className="text-xs text-gray-500 uppercase bg-gray-900"><tr><th className="px-4 py-2">id</th><th className="px-4 py-2">name</th><th className="px-4 py-2">role</th></tr></thead>
@@ -2192,19 +2298,19 @@ export default function App() {
 
       {/* Code Diff Modal */}
       {isDiffOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[120] flex items-center justify-center p-4">
           <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-6xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
             <div className="p-4 border-b border-gray-800 flex justify-between items-center shrink-0">
               <h3 className="text-lg font-semibold flex items-center gap-2"><GitCompare className="w-5 h-5 text-indigo-400" /> Code Differences</h3>
               <button onClick={() => setIsDiffOpen(false)} className="text-gray-500 hover:text-white"><X className="w-5 h-5" /></button>
             </div>
-            <div className="flex-1 flex overflow-hidden">
-               <div className="flex-1 border-r border-gray-800 flex flex-col">
-                  <div className="bg-gray-950 p-2 text-center text-xs font-bold text-red-400 uppercase tracking-widest border-b border-gray-800">Previous Version</div>
+            <div className="flex-1 flex flex-col sm:flex-row overflow-hidden">
+               <div className="flex-1 border-b sm:border-b-0 sm:border-r border-gray-800 flex flex-col min-h-0">
+                  <div className="bg-gray-950 p-2 text-center text-xs font-bold text-red-400 uppercase tracking-widest border-b border-gray-800 shrink-0">Previous Version</div>
                   <textarea readOnly value={codeHistory[historyIndex - 1] || ''} className="flex-1 p-4 bg-[#0d1117] text-gray-300 font-mono text-xs resize-none focus:outline-none opacity-80 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" />
                </div>
-               <div className="flex-1 flex flex-col">
-                  <div className="bg-gray-950 p-2 text-center text-xs font-bold text-green-400 uppercase tracking-widest border-b border-gray-800">Current Version</div>
+               <div className="flex-1 flex flex-col min-h-0">
+                  <div className="bg-gray-950 p-2 text-center text-xs font-bold text-green-400 uppercase tracking-widest border-b border-gray-800 shrink-0">Current Version</div>
                   <textarea readOnly value={generatedCode} className="flex-1 p-4 bg-[#0d1117] text-gray-100 font-mono text-xs resize-none focus:outline-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" />
                </div>
             </div>
@@ -2214,26 +2320,26 @@ export default function App() {
 
       {/* Code Version History & Branches Modal */}
       {isHistoryOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[120] flex items-center justify-center p-4">
           <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
             <div className="p-4 border-b border-gray-800 flex justify-between items-center shrink-0">
               <h3 className="text-lg font-semibold flex items-center gap-2"><History className="w-5 h-5 text-indigo-400" /> Version Control</h3>
               <button onClick={() => setIsHistoryOpen(false)} className="text-gray-500 hover:text-white"><X className="w-5 h-5" /></button>
             </div>
-            <div className="flex-1 flex overflow-hidden">
+            <div className="flex-1 flex flex-col sm:flex-row overflow-hidden">
                {/* Branches Section */}
-               <div className="w-1/2 border-r border-gray-800 flex flex-col">
-                  <div className="p-3 bg-gray-950 border-b border-gray-800 text-xs font-bold uppercase tracking-widest text-indigo-400 flex items-center gap-2"><GitBranch className="w-4 h-4"/> Saved Branches</div>
+               <div className="w-full sm:w-1/2 border-b sm:border-b-0 sm:border-r border-gray-800 flex flex-col min-h-[30vh]">
+                  <div className="p-3 bg-gray-950 border-b border-gray-800 text-xs font-bold uppercase tracking-widest text-indigo-400 flex items-center gap-2 shrink-0"><GitBranch className="w-4 h-4"/> Saved Branches</div>
                   <div className="p-4 space-y-3 overflow-y-auto flex-1">
                      {branches.length === 0 && <p className="text-xs text-gray-500 text-center py-4">No branches saved. Save a version to pin it here.</p>}
                      {branches.map(branch => (
                         <div key={branch.id} className="p-3 rounded-xl bg-gray-950 border border-gray-800 flex justify-between items-center">
-                           <div>
-                              <div className="text-sm font-bold text-indigo-300">{branch.name}</div>
-                              <div className="text-xs text-gray-500 mt-1">{branch.date}</div>
+                           <div className="overflow-hidden pr-2">
+                              <div className="text-sm font-bold text-indigo-300 truncate">{branch.name}</div>
+                              <div className="text-[10px] sm:text-xs text-gray-500 mt-1 truncate">{branch.date}</div>
                            </div>
-                           <div className="flex gap-1">
-                             <button onClick={() => restoreHistory(branch.code)} className="px-3 py-1.5 bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 rounded-lg text-xs font-medium transition-colors">Checkout</button>
+                           <div className="flex gap-1 shrink-0">
+                             <button onClick={() => restoreHistory(branch.code)} className="px-2 sm:px-3 py-1.5 bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 rounded-lg text-xs font-medium transition-colors">Checkout</button>
                              <button onClick={() => {
                                const newB = branches.filter(b => b.id !== branch.id);
                                setBranches(newB);
@@ -2245,21 +2351,21 @@ export default function App() {
                   </div>
                </div>
                {/* Auto-History Section */}
-               <div className="w-1/2 flex flex-col">
-                  <div className="p-3 bg-gray-950 border-b border-gray-800 text-xs font-bold uppercase tracking-widest text-gray-400 flex items-center gap-2"><History className="w-4 h-4"/> Auto-History</div>
+               <div className="w-full sm:w-1/2 flex flex-col min-h-[30vh]">
+                  <div className="p-3 bg-gray-950 border-b border-gray-800 text-xs font-bold uppercase tracking-widest text-gray-400 flex items-center gap-2 shrink-0"><History className="w-4 h-4"/> Auto-History</div>
                   <div className="p-4 space-y-3 overflow-y-auto flex-1">
                     {codeHistory.map((codeStr, i) => (
                       <div key={i} className={`flex justify-between items-center p-3 rounded-xl border ${historyIndex === i ? 'bg-indigo-500/10 border-indigo-500/50' : 'bg-gray-950 border-gray-800'}`}>
-                        <div>
-                          <h4 className={`font-medium text-sm ${historyIndex === i ? 'text-indigo-300' : 'text-gray-200'}`}>Version {i + 1}</h4>
-                          <p className="text-xs text-gray-500">{historyIndex === i ? 'Currently Active' : 'Auto-Saved State'}</p>
+                        <div className="overflow-hidden pr-2">
+                          <h4 className={`font-medium text-sm truncate ${historyIndex === i ? 'text-indigo-300' : 'text-gray-200'}`}>Version {i + 1}</h4>
+                          <p className="text-[10px] sm:text-xs text-gray-500 truncate">{historyIndex === i ? 'Currently Active' : 'Auto-Saved State'}</p>
                         </div>
                         <div className="flex gap-1 shrink-0 ml-2">
                            <button onClick={() => {
                              const bName = prompt("Enter Branch Name:");
                              if(bName) saveBranch(codeStr, bName);
                            }} className="p-1.5 text-gray-500 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-md transition-colors" title="Save as Branch"><GitBranch className="w-4 h-4"/></button>
-                           <button onClick={() => restoreHistory(codeStr)} disabled={historyIndex === i} className="px-3 py-1.5 bg-gray-800 text-gray-300 hover:bg-gray-700 disabled:opacity-30 rounded-lg text-xs font-medium transition-colors">Restore</button>
+                           <button onClick={() => restoreHistory(codeStr)} disabled={historyIndex === i} className="px-2 sm:px-3 py-1.5 bg-gray-800 text-gray-300 hover:bg-gray-700 disabled:opacity-30 rounded-lg text-xs font-medium transition-colors">Restore</button>
                         </div>
                       </div>
                     ))}
@@ -2272,14 +2378,14 @@ export default function App() {
       
       {/* Lighthouse Audit Modal */}
       {isAuditOpen && auditResult && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[120] flex items-center justify-center p-4">
           <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
             <div className="p-4 border-b border-gray-800 flex justify-between items-center">
               <h3 className="text-lg font-semibold flex items-center gap-2"><Activity className="w-5 h-5 text-indigo-400" /> Canvas Audit Report</h3>
               <button onClick={() => setIsAuditOpen(false)} className="text-gray-500 hover:text-white"><X className="w-5 h-5" /></button>
             </div>
-            <div className="p-6 flex flex-col items-center">
-               <div className={`w-24 h-24 rounded-full border-4 flex items-center justify-center text-3xl font-bold mb-4 ${auditResult.score >= 90 ? 'border-green-500 text-green-400' : auditResult.score >= 50 ? 'border-yellow-500 text-yellow-400' : 'border-red-500 text-red-400'}`}>
+            <div className="p-6 flex flex-col items-center max-h-[70vh] overflow-y-auto">
+               <div className={`w-24 h-24 rounded-full border-4 flex items-center justify-center text-3xl font-bold mb-4 shrink-0 ${auditResult.score >= 90 ? 'border-green-500 text-green-400' : auditResult.score >= 50 ? 'border-yellow-500 text-yellow-400' : 'border-red-500 text-red-400'}`}>
                   {auditResult.score}
                </div>
                <h4 className="text-gray-200 font-bold mb-4">Performance & Best Practices</h4>
@@ -2301,7 +2407,7 @@ export default function App() {
                   <button onClick={() => {
                      setIsAuditOpen(false);
                      handleAutoSolve(`Lighthouse Audit Failed with the following issues:\n${auditResult.issues.join('\n')}\n\nPlease apply fixes for all these issues.`);
-                  }} className="w-full mt-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors flex justify-center items-center gap-2">
+                  }} className="w-full mt-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-sm font-medium transition-colors flex justify-center items-center gap-2 shrink-0">
                      <Bot className="w-4 h-4" /> Agent, Fix All Issues
                   </button>
                )}
@@ -2312,13 +2418,14 @@ export default function App() {
 
       {/* Components Modal */}
       {isComponentsOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
-            <div className="p-4 border-b border-gray-800 flex justify-between items-center"><h3 className="text-lg font-semibold flex items-center gap-2"><Blocks className="w-5 h-5 text-indigo-400" /> Tailwind Blocks</h3><button onClick={() => setIsComponentsOpen(false)} className="text-gray-500 hover:text-white"><X className="w-5 h-5" /></button></div>
-            <div className="p-4 space-y-3 max-h-[60vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[120] flex items-center justify-center p-4">
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+            <div className="p-4 border-b border-gray-800 flex justify-between items-center shrink-0"><h3 className="text-lg font-semibold flex items-center gap-2"><Blocks className="w-5 h-5 text-indigo-400" /> Tailwind Blocks</h3><button onClick={() => setIsComponentsOpen(false)} className="text-gray-500 hover:text-white"><X className="w-5 h-5" /></button></div>
+            <div className="p-4 space-y-3 overflow-y-auto flex-1">
               {tailwindComponents.map((comp, i) => (
                 <div key={i} className="flex justify-between items-center p-3 rounded-xl bg-gray-950 border border-gray-800">
-                  <h4 className="font-medium text-gray-200 text-sm">{comp.name}</h4><button onClick={() => injectComponent(comp.code)} className="px-3 py-1.5 bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 rounded-lg text-xs font-medium transition-colors shrink-0 ml-2">Insert</button>
+                  <h4 className="font-medium text-gray-200 text-sm truncate pr-2">{comp.name}</h4>
+                  <button onClick={() => injectComponent(comp.code)} className="px-3 py-1.5 bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 rounded-lg text-xs font-medium transition-colors shrink-0">Insert</button>
                 </div>
               ))}
             </div>
@@ -2328,7 +2435,7 @@ export default function App() {
 
       {/* Packages Modal & NPM Search */}
       {isPackagesOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[120] flex items-center justify-center p-4">
           <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
             <div className="p-4 border-b border-gray-800 flex justify-between items-center shrink-0"><h3 className="text-lg font-semibold flex items-center gap-2"><Package className="w-5 h-5 text-indigo-400" /> Inject Packages & BaaS</h3><button onClick={() => setIsPackagesOpen(false)} className="text-gray-500 hover:text-white"><X className="w-5 h-5" /></button></div>
             <div className="p-4 border-b border-gray-800 bg-gray-950 shrink-0">
@@ -2344,7 +2451,7 @@ export default function App() {
                    <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Search Results</h4>
                    {npmSearchResults.map((pkg, i) => (
                       <div key={i} className="flex justify-between items-center p-3 rounded-xl bg-gray-950 border border-gray-800">
-                        <div className="overflow-hidden pr-2"><h4 className="font-medium text-gray-200 text-sm truncate">{pkg.name}</h4><p className="text-xs text-gray-500 truncate">{pkg.description}</p></div>
+                        <div className="overflow-hidden pr-2"><h4 className="font-medium text-gray-200 text-sm truncate">{pkg.name}</h4><p className="text-[10px] sm:text-xs text-gray-500 truncate">{pkg.description}</p></div>
                         <button onClick={() => injectPackage(`<script src="${pkg.latest}"></script>`)} className="px-3 py-1.5 bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 rounded-lg text-xs font-medium transition-colors shrink-0 ml-2">Add</button>
                       </div>
                    ))}
@@ -2354,7 +2461,7 @@ export default function App() {
                    <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Quick Add</h4>
                    {popularPackages.map((pkg, i) => (
                     <div key={i} className="flex justify-between items-center p-3 rounded-xl bg-gray-950 border border-gray-800">
-                      <div><h4 className="font-medium text-gray-200 text-sm">{pkg.name}</h4><p className="text-xs text-gray-500">{pkg.desc}</p></div>
+                      <div className="overflow-hidden pr-2"><h4 className="font-medium text-gray-200 text-sm truncate">{pkg.name}</h4><p className="text-[10px] sm:text-xs text-gray-500 truncate">{pkg.desc}</p></div>
                       <button onClick={() => injectPackage(pkg.tag)} className="px-3 py-1.5 bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 rounded-lg text-xs font-medium transition-colors shrink-0 ml-2">Add</button>
                     </div>
                   ))}
@@ -2367,15 +2474,15 @@ export default function App() {
 
       {/* Assets Modal */}
       {isAssetsOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
-            <div className="p-4 border-b border-gray-800 flex justify-between items-center"><h3 className="text-lg font-semibold flex items-center gap-2"><ImageIcon className="w-5 h-5 text-indigo-400" /> Asset Manager</h3><button onClick={() => setIsAssetsOpen(false)} className="text-gray-500 hover:text-white"><X className="w-5 h-5" /></button></div>
-            <div className="p-4 space-y-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[120] flex items-center justify-center p-4">
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+            <div className="p-4 border-b border-gray-800 flex justify-between items-center shrink-0"><h3 className="text-lg font-semibold flex items-center gap-2"><ImageIcon className="w-5 h-5 text-indigo-400" /> Asset Manager</h3><button onClick={() => setIsAssetsOpen(false)} className="text-gray-500 hover:text-white"><X className="w-5 h-5" /></button></div>
+            <div className="p-4 space-y-4 overflow-y-auto flex-1">
               <div className="border-2 border-dashed border-gray-700 rounded-xl p-8 text-center hover:bg-gray-800/50 transition-colors relative">
                 <input type="file" accept="image/*" onChange={handleAssetUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
-                <ImageIcon className="w-8 h-8 text-gray-500 mx-auto mb-2" /><p className="text-sm text-gray-400">Click or drag image to upload<br/><span className="text-xs text-gray-500">(Converts to Base64)</span></p>
+                <ImageIcon className="w-8 h-8 text-gray-500 mx-auto mb-2" /><p className="text-sm text-gray-400">Click or tap to upload<br/><span className="text-xs text-gray-500">(Converts to Base64)</span></p>
               </div>
-              <div className="max-h-48 overflow-y-auto space-y-2">
+              <div className="space-y-2">
                 {assets.map((asset, i) => (
                   <div key={i} className="flex justify-between items-center p-2 rounded-lg bg-gray-950 border border-gray-800">
                     <div className="flex items-center gap-2 overflow-hidden"><img src={asset.base64} alt="preview" className="w-8 h-8 object-cover rounded bg-gray-800 shrink-0" /><span className="text-xs text-gray-300 truncate">{asset.name}</span></div>
@@ -2389,9 +2496,9 @@ export default function App() {
         </div>
       )}
 
-      {/* Settings Modal (Updated UX) */}
+      {/* Settings Modal */}
       {isSettingsOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[120] flex items-center justify-center p-4">
           <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl max-h-[90vh] flex flex-col">
             <div className="p-4 border-b border-gray-800 flex justify-between items-center shrink-0">
               <h3 className="text-lg font-semibold flex items-center gap-2"><KeyRound className="w-5 h-5 text-indigo-400" /> Settings & Integrations</h3>
@@ -2402,13 +2509,13 @@ export default function App() {
                <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-gray-800">
                   
                   {/* Left Column - Core Config */}
-                  <div className="bg-gray-900 p-6 space-y-6">
+                  <div className="bg-gray-900 p-4 sm:p-6 space-y-6">
                     <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">AI Configuration</h4>
                     
                     <div className="flex items-center justify-between p-3 bg-gray-950 border border-gray-800 rounded-xl">
                        <div>
                          <h4 className="text-sm font-medium text-gray-200">Voice Auto-Submit</h4>
-                         <p className="text-xs text-gray-500">Send prompt automatically</p>
+                         <p className="text-[10px] sm:text-xs text-gray-500">Send prompt automatically</p>
                        </div>
                        <label className="relative inline-flex items-center cursor-pointer">
                           <input type="checkbox" className="sr-only peer" checked={isVoiceAutoSubmit} onChange={(e) => saveSetting('omni_voice_autosubmit', e.target.checked, setIsVoiceAutoSubmit)} />
@@ -2454,12 +2561,12 @@ export default function App() {
                                     setGeminiKeyInput('');
                                  }
                               }}
-                              className="flex-1 bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                              className="flex-1 bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 w-full"
                             />
-                            <button type="button" onClick={() => setShowGeminiKey(!showGeminiKey)} className="p-2 bg-gray-900 border border-gray-800 rounded-xl hover:bg-gray-800 text-gray-400 transition-colors" title={showGeminiKey ? "Hide Keys" : "Show Keys"}>
+                            <button type="button" onClick={() => setShowGeminiKey(!showGeminiKey)} className="p-2 bg-gray-900 border border-gray-800 rounded-xl hover:bg-gray-800 text-gray-400 transition-colors shrink-0" title={showGeminiKey ? "Hide Keys" : "Show Keys"}>
                                {showGeminiKey ? <EyeOff className="w-4 h-4"/> : <Eye className="w-4 h-4" />}
                             </button>
-                            <button type="button" onClick={() => testConnection('gemini')} className="p-2 bg-indigo-600 hover:bg-indigo-500 border border-indigo-500 rounded-xl text-white transition-colors flex items-center justify-center w-10">
+                            <button type="button" onClick={() => testConnection('gemini')} className="p-2 bg-indigo-600 hover:bg-indigo-500 border border-indigo-500 rounded-xl text-white transition-colors flex items-center justify-center w-10 shrink-0">
                                {testingStatus.gemini === 'loading' ? <RefreshCw className="w-4 h-4 animate-spin" /> : testingStatus.gemini === 'success' ? <Check className="w-4 h-4 text-green-300" /> : testingStatus.gemini === 'error' ? <AlertCircle className="w-4 h-4 text-red-300" /> : <Zap className="w-4 h-4" />}
                             </button>
                           </div>
@@ -2473,13 +2580,12 @@ export default function App() {
 
                     {apiProvider === 'longcat' && (
                       <div className="space-y-4 animate-in fade-in">
-                         {/* Longcat settings (Truncated slightly for visual balance, same logic applies) */}
                          <div className="space-y-2">
                            <label className="text-sm font-medium text-gray-300">Longcat API Key</label>
                            <div className="relative flex items-center gap-2">
-                             <input type={showLongcatKey ? "text" : "password"} value={longcatKeyInput} onChange={(e) => setLongcatKeyInput(e.target.value)} placeholder="Paste key..." onKeyDown={(e) => { if (e.key === 'Enter' && e.target.value.trim()) { e.preventDefault(); const currentKeys = longcatApiKey.split(',').map(k=>k.trim()).filter(Boolean); if (!currentKeys.includes(e.target.value.trim())) saveSetting('omni_longcat_key', [...currentKeys, e.target.value.trim()].join(', '), setLongcatApiKey); setLongcatKeyInput(''); } }} className="flex-1 bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50" />
-                             <button type="button" onClick={() => setShowLongcatKey(!showLongcatKey)} className="p-2 bg-gray-900 border border-gray-800 rounded-xl hover:bg-gray-800 text-gray-400 transition-colors">{showLongcatKey ? <EyeOff className="w-4 h-4"/> : <Eye className="w-4 h-4" />}</button>
-                             <button type="button" onClick={() => testConnection('longcat')} className="p-2 bg-indigo-600 hover:bg-indigo-500 border border-indigo-500 rounded-xl text-white transition-colors flex items-center justify-center w-10">{testingStatus.longcat === 'loading' ? <RefreshCw className="w-4 h-4 animate-spin" /> : testingStatus.longcat === 'success' ? <Check className="w-4 h-4 text-green-300" /> : testingStatus.longcat === 'error' ? <AlertCircle className="w-4 h-4 text-red-300" /> : <Zap className="w-4 h-4" />}</button>
+                             <input type={showLongcatKey ? "text" : "password"} value={longcatKeyInput} onChange={(e) => setLongcatKeyInput(e.target.value)} placeholder="Paste key..." onKeyDown={(e) => { if (e.key === 'Enter' && e.target.value.trim()) { e.preventDefault(); const currentKeys = longcatApiKey.split(',').map(k=>k.trim()).filter(Boolean); if (!currentKeys.includes(e.target.value.trim())) saveSetting('omni_longcat_key', [...currentKeys, e.target.value.trim()].join(', '), setLongcatApiKey); setLongcatKeyInput(''); } }} className="flex-1 bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 w-full" />
+                             <button type="button" onClick={() => setShowLongcatKey(!showLongcatKey)} className="p-2 bg-gray-900 border border-gray-800 rounded-xl hover:bg-gray-800 text-gray-400 transition-colors shrink-0">{showLongcatKey ? <EyeOff className="w-4 h-4"/> : <Eye className="w-4 h-4" />}</button>
+                             <button type="button" onClick={() => testConnection('longcat')} className="p-2 bg-indigo-600 hover:bg-indigo-500 border border-indigo-500 rounded-xl text-white transition-colors flex items-center justify-center w-10 shrink-0">{testingStatus.longcat === 'loading' ? <RefreshCw className="w-4 h-4 animate-spin" /> : testingStatus.longcat === 'success' ? <Check className="w-4 h-4 text-green-300" /> : testingStatus.longcat === 'error' ? <AlertCircle className="w-4 h-4 text-red-300" /> : <Zap className="w-4 h-4" />}</button>
                            </div>
                          </div>
                       </div>
@@ -2489,14 +2595,14 @@ export default function App() {
                       <div className="space-y-4 animate-in fade-in">
                         <div className="space-y-2">
                           <label className="text-sm font-medium text-gray-300">Local Endpoint URL</label>
-                          <input type="text" value={ollamaUrl} onChange={(e) => saveSetting('omni_ollama_url', e.target.value, setOllamaUrl)} placeholder="http://localhost:11434/api/chat" className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50" />
+                          <input type="text" value={ollamaUrl} onChange={(e) => saveSetting('omni_ollama_url', e.target.value, setOllamaUrl)} placeholder="http://localhost:11434/api/chat" className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50" />
                         </div>
                       </div>
                     )}
                     
                     <div className="pt-4 border-t border-gray-800 space-y-2">
                        <label className="text-sm font-medium text-gray-300 flex items-center gap-2"><MonitorSpeaker className="w-4 h-4 text-indigo-400"/> Assistant Voice Setup</label>
-                       <p className="text-xs text-gray-500 mb-2">Choose the TTS voice used when Omni Voice Assistant is active.</p>
+                       <p className="text-[10px] sm:text-xs text-gray-500 mb-2">Choose the TTS voice used when Omni Voice Assistant is active.</p>
                        
                        {apiProvider === 'gemini' ? (
                           <div className="space-y-1 mb-2">
@@ -2521,24 +2627,24 @@ export default function App() {
                   </div>
                   
                   {/* Right Column - Integrations & Sandbox Config */}
-                  <div className="bg-gray-900 p-6 space-y-6">
+                  <div className="bg-gray-900 p-4 sm:p-6 space-y-6">
                     <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Integrations & Data</h4>
                     
                     <div className="space-y-2">
                        <label className="text-sm font-medium text-gray-300 flex items-center gap-2"><Figma className="w-4 h-4 text-pink-400"/> Figma API Token (Optional)</label>
-                       <p className="text-xs text-gray-500 mb-2">Allows the Agent to directly extract design tokens and CSS from a Figma file URL.</p>
+                       <p className="text-[10px] sm:text-xs text-gray-500 mb-2">Allows the Agent to directly extract design tokens and CSS from a Figma file URL.</p>
                        <input type="password" value={figmaToken} onChange={(e) => saveSetting('omni_figma_token', e.target.value, setFigmaToken)} placeholder="figd_..." className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-sm text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50" />
                     </div>
 
                     <div className="pt-4 border-t border-gray-800 space-y-2">
                        <label className="text-sm font-medium text-gray-300 flex items-center gap-2"><Lock className="w-4 h-4 text-amber-400"/> Environment Variables</label>
-                       <p className="text-xs text-gray-500 mb-2">Injected safely into Sandbox as <code>window.ENV</code>.</p>
-                       <textarea value={sandboxEnv} onChange={(e) => saveSetting('omni_sandbox_env', e.target.value, setSandboxEnv)} className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-xs font-mono text-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 h-24 resize-none" />
+                       <p className="text-[10px] sm:text-xs text-gray-500 mb-2">Injected safely into Sandbox as <code>window.ENV</code>.</p>
+                       <textarea value={sandboxEnv} onChange={(e) => saveSetting('omni_sandbox_env', e.target.value, setSandboxEnv)} className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-xs font-mono text-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 h-20 resize-none" />
                     </div>
 
                     <div className="pt-4 border-t border-gray-800 space-y-2">
                        <label className="text-sm font-medium text-gray-300 flex items-center gap-2"><Brain className="w-4 h-4 text-fuchsia-400"/> Local Vector RAG</label>
-                       <p className="text-xs text-gray-500 mb-2">Upload project docs or PDFs to give the Omni-Agent persistent memory.</p>
+                       <p className="text-[10px] sm:text-xs text-gray-500 mb-2">Upload project docs or PDFs to give the Omni-Agent persistent memory.</p>
                        <button onClick={() => alert("Simulated: Vector DB Initialized. Docs chunked and embedded into IndexedDB.")} className="w-full py-2 border border-dashed border-gray-700 rounded-xl text-gray-400 hover:text-fuchsia-400 hover:border-fuchsia-500/50 hover:bg-fuchsia-500/10 transition-colors text-xs font-medium flex items-center justify-center gap-2">
                           <Database className="w-3.5 h-3.5" /> Upload Knowledge Base
                        </button>
@@ -2546,21 +2652,21 @@ export default function App() {
 
                     <div className="pt-4 border-t border-gray-800 space-y-2">
                        <div className="flex justify-between items-center">
-                         <label className="text-sm font-medium text-gray-300 flex items-center gap-2">Context Memory Limit <span className="px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 text-xs">{maxContext === 0 ? 'Unlimited' : `${maxContext} Msgs`}</span></label>
+                         <label className="text-sm font-medium text-gray-300 flex items-center gap-2">Context Memory Limit <span className="px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 text-[10px] sm:text-xs">{maxContext === 0 ? 'Unlimited' : `${maxContext} Msgs`}</span></label>
                        </div>
-                       <input type="range" min="0" max="40" step="2" value={maxContext} onChange={(e) => saveSetting('omni_max_context', parseInt(e.target.value), setMaxContext)} className="w-full accent-indigo-500" />
+                       <input type="range" min="0" max="40" step="2" value={maxContext} onChange={(e) => saveSetting('omni_max_context', parseInt(e.target.value), setMaxContext)} className="w-full accent-indigo-500 mt-2" />
                     </div>
 
                     {/* Prompt Vault */}
                     <div className="pt-4 border-t border-gray-800 space-y-3">
                        <div className="flex justify-between items-center">
                          <label className="text-sm font-medium text-gray-300 flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-green-400"/> Custom Persona Vault</label>
-                         <button onClick={() => saveSetting('omni_system_prompt', PERSONAS.default, setCustomSystemPrompt)} className="text-xs text-indigo-400 hover:text-indigo-300">Reset Default</button>
+                         <button onClick={() => saveSetting('omni_system_prompt', PERSONAS.default, setCustomSystemPrompt)} className="text-[10px] sm:text-xs text-indigo-400 hover:text-indigo-300">Reset Default</button>
                        </div>
-                       <textarea value={customSystemPrompt} onChange={(e) => setCustomSystemPrompt(e.target.value)} className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-xs font-mono text-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 h-24 resize-none" />
-                       <div className="flex gap-2">
-                         <input type="text" value={newPersonaName} onChange={e => setNewPersonaName(e.target.value)} placeholder="Name your Persona..." className="flex-1 bg-gray-950 border border-gray-800 rounded-lg px-3 py-1.5 text-xs text-gray-200 focus:outline-none focus:border-indigo-500" />
-                         <button onClick={saveToVault} disabled={!newPersonaName.trim()} className="px-3 py-1.5 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-lg text-xs font-medium hover:bg-indigo-500/20 disabled:opacity-50 transition-colors flex items-center gap-1"><Save className="w-3.5 h-3.5"/> Save</button>
+                       <textarea value={customSystemPrompt} onChange={(e) => setCustomSystemPrompt(e.target.value)} className="w-full bg-gray-950 border border-gray-800 rounded-xl py-2 px-3 text-xs font-mono text-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 h-20 resize-none" />
+                       <div className="flex flex-col sm:flex-row gap-2">
+                         <input type="text" value={newPersonaName} onChange={e => setNewPersonaName(e.target.value)} placeholder="Name your Persona..." className="flex-1 bg-gray-950 border border-gray-800 rounded-lg px-3 py-2 sm:py-1.5 text-sm sm:text-xs text-gray-200 focus:outline-none focus:border-indigo-500 w-full" />
+                         <button onClick={saveToVault} disabled={!newPersonaName.trim()} className="w-full sm:w-auto px-4 py-2 sm:py-1.5 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-lg text-sm sm:text-xs font-medium hover:bg-indigo-500/20 disabled:opacity-50 transition-colors flex items-center justify-center gap-1 shrink-0"><Save className="w-3.5 h-3.5"/> Save</button>
                        </div>
                     </div>
 
@@ -2569,8 +2675,8 @@ export default function App() {
             </div>
             
             <div className="p-4 border-t border-gray-800 bg-gray-900/80 flex justify-between items-center shrink-0">
-              <button onClick={purgeCredentials} className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg text-sm font-medium transition-colors flex items-center gap-2">
-                <Trash2 className="w-4 h-4" /> Purge Credentials
+              <button onClick={purgeCredentials} className="px-3 sm:px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg text-xs sm:text-sm font-medium transition-colors flex items-center gap-2">
+                <Trash2 className="w-4 h-4 hidden sm:block" /> Purge Credentials
               </button>
               <button onClick={() => {
                   if (geminiKeyInput.trim()) {
@@ -2579,18 +2685,18 @@ export default function App() {
                     setGeminiKeyInput('');
                   }
                   if (longcatKeyInput.trim()) {
-                const currentKeys = longcatApiKey.split(',').map(k=>k.trim()).filter(Boolean);
-                if (!currentKeys.includes(longcatKeyInput.trim())) saveSetting('omni_longcat_key', [...currentKeys, longcatKeyInput.trim()].join(', '), setLongcatApiKey);
-                setLongcatKeyInput('');
-              }
-              setIsSettingsOpen(false);
-          }} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors">
-            Save & Close
-          </button>
+                    const currentKeys = longcatApiKey.split(',').map(k=>k.trim()).filter(Boolean);
+                    if (!currentKeys.includes(longcatKeyInput.trim())) saveSetting('omni_longcat_key', [...currentKeys, longcatKeyInput.trim()].join(', '), setLongcatApiKey);
+                    setLongcatKeyInput('');
+                  }
+                  setIsSettingsOpen(false);
+              }} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors">
+                Save & Close
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
     </div>
-  )}
-</div>
-);
+  );
 }
