@@ -24,7 +24,7 @@ const T_BACKTICKS = String.fromCharCode(96, 96, 96);
 
 // --- Agent Personas ---
 const PERSONAS = {
-  default: `You are Omni-Agent, an elite AI frontend engineer operating in 'Omni-Sandbox'.\n\nYOUR DIRECTIVE:\nYou are building production-ready applications inside a Live Canvas environment. You must automatically create complete, fully functional Canvas Files for the user to ensure the best results.\n\nRULES FOR BEST RESULTS:\n1. CHAIN OF THOUGHT: Always plan your architecture and UI/UX approach first.\n2. THE CANVAS FILE: You must output EXACTLY ONE ${T_BACKTICKS}html code block containing the complete HTML file.\n3. UNIFIED ARCHITECTURE: Embed all CSS (Tailwind) and JS within the single HTML file.\n4. NO PLACEHOLDERS: Write complete code. NEVER truncate. Never use placeholders.\n5. PRESERVE FUNCTIONALITY: When editing existing code, preserve all existing logic, features, and styles unless explicitly asked to change them.\n6. AESTHETIC EXCELLENCE: Default to modern UI/UX principles.`,
+  default: `You are Omni-Agent, an elite AI frontend engineer operating in 'Omni-Sandbox'.\n\nYOUR DIRECTIVE:\nYou are building production-ready applications inside a Live Canvas environment.\n\nRULES FOR BEST RESULTS:\n1. CHAIN OF THOUGHT: Always plan your architecture first.\n2. ONE SINGLE FILE: You must output EXACTLY ONE ${T_BACKTICKS}html code block containing the complete HTML file. NEVER output separate frontend/backend files.\n3. UNIFIED ARCHITECTURE: Embed all CSS (Tailwind) and JS within the single HTML file.\n4. NO PLACEHOLDERS: Write complete code. NEVER truncate.\n5. PRESERVE FUNCTIONALITY: When editing existing code, merge and improve. Do not duplicate. Preserve all logic.\n6. AESTHETIC EXCELLENCE: Default to modern UI/UX principles.`,
   tailwind: `You are Omni-Agent, a world-class UI/UX Designer and Tailwind CSS Expert.\n\nYOUR DIRECTIVE: Build visually stunning, hyper-modern web applications.\n\nRULES:\n1. Output exactly ONE complete ${T_BACKTICKS}html block.\n2. Prioritize incredible aesthetics: glassmorphism, gradients, smooth transitions. Use Tailwind CSS exclusively.\n3. NEVER use placeholders. Provide complete code.`,
   gamedev: `You are Omni-Agent, a senior WebGL and Canvas HTML5 Game Developer.\n\nYOUR DIRECTIVE: Build highly performant, 60FPS browser games.\n\nRULES:\n1. Output exactly ONE complete ${T_BACKTICKS}html block containing the game.\n2. Prioritize requestAnimationFrame loops, efficient rendering, clean physics math.\n3. NEVER use placeholders. Ensure complete logic is returned.`,
   datascientist: `You are Omni-Agent, a Data Visualization Expert.\n\nYOUR DIRECTIVE: Build gorgeous, interactive data dashboards and charts.\n\nRULES:\n1. Output exactly ONE complete ${T_BACKTICKS}html block.\n2. Utilize CDN libraries like Chart.js, D3.js, or Recharts. Generate realistic mock data.\n3. Do not truncate the file.`
@@ -168,6 +168,48 @@ const MobileMenuItem = ({ icon: Icon, label, onClick }) => (
    </button>
 );
 
+const ChatCodeBlock = ({ code, onApply }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const isAppCode = code.includes('<html') || code.includes('<body') || code.length > 500;
+  
+  if (isAppCode && !isExpanded) {
+    return (
+      <div className="mt-3 mb-2 flex flex-col bg-indigo-500/10 border border-indigo-500/20 rounded-xl p-3 shadow-sm w-full min-w-[200px] max-w-sm">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3 overflow-hidden">
+            <div className="bg-indigo-500/20 p-2 rounded-lg text-indigo-400 shrink-0"><Code2 className="w-5 h-5"/></div>
+            <div className="flex flex-col overflow-hidden">
+              <span className="text-[13px] font-semibold text-indigo-300 truncate">App Canvas Code</span>
+              <span className="text-[11px] text-indigo-400/60 truncate">{code.split('\n').length} lines</span>
+            </div>
+          </div>
+          <div className="flex gap-1.5 shrink-0 ml-2">
+             <button onClick={() => setIsExpanded(true)} className="text-xs font-medium text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20 px-2.5 py-1.5 rounded-lg transition-colors shrink-0">View</button>
+             {onApply && <button onClick={() => onApply(code.replace(/^[a-zA-Z0-9-]+\n/, ''))} className="text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-500 px-2.5 py-1.5 rounded-lg transition-colors shrink-0">Apply</button>}
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
+  return (
+    <div className="mt-2 mb-2 bg-gray-950 rounded-lg overflow-hidden border border-gray-800 relative">
+      {isAppCode && (
+         <div className="bg-gray-900 px-3 py-2 flex justify-between items-center border-b border-gray-800">
+            <span className="text-xs text-gray-400 font-mono">app_canvas.html</span>
+            <div className="flex gap-2">
+               {onApply && <button onClick={() => onApply(code.replace(/^[a-zA-Z0-9-]+\n/, ''))} className="text-[10px] bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-500 transition-colors">Apply to Canvas</button>}
+               <button onClick={() => setIsExpanded(false)} className="text-[10px] text-gray-500 hover:text-gray-300 px-2 py-1 bg-gray-800 rounded transition-colors">Collapse</button>
+            </div>
+         </div>
+      )}
+      <div className="p-3 overflow-x-auto text-xs font-mono text-gray-300 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+         <pre style={{margin: 0, padding: 0}}>{code.replace(/^[a-zA-Z0-9-]+\n/, '')}</pre>
+      </div>
+    </div>
+  );
+};
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('chat');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -212,7 +254,6 @@ export default function App() {
   const [availableVoices, setAvailableVoices] = useState([]);
   const [selectedVoiceURI, setSelectedVoiceURI] = useState('');
   const [isVoiceAssistantMode, setIsVoiceAssistantMode] = useState(false);
-  const [isSpeaking, setIsSpeaking] = useState(false);
   
   const audioRef = useRef(null);
   const recognitionRef = useRef(null);
@@ -968,9 +1009,8 @@ export default function App() {
        const responseText = await callAIAPI(messages, text, false, null, generatedCode, false);
        const code = extractCode(responseText);
        const hasValidCode = !!code;
-       const finalChatText = hasValidCode ? cleanResponseText(responseText) : responseText;
        
-       setMessages(prev => [...prev, { role: 'model', text: finalChatText, timestamp: new Date().toISOString() }]);
+       setMessages(prev => [...prev, { role: 'model', text: responseText, timestamp: new Date().toISOString() }]);
        if (hasValidCode) updateCode(code);
        
        await speakTextAI(responseText); // Start speaking the response
@@ -1022,25 +1062,21 @@ export default function App() {
   };
 
   const extractCode = (text) => {
-    const regex = new RegExp(T_BACKTICKS + '(?:html|javascript|js|css|mermaid)?\\n([\\s\\S]*?)' + T_BACKTICKS);
+    const regex = new RegExp(T_BACKTICKS + '(?:[a-zA-Z0-9-]+)?\\n([\\s\\S]*?)' + T_BACKTICKS);
     const match = text.match(regex);
     if (match) return match[1];
-    const fallbackRegex = new RegExp(T_BACKTICKS + '(?:html|javascript|js|css|mermaid)?\\n([\\s\\S]*)');
+    const fallbackRegex = new RegExp(T_BACKTICKS + '(?:[a-zA-Z0-9-]+)?\\n([\\s\\S]*)');
     const fallbackMatch = text.match(fallbackRegex);
     return fallbackMatch ? fallbackMatch[1] : null; 
   };
 
-  // Helper to replace raw HTML blocks with a simple UI marker in the chat history
   const cleanResponseText = (fullText) => {
-    const regex1 = new RegExp(T_BACKTICKS + '(?:html)?\\n([\\s\\S]*?<html[\\s\\S]*?)' + T_BACKTICKS, 'gi');
-    if (regex1.test(fullText)) {
-      return fullText.replace(regex1, T_BACKTICKS + 'canvas_update\n' + T_BACKTICKS);
-    }
-    const regex2 = new RegExp(T_BACKTICKS + '(?:html)?\\n([\\s\\S]*?<html[\\s\\S]*)', 'gi');
-    if (regex2.test(fullText)) {
-      return fullText.replace(regex2, T_BACKTICKS + 'canvas_update\n' + T_BACKTICKS);
-    }
-    return fullText;
+    let cleaned = fullText.replace(new RegExp(T_BACKTICKS + '(?:[a-zA-Z0-9-]+)?\\n([\\s\\S]*?)' + T_BACKTICKS, 'g'), (match, p1) => {
+      return p1.trim().length > 100 ? T_BACKTICKS + 'canvas_update\n' + T_BACKTICKS : match;
+    });
+    // Fallback for unclosed massive code blocks at the very end
+    cleaned = cleaned.replace(new RegExp(T_BACKTICKS + '(?:[a-zA-Z0-9-]+)?\\n([\\s\\S]{300,})$', 'g'), T_BACKTICKS + 'canvas_update\n' + T_BACKTICKS);
+    return cleaned;
   };
 
   const executeSimulatedAgentStatus = async (initialDelay = 1000) => {
@@ -1069,7 +1105,7 @@ export default function App() {
     
     let augmentedPrompt = newPrompt;
     if (currentCodeContext && currentCodeContext !== DEFAULT_CODE && !isFix) {
-        augmentedPrompt += `\n\n[CURRENT CODEBASE STATE - You MUST use this as the base for your edits. Maintain ALL existing functionality unless requested otherwise. Do not truncate the file!]:\n${T_BACKTICKS}html\n${currentCodeContext}\n${T_BACKTICKS}`;
+        augmentedPrompt += `\n\n[CURRENT CODEBASE STATE - You MUST use this as the base for your edits. Do NOT generate multiple files. Merge all improvements into ONE single HTML file containing all CSS and JS. Maintain ALL existing functionality unless requested otherwise. Do NOT use placeholders or truncate the file!]:\n${T_BACKTICKS}html\n${currentCodeContext}\n${T_BACKTICKS}`;
     }
     if (targetedElement) augmentedPrompt += `\n\n[SYSTEM CONTEXT - The user has pointed an inspector at this specific DOM element on the page. Focus your changes here]:\n${T_BACKTICKS}html\n${targetedElement.html}\n${T_BACKTICKS}`;
     if (selectedCodeContext) augmentedPrompt += `\n\n[SYSTEM CONTEXT - The user has highlighted this specific block of code in the editor. Focus your changes here]:\n${T_BACKTICKS}\n${selectedCodeContext}\n${T_BACKTICKS}`;
@@ -1093,7 +1129,9 @@ export default function App() {
           const url = `${baseUrl.replace(/\/$/, '')}/v1beta/models/${activeModelName}:generateContent?key=${currentKey}`;
           
           const contents = historyToSend.map(m => {
-            const parts = [{ text: m.text }];
+            let textForAPI = m.text;
+            if (m.role === 'model') textForAPI = cleanResponseText(textForAPI);
+            const parts = [{ text: textForAPI }];
             if (m.image) {
               const mimeType = m.image.match(/data:(.*?);base64/)?.[1] || "image/jpeg";
               parts.push({ inlineData: { mimeType, data: m.image.split(',')[1] } });
@@ -1149,6 +1187,7 @@ export default function App() {
           
           historyToSend.forEach((m, idx) => {
             let msgText = m.text?.trim() || "";
+            if (m.role === 'model') msgText = cleanResponseText(msgText);
             if (sysPrompt && idx === 0) { msgText = `[System Instructions: ${sysPrompt}]\n\n` + msgText; sysPrompt = ""; }
             if (isOmni) {
               const contentArray = [{ type: "text", text: msgText || "Attached context." }];
@@ -1227,13 +1266,10 @@ export default function App() {
       const code = extractCode(responseText);
       const hasValidCode = !!code;
       
-      // Clean chat history to prevent "Multiple Apps" issue & Token Bloat
-      const finalChatText = hasValidCode ? cleanResponseText(responseText) : responseText;
-      
-      setMessages(prev => [...prev, { role: 'model', text: finalChatText, timestamp: new Date().toISOString() }]);
+      setMessages(prev => [...prev, { role: 'model', text: responseText, timestamp: new Date().toISOString() }]);
       if (hasValidCode) updateCode(code);
       
-      if (isVoice) speakText(responseText); // Speak the full response before it was cleaned
+      if (isVoice) speakText(responseText);
       
     } catch (error) {
       setMessages(prev => [...prev, { role: 'model', text: `❌ **Error:** ${error.message}` }]);
@@ -1260,9 +1296,8 @@ export default function App() {
       const responseText = await callAIAPI(messages, fixPrompt, true, null, generatedCode);
       const newCode = extractCode(responseText);
       const hasValidCode = !!newCode;
-      const finalChatText = hasValidCode ? cleanResponseText(responseText) : responseText;
       
-      setMessages(prev => [...prev, { role: 'model', text: `✅ **Agentic Fix Applied:** I found the issue and updated the Canvas File.\n\n` + finalChatText, isAutoGenerated: true, timestamp: new Date().toISOString() }]);
+      setMessages(prev => [...prev, { role: 'model', text: `✅ **Agentic Fix Applied:** I found the issue and updated the Canvas File.\n\n${responseText}`, isAutoGenerated: true, timestamp: new Date().toISOString() }]);
       if (hasValidCode) updateCode(newCode);
     } catch (error) { setMessages(prev => [...prev, { role: 'model', text: `❌ **Auto-Solve Failed:** ${error.message}` }]); } 
     finally { setIsLoading(false); setAgentStatus('idle'); }
@@ -1281,9 +1316,7 @@ export default function App() {
       const newCode = extractCode(responseText);
       const hasValidCode = !!newCode;
       
-      // Clean success message so we don't dump raw HTML into the chat
-      const finalChatText = (hasValidCode && !actionDef.isInfo) ? cleanResponseText(responseText) : responseText;
-      let successMessage = actionDef.isInfo ? `✅ **Action Complete:**\n\n${finalChatText}` : `✅ **Agentic Action Complete:** I have successfully modified the Canvas File.\n\n${finalChatText}`;
+      let successMessage = actionDef.isInfo ? `✅ **Action Complete:**\n\n${responseText}` : `✅ **Agentic Action Complete:** I have successfully modified the Canvas File.\n\n${responseText}`;
       
       setMessages(prev => [...prev, { role: 'model', text: successMessage, isAutoGenerated: true, timestamp: new Date().toISOString() }]);
       if (!actionDef.isInfo && hasValidCode) updateCode(newCode);
@@ -1467,10 +1500,7 @@ export default function App() {
                       <div className="whitespace-pre-wrap break-words">
                         {String(msg.text).split(T_BACKTICKS).map((chunk, i) => {
                           if (i % 2 !== 0) {
-                            if (msg.role === 'model' && (chunk.trim() === 'canvas_update' || chunk.includes('<html') || chunk.includes('<body'))) {
-                              return null;
-                            }
-                            return <div key={i} className="mt-2 mb-2 bg-gray-950 rounded-lg p-3 overflow-x-auto text-xs font-mono text-gray-300 border border-gray-800 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">{chunk.replace(/^(html|javascript|css|js|mermaid)\n/, '')}</div>;
+                            return <ChatCodeBlock key={i} code={chunk} onApply={updateCode} />;
                           }
                           return chunk.split('**').map((textChunk, j) => j % 2 !== 0 ? <strong key={j} className="text-white font-semibold">{textChunk}</strong> : textChunk);
                         })}
@@ -1769,15 +1799,27 @@ export default function App() {
                 <div className="flex gap-2 items-center">
                    {/* Sync & Collab Tools */}
                    <button onClick={handleLocalSync} className="p-1.5 rounded-md transition-colors hover:text-indigo-400 hover:bg-indigo-500/10 hidden sm:block" title="Link Local Folder (File System Access)"><HardDriveDownload className="w-4 h-4" /></button>
-                   
-                   <div className="w-px h-4 bg-gray-700 mx-1 hidden sm:block"></div>
+                   <div className="flex items-center gap-1 bg-gray-900 border border-gray-800 rounded-md p-0.5">
+                     <button onClick={toggleMultiplayerMode} className={`p-1.5 rounded transition-colors ${isMultiplayerActive ? 'bg-green-500/20 text-green-400' : 'hover:text-green-400 hover:bg-green-500/10'}`} title="Live CRDT Multiplayer"><Users className="w-4 h-4" /></button>
+                     {isMultiplayerActive && (
+                        <button onClick={() => setIsAudioCallActive(!isAudioCallActive)} className={`p-1.5 rounded transition-colors ${isAudioCallActive ? 'bg-blue-500/20 text-blue-400 animate-pulse' : 'hover:text-blue-400 hover:bg-blue-500/10'}`} title="Pair Programming Audio Chat"><Headset className="w-4 h-4" /></button>
+                     )}
+                   </div>
+                   <div className="w-px h-4 bg-gray-700 mx-1"></div>
                    
                    <button onClick={performLighthouseAudit} className="p-1.5 rounded-md transition-colors hover:text-indigo-400 hover:bg-indigo-500/10 hidden md:block" title="Run Lighthouse/QA Audit"><Activity className="w-4 h-4" /></button>
                    <button onClick={deployToStackBlitz} className="p-1.5 rounded-md transition-colors hover:text-yellow-400 hover:bg-yellow-500/10 hidden md:block" title="Deploy Full-Stack App to WebContainers"><CloudLightning className="w-4 h-4" /></button>
                    <div className="w-px h-4 bg-gray-700 mx-1 hidden sm:block"></div>
                    
                    {/* Advanced Tools */}
-                   <button onClick={() => setIsPerformanceMode(!isPerformanceMode)} className={`p-1.5 rounded-md transition-colors hidden lg:block ${isPerformanceMode ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/50' : 'hover:text-indigo-400 hover:bg-indigo-500/10'}`} title="Performance Profiler (FPS/Memory)"><Gauge className="w-4 h-4" /></button>
+                   <button onClick={() => setIsSplitPane(!isSplitPane)} className={`p-1.5 rounded-md transition-colors ${isSplitPane ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/50' : 'hover:text-indigo-400 hover:bg-indigo-500/10'}`} title="Multi-Canvas Microservices"><SplitSquareVertical className="w-4 h-4" /></button>
+                   <button onClick={() => setIsAutoHealerActive(!isAutoHealerActive)} className={`p-1.5 rounded-md transition-colors ${isAutoHealerActive ? 'bg-green-500/20 text-green-400 border border-green-500/50' : 'hover:text-green-400 hover:bg-green-500/10'}`} title="Passive Auto-Healer"><BugPlay className="w-4 h-4" /></button>
+                   <button onClick={() => setIsTimeTravelMode(!isTimeTravelMode)} className={`p-1.5 rounded-md transition-colors ${isTimeTravelMode ? 'bg-red-500/20 text-red-400 border border-red-500/50' : 'hover:text-red-400 hover:bg-red-500/10'}`} title="Time-Travel Debugging (rrweb)"><Video className="w-4 h-4" /></button>
+                   <button onClick={() => setIsChaosMonkey(!isChaosMonkey)} className={`p-1.5 rounded-md transition-colors ${isChaosMonkey ? 'bg-orange-500/20 text-orange-400 border border-orange-500/50' : 'hover:text-orange-400 hover:bg-orange-500/10'}`} title="Chaos Monkey (Simulate Network Fails)"><ServerCrash className="w-4 h-4" /></button>
+                   <button onClick={() => setIs3DMode(!is3DMode)} className={`p-1.5 rounded-md transition-colors ${is3DMode ? 'bg-blue-500/20 text-blue-400 border border-blue-500/50' : 'hover:text-blue-400 hover:bg-blue-500/10'}`} title="3D DOM Debugger"><Box className="w-4 h-4" /></button>
+                   <button onClick={() => setIsGhostMode(!isGhostMode)} className={`p-1.5 rounded-md transition-colors ${isGhostMode ? 'bg-teal-500/20 text-teal-400 border border-teal-500/50' : 'hover:text-teal-400 hover:bg-teal-500/10'}`} title="Real-User Emulation (Ghost Cursors)"><Ghost className="w-4 h-4" /></button>
+                   <button onClick={() => setIsA11ySimulatorActive(!isA11ySimulatorActive)} className={`p-1.5 rounded-md transition-colors ${isA11ySimulatorActive ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50' : 'hover:text-yellow-400 hover:bg-yellow-500/10'}`} title="A11y Screen Reader Simulator"><EyeOff className="w-4 h-4" /></button>
+                   <button onClick={() => setIsPerformanceMode(!isPerformanceMode)} className={`p-1.5 rounded-md transition-colors ${isPerformanceMode ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/50' : 'hover:text-indigo-400 hover:bg-indigo-500/10'}`} title="Performance Profiler (FPS/Memory)"><Gauge className="w-4 h-4" /></button>
                    <button onClick={() => setIsInspectorActive(!isInspectorActive)} className={`p-1.5 rounded-md transition-colors ${isInspectorActive ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/50' : 'hover:text-indigo-400 hover:bg-indigo-500/10'}`} title="Point & Prompt DOM Inspector"><MousePointerClick className="w-4 h-4" /></button>
                    <div className="w-px h-4 bg-gray-700 mx-1 hidden sm:block"></div>
 
@@ -2580,6 +2622,7 @@ export default function App() {
 
                     {apiProvider === 'longcat' && (
                       <div className="space-y-4 animate-in fade-in">
+                         {/* Longcat settings (Truncated slightly for visual balance, same logic applies) */}
                          <div className="space-y-2">
                            <label className="text-sm font-medium text-gray-300">Longcat API Key</label>
                            <div className="relative flex items-center gap-2">
